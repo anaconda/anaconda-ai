@@ -43,7 +43,7 @@ jobs:
           run: |
             source $CONDA/bin/activate && conda activate build
             mkdir -p ./conda-bld
-            VERSION=`hatch version` conda build -c conda-forge -c defaults --override-channels conda.recipe --output-folder ./conda-bld
+            VERSION=`hatch version` conda build -c ai-staging -c conda-forge -c defaults --override-channels conda.recipe --output-folder ./conda-bld
         - name: Upload the build artifact
           uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
           with:
