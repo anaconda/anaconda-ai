@@ -9,6 +9,7 @@ to [Anaconda AI Navigator](https://docs.anaconda.com/ai-navigator/).
 
 Below you will find documentation for
 
+* [How to install](#install)
 * [Command line interface to list, download, run API server for a model](#cli)
 * [Integration with LLM CLI](#llm)
 * [Anaconda Model Cache SDK](#sdk)
@@ -16,6 +17,12 @@ Below you will find documentation for
 * [PandasAI](#pandasai)
 * [Panel ChatInterface](#panel)
 * [Appendix: model download path](#download-path)
+
+## Install
+
+```text
+conda install -c anaconda-cloud -c ai-staging anaconda-models
+```
 
 ## CLI
 
