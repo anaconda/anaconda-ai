@@ -1,0 +1,42 @@
+{% set pyproject = load_file_data('../pyproject.toml', from_recipe_dir=True) %}
+{% set project = pyproject['project'] %}
+
+{% set name = project['name'] %}
+{% set version = VERSION %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  script:
+    - SETUPTOOLS_SCM_PRETEND_VERSION={{version}} {{ PYTHON }} -m pip install . -vv
+  noarch: python
+
+requirements:
+  host:
+    - python {{ project['requires-python'] }}
+    - pip
+    {% for dep in pyproject['build-system']['requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+  run:
+    - python {{ project['requires-python'] }}
+    {% for dep in project['dependencies'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+    - llama.cpp >=0.0.4273
+
+test:
+  imports:
+    - anaconda_models
+  commands:
+    - python -c "from anaconda_models import __version__; assert __version__ == \"{{ version }}\""
+about:
+#  home: {{ project['urls']['repository'] }}
+  summary: {{ project['description'] }}
+  license: {{ project['license']['text'] }}
+  license_file: LICENSE

@@ -1,0 +1,174 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
+
+[project]
+dependencies = [
+  "anaconda-cloud-auth >=0.7.2",
+  "anaconda-cli-base >=0.4.1",
+  "intake >=2.0.7",
+  "rich",
+  "pydantic >=2",
+  "typer",
+  "ruamel.yaml"
+]
+description = "Download and launch curated models from Anaconda"
+dynamic = ["version"]
+license = {text = "BSD-3-Clause"}
+name = "anaconda-models"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[project.entry-points."anaconda_cli.subcommand"]
+models = "anaconda_models.cli.models:app"
+
+[project.entry-points.llm]
+anaconda = "anaconda_models.llm"
+
+[project.optional-dependencies]
+all = [
+  "anaconda-models[langchain,llm,pandasai,panel]"
+]
+dev = [
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "pytest-mock",
+  "tox",
+  "types-requests"
+]
+langchain = ["langchain-openai>=0.2.8"]
+llm = ["llm", "click"]
+pandasai = ["pandasai>=2.4"]
+panel = [
+  "panel>=1.5.4; python_version >= '3.10'",
+  "openai",
+  "httpx"
+]
+publish = [
+  "build",
+  "twine",
+  "wheel"
+]
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/anaconda_models/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/anaconda_models",
+  "/pyproject.toml",
+  "/tests",
+  "/Makefile",
+  "/environment-dev.yml"
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.mypy]
+disallow_untyped_defs = true
+files = [
+  "src/**/*.py",
+  "tests/**/*.py"
+]
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+ignore_errors = true
+module = "*._version"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "rich_click.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "llm.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "intake.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "pandasai.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "fsspec.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "ruamel.*"
+
+[tool.pytest.ini_options]
+addopts = [
+  "--cov=anaconda_models",
+  "--color=yes",
+  "--cov-append",
+  "--cov-branch",
+  "--cov-report=html",
+  "--cov-report=html:./cov_html",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+  "--durations=5",
+  "-vv"
+]
+markers = [
+  "integration: Integration tests requiring a browser"
+]
+norecursedirs = ["env", "envs", ".tox"]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py39,py310,py311,py312,mypy
+isolated_build = True
+requires =
+  tox-conda
+  tox-gh-actions
+
+[gh-actions]
+python =
+    3.9: py39
+    3.10: py310, mypy
+    3.11: py311, mypy
+    3.12: py312
+
+[testenv]
+passenv =
+  ANACONDA_CLOUD_API_KEY
+  ANACONDA_CLOUD_DOMAIN
+  ANACONDA_MODELS_DOMAIN
+deps = pytest
+extras = dev
+commands = pytest -m "not integration"
+
+[testenv:mypy]
+deps = mypy
+extras = dev,all
+commands = mypy
+
+[testenv:report]
+deps = coverage[toml]
+skip_install = true
+commands =
+    coverage report
+    coverage xml -o coverage.xml
+"""
+
+[tool.vendoring]
+destination = "src/anaconda_models/_vendor/"
+namespace = "anaconda_models._vendor"
+protected-files = ["__init__.py", "requirements.txt"]
+requirements = "src/anaconda_models/_vendor/requirements.txt"
+
+[tool.vendoring.license.directories]
+setuptools = "pkg_resources"
+
+[tool.vendoring.license.fallback-urls]
+pkce = "https://github.com/RomeoDespres/pkce/raw/master/LICENSE"
