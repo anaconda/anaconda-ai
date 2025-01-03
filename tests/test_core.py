@@ -113,7 +113,10 @@ def test_get_model_info() -> None:
     assert info["id"] == f"{author}/{model}"
 
     with pytest.raises(ValueError):
-        _ = model_info("%%not-a-model")
+        _ = model_info("not-a-model/")
+
+    with pytest.raises(ValueError):
+        _ = model_info("author/not-a-model/q7_1000.xlsx")
 
     info = model_info("not/a-model")
     assert info is None
