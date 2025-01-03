@@ -3,6 +3,7 @@ import time
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+from typing_extensions import Annotated
 
 import intake
 import typer
@@ -42,7 +43,9 @@ def _args_to_kwargs(args: list[str]) -> dict:
 
 
 @app.command(name="list")
-def models_list() -> None:
+def models_list(
+    downloaded_only: Annotated[bool, typer.Option(help="List only models where one or more quantizations have been downloaded")] = False
+    ) -> None:
     """List models"""
     client = Client()
     models = get_models(client=client)
@@ -50,7 +53,7 @@ def models_list() -> None:
         Column("Model", no_wrap=True),
         "Type",
         "Params (B)",
-        "Quantizations\n(cached in bold)",
+        "Quantizations\n(downloaded in bold)",
         "Trained for",
         "License",
         header_style="bold green",
@@ -62,7 +65,14 @@ def models_list() -> None:
             cacher = AnacondaQuantizedModelCache(name=model["id"], quantization=method, client=client)
             if cacher.is_cached:
                 method = f"[bold green]{method}[/bold green]"
-            quantizations.append(method)
+                if downloaded_only:
+                    quantizations.append(method)
+
+            if not downloaded_only:
+                quantizations.append(method)
+
+        if downloaded_only and (not quantizations):
+            continue
         quants = ", ".join(sorted(quantizations))
 
         parameters = f"{model['numParameters']/1e9:8.2f}"
