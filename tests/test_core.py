@@ -1,3 +1,4 @@
+from itertools import product
 import pytest
 
 from anaconda_models.config import ModelsConfig
@@ -14,6 +15,10 @@ from anaconda_models.core import quantized_model_info
         ("TinyLlama", "TinyLlama-1.1B-Chat-v1.0", "Q8_0", "GGUF"),
         ("tinyllama", "tinyllama-1.1b-chat-v1.0", "q4_k_m", "gguf"),
         ("tinyllama", "tinyllama-1.1b-chat-v1.0", "q8_0", "gguf"),
+        ("Apple", "OpenELM-1_1B", "Q4_K_M", "GGUF"),
+        ("apple", "openelm-1_1b", "q4_k_m", "gguf"),
+        ("meta-llama", "Llama-2-7B-Chat", "Q4_K_M", "GGUF"),
+        ("meta-llama", "llama-2-7b-chat", "q4_k_m", "gguf")
     ],
 )
 def test_model_name_regex(
@@ -108,7 +113,7 @@ def test_get_model_info() -> None:
     assert info["id"] == f"{author}/{model}"
 
     with pytest.raises(ValueError):
-        _ = model_info("__not-a-model")
+        _ = model_info("%%not-a-model")
 
     info = model_info("not/a-model")
     assert info is None
@@ -174,9 +179,9 @@ def test_quantized_model_info() -> None:
 
 
 @pytest.mark.integration
-def test_quantized_model_info_llama2() -> None:
-    model = "llama-2-7b-chat-hf"
-    model_name = "llama-2-7b-chat"
+def test_quantized_model_info_with_underscore() -> None:
+    model_id = "OpenELM-1_1B"
+    model_name = "OpenELM-1_1B"
     quant = "Q4_K_M"
 
     with pytest.raises(ValueError):
@@ -186,10 +191,11 @@ def test_quantized_model_info_llama2() -> None:
         _ = quantized_model_info(f"{model_name}/{quant}", quantization=quant)
 
     info = quantized_model_info(model=model_name, quantization=quant)
-    assert info["id"].endswith(f"{model}/{quant}")
+    assert info["id"].endswith(f"{model_id}/{quant}")
 
     info = quantized_model_info(model=f"{model_name}/{quant}")
-    assert info["id"].endswith(f"{model}/{quant}")
+    assert info["id"].endswith(f"{model_id}/{quant}")
+
 
 
 @pytest.mark.integration

@@ -19,11 +19,14 @@ from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.exceptions import QuantizedFileNotFound
 from anaconda_models.utils import find_free_port
 
+
+
 MODEL_NAME = re.compile(
-    r"(?:(?P<author>[A-Za-z0-9-]+)/)?"
-    r"(?P<model>[A-Za-z0-9-.]+)"
-    r"(?:(?:_|/)(?P<quantization>[Qq][0-9][A-Za-z0-9_]+)"
-    r"(?:\.(?P<format>.*))?)?$",
+    r"^"
+    r"(?:(?P<author>[^/]+)[/])??"
+    r"(?P<model>[^/]+?)"
+    r"(?:(?:[_/])(?P<quantization>Q4_K_M|Q5_K_M|Q6_K|Q8_0)(?:[.](?P<format>gguf))?)?"
+    r"$",
     flags=re.IGNORECASE,
 )
 
