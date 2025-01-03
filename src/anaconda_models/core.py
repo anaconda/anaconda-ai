@@ -28,11 +28,11 @@ MODEL_NAME = re.compile(
 )
 
 
-def get_models(client: Optional[Client] = None) -> Any:
+def get_models(client: Optional[Client] = None, expire_after: int = 60) -> Any:
     """Metadata for all models"""
     if client is None:
         client = Client()
-    response = client.get("/api/models")
+    response = client.get("/api/models", expire_after=expire_after)
     response.raise_for_status()
     return response.json()["result"]["data"]
 
