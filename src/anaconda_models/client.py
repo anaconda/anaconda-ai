@@ -4,6 +4,7 @@ from typing import Optional
 from typing import Union
 
 from requests import Response
+from requests_cache import CacheMixin, DO_NOT_CACHE
 from requests.exceptions import ConnectionError
 
 from anaconda_cloud_auth.client import BaseClient
@@ -13,7 +14,7 @@ from anaconda_models import __version__ as version
 from anaconda_models.config import ModelsConfig
 
 
-class Client(BaseClient):
+class Client(CacheMixin, BaseClient):  # type: ignore
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(
@@ -40,6 +41,7 @@ class Client(BaseClient):
             user_agent=user_agent,
             extra_headers=self._config.extra_headers,
             ssl_verify=self._config.ssl_verify,
+            backend="memory"
         )
 
         auth_kwargs: Dict[str, Any] = {}
@@ -49,6 +51,12 @@ class Client(BaseClient):
             auth_kwargs["api_key"] = api_key
         auth_config = AnacondaCloudConfig(**auth_kwargs)
         self.auth = BearerAuth(domain=auth_config.domain, api_key=auth_config.api_key)
+
+        # Cache Settings
+        # The cache is disabled by default, but can be enabled as needed by request
+        # for a client session. New Client objects have an empty cache
+        self.cache.clear()  # this is likely redundant for backend=memory, but safe
+        self.expire_after = DO_NOT_CACHE
 
 
 class AINavigatorClient(BaseClient):

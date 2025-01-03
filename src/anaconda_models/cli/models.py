@@ -3,6 +3,7 @@ import time
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+from typing_extensions import Annotated
 
 import intake
 import typer
@@ -13,6 +14,7 @@ from rich.table import Table
 from ruamel.yaml import YAML
 
 from anaconda_cli_base import console
+from anaconda_models.client import Client
 from anaconda_models.catalog import AnacondaQuantizedModel
 from anaconda_models.core import AnacondaQuantizedModelCache
 from anaconda_models.core import get_models
@@ -41,20 +43,38 @@ def _args_to_kwargs(args: list[str]) -> dict:
 
 
 @app.command(name="list")
-def models_list() -> None:
+def models_list(
+    downloaded_only: Annotated[bool, typer.Option(help="List only models where one or more quantizations have been downloaded")] = False
+    ) -> None:
     """List models"""
-    models = get_models()
+    client = Client()
+    models = get_models(client=client)
     table = Table(
         Column("Model", no_wrap=True),
         "Type",
         "Params (B)",
-        "Quantizations",
+        "Quantizations\n(downloaded in bold)",
         "Trained for",
         "License",
         header_style="bold green",
     )
     for model in sorted(models, key=lambda m: m["id"]):
-        quants = ", ".join(sorted(q["quantMethod"] for q in model["quantizedFiles"]))
+        quantizations = []
+        for quant in model["quantizedFiles"]:
+            method = quant["quantMethod"]
+            cacher = AnacondaQuantizedModelCache(name=model["id"], quantization=method, client=client)
+            if cacher.is_cached:
+                method = f"[bold green]{method}[/bold green]"
+                if downloaded_only:
+                    quantizations.append(method)
+
+            if not downloaded_only:
+                quantizations.append(method)
+
+        if downloaded_only and (not quantizations):
+            continue
+        quants = ", ".join(sorted(quantizations))
+
         parameters = f"{model['numParameters']/1e9:8.2f}"
         table.add_row(
             model["modelId"],

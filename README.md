@@ -24,6 +24,24 @@ Below you will find documentation for
 conda install -c anaconda-cloud -c ai-staging anaconda-models
 ```
 
+## Declaring model quantization files
+
+In the CLI, SDK, and integrations below individual model quantizations are are referenced according the
+following scheme.
+
+```text
+<author/>[model_name][/ or _][quantization]<.format>
+```
+
+Fields surrounded by `<>` are optional.
+The essential elements are the model name and quantization method
+separated by either `/` or `_`. The supported quantization methods are
+
+* Q4_K_M
+* Q5_K_M
+* Q6_K
+* Q8_0
+
 ## CLI
 
 ```text
@@ -48,26 +66,31 @@ conda install -c anaconda-cloud -c ai-staging anaconda-models
 
 ```text
 ❯ anaconda models list
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
-┃ model                      ┃ type        ┃ params (B) ┃ quantizations              ┃ trained for         ┃ license      ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
-│ 01-ai/yi-34b               │ llama       │    34.39   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ 01-ai/yi-34b-200k          │ llama       │    34.39   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ 01-ai/yi-6b                │ llama       │     6.06   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ 01-ai/yi-6b-200k           │ llama       │     6.06   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ 01-ai/yi-9b                │ llama       │     8.83   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ 01-ai/yi-9b-200k           │ llama       │     8.83   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ BAAI/bge-large-en-v1.5     │ bert        │     0.33   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ sentence-similarity │ mit          │
-│ BAAI/bge-small-en-v1.5     │ bert        │     0.03   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ sentence-similarity │ mit          │
-│ CohereForAI/c4ai-command-… │ cohere      │   103.81   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ cc-by-nc-4.0 │
-│ CohereForAI/c4ai-command-… │ cohere      │    34.98   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ cc-by-nc-4.0 │
-│ HuggingFaceH4/zephyr-7b-b… │ mistral     │     7.24   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ mit          │
-│ NousResearch/Hermes-2-Pro… │ mistral     │     7.24   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ apache-2.0   │
-│ Qwen/CodeQwen1.5-7B        │ qwen2       │     7.25   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ Qwen/Qwen1.5-14B-Chat      │ qwen2       │    14.17   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ Qwen/Qwen1.5-32B-Chat      │ qwen2       │    32.51   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
-│ Qwen/Qwen1.5-4B-Chat       │ qwen2       │     3.95   │ Q4_K_M, Q5_K_M, Q6_K, Q8_0 │ text-generation     │ other        │
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃                                             ┃             ┃            ┃ Quantizations     ┃                  ┃              ┃
+┃                                             ┃             ┃            ┃ (downloaded in    ┃                  ┃              ┃
+┃ Model                                       ┃ Type        ┃ Params (B) ┃ bold)             ┃ Trained for      ┃ License      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ 01-ai/yi-34b-200k                           │ llama       │    34.39   │ Q4_K_M, Q5_K_M,   │ text-generation  │ other        │
+│                                             │             │            │ Q6_K, Q8_0        │                  │              │
+│ 01-ai/yi-6b                                 │ llama       │     6.06   │ Q4_K_M, Q5_K_M,   │ text-generation  │ other        │
+│                                             │             │            │ Q6_K, Q8_0        │                  │              │
+│ 01-ai/yi-6b-200k                            │ llama       │     6.06   │ Q4_K_M, Q5_K_M,   │ text-generation  │ other        │
+│                                             │             │            │ Q6_K, Q8_0        │                  │              │
 ...
+```
+
+The `list` command accetps the option `--downloaded-only` to only list models for which one or more qunatization files have been downloaded.
+
+```text
+❯ anaconda models list --downloaded-only
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃                               ┃       ┃            ┃ Quantizations        ┃                     ┃         ┃
+┃ Model                         ┃ Type  ┃ Params (B) ┃ (downloaded in bold) ┃ Trained for         ┃ License ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ BAAI/bge-small-en-v1.5        │ bert  │     0.03   │ Q4_K_M, Q5_K_M       │ sentence-similarity │ mit     │
+│ meta-llama/llama-2-7b-chat-hf │ llama │     6.74   │ Q4_K_M               │ text-generation     │ llama2  │
+└───────────────────────────────┴───────┴────────────┴──────────────────────┴─────────────────────┴─────────┘
 ```
 
 ## info

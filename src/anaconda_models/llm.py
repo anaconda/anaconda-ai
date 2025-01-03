@@ -92,11 +92,58 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
 def register_models(register: Callable) -> None:
     for model in get_models():
         model_id = model["modelId"]
+        model_name = model["name"]
         for quant in model["quantizedFiles"]:
             method = quant["quantMethod"]
             format = quant["format"]
-            file_id = f"{model_id}_{method}.{format.lower()}"
 
+            file_id = f"{model_id}_{method}.{format}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}/{method}.{format}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}_{method}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}/{method}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}/{method}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}_{method}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}/{method}.{format}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}_{method}.{format}"
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+
+            file_id = f"{model_id}_{method}.{format}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}/{method}.{format}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}_{method}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_id}/{method}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}/{method}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}_{method}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}/{method}.{format}".lower()
+            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+            register(quant_chat)
+            file_id = f"{model_name}_{method}.{format}".lower()
             quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
             register(quant_chat)
 
@@ -108,7 +155,7 @@ def register_embedding_models(register: Callable) -> None:
         for quant in model["quantizedFiles"]:
             method = quant["quantMethod"]
             format = quant["format"]
-            file_id = f"{model_id}_{method}.{format.lower()}"
+            file_id = f"{model_id}_{method.lower()}.{format.lower()}"
 
             embed = AnacondaQuantizedEmbedding(model_id=f"anaconda:{file_id}")
             register(embed)
