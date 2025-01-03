@@ -10,7 +10,8 @@ dependencies = [
   "rich",
   "pydantic >=2",
   "typer",
-  "ruamel.yaml"
+  "ruamel.yaml",
+  "requests-cache"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
