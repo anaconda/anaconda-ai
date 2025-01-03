@@ -49,6 +49,8 @@ def model_info(model: str, client: Optional[Client] = None) -> Any:
     for entry in models:
         if entry["name"].lower() == model_name.lower():
             return entry
+        elif entry["id"].lower().endswith(model_name.lower()):
+            return entry
 
 
 def quantized_model_info(

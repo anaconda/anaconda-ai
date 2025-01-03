@@ -134,6 +134,18 @@ def test_get_model_info_llama2() -> None:
 
 
 @pytest.mark.integration
+def test_get_model_info_llama2_with_hf_suffix() -> None:
+    author = "meta-llama"
+    model = "llama-2-7b-chat-hf"
+
+    info = model_info(f"{author}/{model}")
+    assert info["id"] == f"{author}/{model}"
+
+    info = model_info(model)
+    assert info["id"] == f"{author}/{model}"
+
+
+@pytest.mark.integration
 def test_quantized_model_info() -> None:
     model = "TinyLlama-1.1B-Chat-v1.0"
     quant = "Q4_K_M"
