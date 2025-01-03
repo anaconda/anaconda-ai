@@ -14,7 +14,7 @@ from anaconda_models import __version__ as version
 from anaconda_models.config import ModelsConfig
 
 
-class Client(CacheMixin, BaseClient):
+class Client(CacheMixin, BaseClient):  # type: ignore
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(
