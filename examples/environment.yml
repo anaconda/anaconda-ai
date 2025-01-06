@@ -1,0 +1,14 @@
+name: anaconda-models
+
+channels:
+  - defaults
+  - anaconda-cloud
+  - ai-staging
+  - conda-forge
+
+
+dependencies:
+  - python=3.10
+  - notebook
+  - anaconda-models
+  - langchain-openai
