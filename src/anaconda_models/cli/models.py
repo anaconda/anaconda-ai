@@ -244,7 +244,11 @@ def models_launch(
     kwargs = {
         **parsed_kwargs,
         **llama_cpp_kwargs,
+        **{"port": port}
     }
+
+    if force_download:
+        cacher.download(force=True)
 
     server = cacher.start(run_on=run_on, **kwargs)
     if show:

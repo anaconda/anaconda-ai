@@ -185,7 +185,12 @@ class AnacondaQuantizedModelCache:
             run_on = config.run_on
 
         if run_on == "local":
-            port = find_free_port()
+            port = kwargs.pop("port", 0)
+            if port == 0:
+                port = find_free_port()
+
+            ctx_size = kwargs.pop("ctx-size", 0)
+
             gguf = self.download()
             server = LlamaServerReader(gguf)
 
@@ -193,7 +198,12 @@ class AnacondaQuantizedModelCache:
             log_file = f"llama-cpp.{self.metadata['name']}_{self.metadata['quantMethod']}.{kind}.log"
             llama_cpp_kwargs = {
                 **kwargs,
-                **{"port": port, "log-file": log_file, "log_file": log_file},
+                **{
+                    "port": port,
+                    "ctx-size": ctx_size,
+                    "log-file": log_file,
+                    "log_file": log_file
+                  },
             }
             service: LlamaCPPService = server.read(**llama_cpp_kwargs)
             return service
