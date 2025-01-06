@@ -187,7 +187,7 @@ def register_commands(cli: click.Group) -> None:
             "Method\n(downloaded in bold)",
             "Max Ram (GB)",
             "Size (GB)",
-            header_style="bold green"
+            header_style="bold green",
         )
 
         quantized = []
@@ -202,7 +202,9 @@ def register_commands(cli: click.Group) -> None:
                 quant = {**qf, **model}
                 quantized.append(quant)
 
-                cacher = AnacondaQuantizedModelCache(f"{model_id}/{method}", client=client)
+                cacher = AnacondaQuantizedModelCache(
+                    f"{model_id}/{method}", client=client
+                )
                 if cacher.is_cached:
                     method = f"[bold green]{method}[/bold green]"
 

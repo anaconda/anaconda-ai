@@ -20,7 +20,6 @@ from anaconda_models.exceptions import QuantizedFileNotFound
 from anaconda_models.utils import find_free_port
 
 
-
 MODEL_NAME = re.compile(
     r"^"
     r"(?:(?P<author>[^/]+)[/])??"
@@ -202,8 +201,8 @@ class AnacondaQuantizedModelCache:
                     "port": port,
                     "ctx-size": ctx_size,
                     "log-file": log_file,
-                    "log_file": log_file
-                  },
+                    "log_file": log_file,
+                },
             }
             service: LlamaCPPService = server.read(**llama_cpp_kwargs)
             return service

@@ -44,8 +44,13 @@ def _args_to_kwargs(args: list[str]) -> dict:
 
 @app.command(name="list")
 def models_list(
-    downloaded_only: Annotated[bool, typer.Option(help="List only models where one or more quantizations have been downloaded")] = False
-    ) -> None:
+    downloaded_only: Annotated[
+        bool,
+        typer.Option(
+            help="List only models where one or more quantizations have been downloaded"
+        ),
+    ] = False,
+) -> None:
     """List models"""
     client = Client()
     models = get_models(client=client)
@@ -62,7 +67,9 @@ def models_list(
         quantizations = []
         for quant in model["quantizedFiles"]:
             method = quant["quantMethod"]
-            cacher = AnacondaQuantizedModelCache(name=model["id"], quantization=method, client=client)
+            cacher = AnacondaQuantizedModelCache(
+                name=model["id"], quantization=method, client=client
+            )
             if cacher.is_cached:
                 method = f"[bold green]{method}[/bold green]"
                 if downloaded_only:
@@ -118,13 +125,15 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
         "Evals",
         "Max Ram (GB)",
         "Size (GB)",
-        header_style="bold green"
+        header_style="bold green",
     )
     for quant in sorted(info["quantizedFiles"], key=lambda q: q["quantMethod"]):
         method = quant["quantMethod"]
         format = quant["format"]
         file_id = f"{model_id}_{method}.{format.lower()}"
-        cacher = AnacondaQuantizedModelCache(name=info["id"], quantization=method, client=client)
+        cacher = AnacondaQuantizedModelCache(
+            name=info["id"], quantization=method, client=client
+        )
         downloaded = "[bold green]✔︎[/bold green]" if cacher.is_cached else ""
 
         evals = Table(show_header=False)
@@ -242,11 +251,7 @@ def models_launch(
             model_id = model
 
     parsed_kwargs = _args_to_kwargs(ctx.args)
-    kwargs = {
-        **parsed_kwargs,
-        **llama_cpp_kwargs,
-        **{"port": port}
-    }
+    kwargs = {**parsed_kwargs, **llama_cpp_kwargs, **{"port": port}}
 
     if force_download:
         cacher.download(force=True)
