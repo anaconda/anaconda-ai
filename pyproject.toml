@@ -11,7 +11,8 @@ dependencies = [
   "pydantic >=2",
   "typer",
   "ruamel.yaml",
-  "requests-cache"
+  "requests-cache",
+  "openai"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
@@ -43,7 +44,6 @@ llm = ["llm", "click"]
 pandasai = ["pandasai>=2.4"]
 panel = [
   "panel>=1.5.4; python_version >= '3.10'",
-  "openai",
   "httpx"
 ]
 publish = [
