@@ -119,7 +119,7 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
         "Max Ram (GB)",
         "Size (GB)",
     )
-    for quant in info["quantizedFiles"]:
+    for quant in sorted(info["quantizedFiles"], key=lambda q: q["quantMethod"]):
         method = quant["quantMethod"]
         format = quant["format"]
         file_id = f"{model_id}_{method}.{format.lower()}"
