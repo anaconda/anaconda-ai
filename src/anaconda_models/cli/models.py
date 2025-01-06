@@ -44,8 +44,13 @@ def _args_to_kwargs(args: list[str]) -> dict:
 
 @app.command(name="list")
 def models_list(
-    downloaded_only: Annotated[bool, typer.Option(help="List only models where one or more quantizations have been downloaded")] = False
-    ) -> None:
+    downloaded_only: Annotated[
+        bool,
+        typer.Option(
+            help="List only models where one or more quantizations have been downloaded"
+        ),
+    ] = False,
+) -> None:
     """List models"""
     client = Client()
     models = get_models(client=client)
@@ -62,7 +67,9 @@ def models_list(
         quantizations = []
         for quant in model["quantizedFiles"]:
             method = quant["quantMethod"]
-            cacher = AnacondaQuantizedModelCache(name=model["id"], quantization=method, client=client)
+            cacher = AnacondaQuantizedModelCache(
+                name=model["id"], quantization=method, client=client
+            )
             if cacher.is_cached:
                 method = f"[bold green]{method}[/bold green]"
                 if downloaded_only:
@@ -90,7 +97,8 @@ def models_list(
 @app.command(name="info")
 def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
     """Information about a single model"""
-    info = model_info(model_id)
+    client = Client()
+    info = model_info(model_id, client=client)
     if info is None:
         console.print(f"{model_id} not found")
         return
@@ -113,14 +121,20 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
         Column("Id", no_wrap=True),
         "Method",
         "Format",
+        "Downloaded",
         "Evals",
         "Max Ram (GB)",
         "Size (GB)",
+        header_style="bold green",
     )
-    for quant in info["quantizedFiles"]:
+    for quant in sorted(info["quantizedFiles"], key=lambda q: q["quantMethod"]):
         method = quant["quantMethod"]
         format = quant["format"]
         file_id = f"{model_id}_{method}.{format.lower()}"
+        cacher = AnacondaQuantizedModelCache(
+            name=info["id"], quantization=method, client=client
+        )
+        downloaded = "[bold green]✔︎[/bold green]" if cacher.is_cached else ""
 
         evals = Table(show_header=False)
         for eval in sorted(quant["evaluations"], key=lambda e: e["name"]):
@@ -128,7 +142,7 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
 
         ram = f"{quant['maxRamUsage'] / 1024 / 1024 / 1024:.2f}"
         size = f"{quant['sizeBytes'] / 1024 / 1024 / 1024:.2f}"
-        quantized.add_row(file_id, method, format, evals, ram, size)
+        quantized.add_row(file_id, method, format, downloaded, evals, ram, size)
 
     table.add_row("Quantized Files", quantized)
 
@@ -237,10 +251,10 @@ def models_launch(
             model_id = model
 
     parsed_kwargs = _args_to_kwargs(ctx.args)
-    kwargs = {
-        **parsed_kwargs,
-        **llama_cpp_kwargs,
-    }
+    kwargs = {**parsed_kwargs, **llama_cpp_kwargs, **{"port": port}}
+
+    if force_download:
+        cacher.download(force=True)
 
     server = cacher.start(run_on=run_on, **kwargs)
     if show:

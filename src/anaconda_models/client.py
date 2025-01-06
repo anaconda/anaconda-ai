@@ -41,7 +41,7 @@ class Client(CacheMixin, BaseClient):  # type: ignore
             user_agent=user_agent,
             extra_headers=self._config.extra_headers,
             ssl_verify=self._config.ssl_verify,
-            backend="memory"
+            backend="memory",
         )
 
         auth_kwargs: Dict[str, Any] = {}

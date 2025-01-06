@@ -1,0 +1,41 @@
+# This is the configuration for pre-commit, a local framework for managing pre-commit hooks
+#   Check out the docs at: https://pre-commit.com/
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-json
+      - id: pretty-format-json
+        args: [--autofix]
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.1
+    hooks:
+      # lint & attempt to correct failures (e.g. pyupgrade)
+      - id: ruff
+        args: [--fix]
+      # compatible replacement for black
+      - id: ruff-format
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.14.0
+    hooks:
+      - id: pretty-format-toml
+        args: [--autofix]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+      - id: codespell
+        args: [--write]
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.29.4
+    hooks:
+      - id: check-github-workflows
+      - id: check-renovate
+  # TODO: Re-enable once boilerplate repo setup is moved
+  # - repo: meta
+  #   hooks:
+  #     - id: check-hooks-apply
+  #     - id: check-useless-excludes

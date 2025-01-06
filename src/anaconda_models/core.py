@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import urljoin
 
+import openai
 import rich.progress
 from intake.readers.datatypes import LlamaCPPService
 from intake.readers.readers import LlamaServerReader
@@ -18,7 +20,6 @@ from anaconda_models.config import config
 from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.exceptions import QuantizedFileNotFound
 from anaconda_models.utils import find_free_port
-
 
 
 MODEL_NAME = re.compile(
@@ -103,6 +104,22 @@ def quantized_model_info(
     raise QuantizedFileNotFound(model_id)
 
 
+class AnacondaQuantizedModelService(LlamaCPPService):
+    @property
+    def openai_url(self) -> str:
+        return urljoin(self.url, "/v1")
+
+    @property
+    def openai_client(self) -> openai.OpenAI:
+        client = openai.OpenAI(base_url=self.openai_url, api_key="none")
+        return client
+
+    @property
+    def openai_async_client(self) -> openai.AsyncOpenAI:
+        client = openai.AsyncOpenAI(base_url=self.openai_url, api_key="none")
+        return client
+
+
 class AnacondaQuantizedModelCache:
     _cache: Path
 
@@ -180,12 +197,19 @@ class AnacondaQuantizedModelCache:
 
         return self._cache
 
-    def start(self, run_on: Optional[str] = None, **kwargs: Any) -> LlamaCPPService:
+    def start(
+        self, run_on: Optional[str] = None, **kwargs: Any
+    ) -> AnacondaQuantizedModelService:
         if run_on is None:
             run_on = config.run_on
 
         if run_on == "local":
-            port = find_free_port()
+            port = kwargs.pop("port", 0)
+            if port == 0:
+                port = find_free_port()
+
+            ctx_size = kwargs.pop("ctx_size", 0)
+
             gguf = self.download()
             server = LlamaServerReader(gguf)
 
@@ -193,9 +217,17 @@ class AnacondaQuantizedModelCache:
             log_file = f"llama-cpp.{self.metadata['name']}_{self.metadata['quantMethod']}.{kind}.log"
             llama_cpp_kwargs = {
                 **kwargs,
-                **{"port": port, "log-file": log_file, "log_file": log_file},
+                **{
+                    "port": port,
+                    "ctx-size": ctx_size,
+                    "log-file": log_file,
+                    "log_file": log_file,
+                },
             }
-            service: LlamaCPPService = server.read(**llama_cpp_kwargs)
+            _service: LlamaCPPService = server.read(**llama_cpp_kwargs)
+            service = AnacondaQuantizedModelService(
+                url=_service.url, options=_service.options
+            )
             return service
         elif run_on == "ai-navigator":
             from rich.console import Console
@@ -236,7 +268,7 @@ class AnacondaQuantizedModelCache:
             atexit.register(terminate, client=ai_nav, server_id=server_id)
 
             url = f"http://localhost:{server_id}"
-            service = LlamaCPPService(url=url, options=kwargs)
+            service = AnacondaQuantizedModelService(url=url, options=kwargs)
             return service
         else:
             raise NotImplementedError(f"run_on='{run_on}' is not supported")

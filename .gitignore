@@ -45,3 +45,6 @@ src/*/_version.py
 
 # Stored tokens (for dev)
 /tokens.json
+
+# llama.cpp logs
+llama-cpp.*.log

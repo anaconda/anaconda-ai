@@ -1,4 +1,3 @@
-from itertools import product
 import pytest
 
 from anaconda_models.config import ModelsConfig
@@ -18,7 +17,7 @@ from anaconda_models.core import quantized_model_info
         ("Apple", "OpenELM-1_1B", "Q4_K_M", "GGUF"),
         ("apple", "openelm-1_1b", "q4_k_m", "gguf"),
         ("meta-llama", "Llama-2-7B-Chat", "Q4_K_M", "GGUF"),
-        ("meta-llama", "llama-2-7b-chat", "q4_k_m", "gguf")
+        ("meta-llama", "llama-2-7b-chat", "q4_k_m", "gguf"),
     ],
 )
 def test_model_name_regex(
@@ -198,7 +197,6 @@ def test_quantized_model_info_with_underscore() -> None:
 
     info = quantized_model_info(model=f"{model_name}/{quant}")
     assert info["id"].endswith(f"{model_id}/{quant}")
-
 
 
 @pytest.mark.integration

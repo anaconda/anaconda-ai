@@ -4,7 +4,6 @@ from typing import Iterable
 from typing import Iterator
 from typing import List
 from typing import Optional
-from typing import cast
 from urllib.parse import urljoin
 
 import click
@@ -93,7 +92,7 @@ def register_models(register: Callable) -> None:
     for model in get_models():
         model_id = model["modelId"]
         model_name = model["name"]
-        for quant in model["quantizedFiles"]:
+        for quant in sorted(model["quantizedFiles"], key=lambda q: q["quantMethod"]):
             method = quant["quantMethod"]
             format = quant["format"]
 
@@ -152,7 +151,7 @@ def register_models(register: Callable) -> None:
 def register_embedding_models(register: Callable) -> None:
     for model in get_models():
         model_id = model["modelId"]
-        for quant in model["quantizedFiles"]:
+        for quant in sorted(model["quantizedFiles"], key=lambda q: q["quantMethod"]):
             method = quant["quantMethod"]
             format = quant["format"]
             file_id = f"{model_id}_{method.lower()}.{format.lower()}"
@@ -172,7 +171,8 @@ def register_commands(cli: click.Group) -> None:
     @click.option("--key", help="Anaconda.cloud API key")
     def models(json_: bool, key: str) -> None:
         from llm.cli import get_key
-        from llm.utils import dicts_to_table_string
+        from rich.table import Table, Column
+        from rich.console import Console
 
         from anaconda_models.client import Client
 
@@ -181,37 +181,39 @@ def register_commands(cli: click.Group) -> None:
         client = Client(api_key=api_key)
         models = get_models(client=client)
 
+        console = Console()
+        table = Table(
+            Column("Model", no_wrap=True),
+            "Method\n(downloaded in bold)",
+            "Max Ram (GB)",
+            "Size (GB)",
+            header_style="bold green",
+        )
+
         quantized = []
         for model in models:
             model_id = model["modelId"]
             quantized_files = model.pop("quantizedFiles")
-            for qf in quantized_files:
+            for qf in sorted(quantized_files, key=lambda q: q["quantMethod"]):
                 method = qf["quantMethod"]
                 format = qf["format"]
                 file_id = f"anaconda:{model_id}_{method}.{format.lower()}"
                 qf["model_id"] = file_id
                 quant = {**qf, **model}
                 quantized.append(quant)
-        quantized = sorted(quantized, key=lambda m: m["model_id"])
+
+                cacher = AnacondaQuantizedModelCache(
+                    f"{model_id}/{method}", client=client
+                )
+                if cacher.is_cached:
+                    method = f"[bold green]{method}[/bold green]"
+
+                ram = f"{quant['maxRamUsage'] / 1024 / 1024 / 1024:.2f}"
+                size = f"{quant['sizeBytes'] / 1024 / 1024 / 1024:.2f}"
+                table.add_row(file_id, method, ram, size)
+            table.add_section()
 
         if json_:
-            import json
-
-            import click
-
-            click.echo(json.dumps(models, indent=4))
+            console.print_json(data=quantized)
         else:
-            to_print = []
-            for model in quantized:
-                to_print.append(
-                    {
-                        "id": model["model_id"],
-                        "method": model["quantMethod"],
-                        "size": f"{model['sizeBytes'] / 1024 / 1024 / 1024:.2f} GB",
-                        "types": "chat, embedding",
-                        "license": model["license"],
-                    }
-                )
-            headers = cast(List[str], "id method size types license".split())
-            done = dicts_to_table_string(headers, to_print)
-            print("\n".join(done))
+            console.print(table)
