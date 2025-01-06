@@ -30,10 +30,10 @@ In the CLI, SDK, and integrations below individual model quantizations are are r
 following scheme.
 
 ```text
-<author/>[model_name][/ or _][quantization]<.format>
+[<author>/]<model_name></ or _><quantization>[.<format>]
 ```
 
-Fields surrounded by `<>` are optional.
+Fields surrounded by `[]` are optional.
 The essential elements are the model name and quantization method
 separated by either `/` or `_`. The supported quantization methods are
 
