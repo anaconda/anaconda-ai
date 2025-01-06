@@ -106,7 +106,7 @@ def quantized_model_info(
 
 class AnacondaQuantizedModelService(LlamaCPPService):
     @property
-    def openai_url(self):
+    def openai_url(self) -> str:
         return urljoin(self.url, "/v1")
 
     @property
