@@ -214,6 +214,14 @@ service = model.start()
 service.open()
 ```
 
+### Inference server parameters
+
+The `.start()` method accepts [llama.cpp server CLI flags](https://github.com/ggerganov/llama.cpp/tree/master/examples/server#usage) as Python keyword-arguments, changing `-` to `_`. For example
+
+```python
+service = model.start(ctx_size=1024)
+```
+
 ## Langchain
 
 The LangChain integration provides Chat and Embedding classes that automatically download and start the llama.cpp server

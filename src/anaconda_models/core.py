@@ -208,7 +208,7 @@ class AnacondaQuantizedModelCache:
             if port == 0:
                 port = find_free_port()
 
-            ctx_size = kwargs.pop("ctx-size", 0)
+            ctx_size = kwargs.pop("ctx_size", 0)
 
             gguf = self.download()
             server = LlamaServerReader(gguf)
