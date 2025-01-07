@@ -194,7 +194,7 @@ def models_download(
         reader = entry.to_reader("AnacondaQuantizedModelReader")
         model_cache = reader.read()
 
-    path = model_cache.download(force=force)
+    path = model_cache.download(force=force, to_stderr=False)
     print(path)
 
 
@@ -253,9 +253,7 @@ def models_launch(
     parsed_kwargs = _args_to_kwargs(ctx.args)
     kwargs = {**parsed_kwargs, **llama_cpp_kwargs, **{"port": port}}
 
-    if force_download:
-        cacher.download(force=True)
-
+    cacher.download(force=force_download, to_stderr=False)
     server = cacher.start(run_on=run_on, **kwargs)
     if show:
         server.open()
