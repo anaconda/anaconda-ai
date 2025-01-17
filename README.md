@@ -24,6 +24,25 @@ Below you will find documentation for
 conda install -c anaconda-cloud -c ai-staging anaconda-models
 ```
 
+## How to authenticate
+
+To use the Python client or CLI you can use `anaconda login` CLI, Anaconda Navigator, or
+
+```python
+from anaconda_cloud_auth import login
+login()
+```
+
+to launch a browser to login and save your API token to disk.
+
+For cases where you cannot utilize a browser to login, first use a desktop machine to print the API key
+
+```text
+anaconda cloud api-key
+```
+
+and on the non-interactive machine set the `ANACONDA_CLOUD_API_KEY=<api-key>` env var.
+
 ## Declaring model quantization files
 
 In the CLI, SDK, and integrations below individual model quantizations are are referenced according the
