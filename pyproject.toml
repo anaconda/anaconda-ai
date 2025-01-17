@@ -24,6 +24,9 @@ requires-python = ">=3.9"
 [project.entry-points."anaconda_cli.subcommand"]
 models = "anaconda_models.cli.models:app"
 
+[project.entry-points.conda]
+anaconda-cloud-auth = "anaconda_models._conda.entrypoint"
+
 [project.entry-points.llm]
 anaconda = "anaconda_models.llm"
 

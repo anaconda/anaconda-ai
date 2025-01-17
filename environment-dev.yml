@@ -8,6 +8,7 @@ dependencies:
 - llama.cpp
 - tox=3
 - tox-conda
+- conda
 - pip
 - pip:
     - "-e .[dev,all]"
