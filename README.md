@@ -210,17 +210,37 @@ path = model.download()
 # start llama.cpp (this will download the model if not already done)
 service = model.start()
 
-# open the webbrower for the llama.cpp server UI
+# open the webbrowser for the llama.cpp server UI
 service.open()
+
+# Or get an OpenAI Client
+client = service.openai_client
 ```
 
-### Inference server parameters
+### Server parameters
 
 The `.start()` method accepts [llama.cpp server CLI flags](https://github.com/ggerganov/llama.cpp/tree/master/examples/server#usage) as Python keyword-arguments, changing `-` to `_`. For example
 
 ```python
 service = model.start(ctx_size=1024)
 ```
+
+For CLI flags (without arguments), you can use the value `None`. For example
+
+```python
+service = model.start(embedding=None)
+```
+
+Unless `port=<integer>` is provide llama-server will start on a random unused port. You can
+use the `service.url` attribute to determine the discovered port number.
+
+### Server attributes
+
+The output of `.start()` is a subclass of the Intake LlamaCPPService with a few extra attributes.
+
+* `.openai_url`: is the url with `/v1` appended to utilize the OpenAI compatibility endpoints
+* `.openai_client`: is a pre-configured OpenAI client for this url
+* `.openai_async_client`: is a pre-configured Async OpenAI client for this url
 
 ## Langchain
 
@@ -239,7 +259,6 @@ message = chain.invoke({'topic': 'python'})
 ```
 
 In addition to standard OpenAI parameters you can adjust llama.cpp server flags with `llama_cpp_options={...}`.
-
 
 ## PandasAI
 
