@@ -40,9 +40,10 @@ class AnacondaModelMixin:
                 {} if self.llama_cpp_options is None else self.llama_cpp_options
             )
             if embedding:
-                llama_cpp_kwargs["embedding"] = ""
+                llama_cpp_kwargs["embedding"] = None
+                llama_cpp_kwargs["pooling"] = "mean"
 
-            self.llama_cpp_service = self.anaconda_model.start()
+            self.llama_cpp_service = self.anaconda_model.start(**llama_cpp_kwargs)
 
         self.api_base = urljoin(self.llama_cpp_service.url, "/v1")
 
@@ -92,12 +93,16 @@ def _accepted_model_name_variants(
 ) -> List[str]:
     variants = [
         f"{model_id}_{method}.{format.lower()}",
+        f"{model_id}_{method.lower()}.{format.lower()}",
         f"{model_id}_{method}.{format}".lower(),
         f"{model_id}/{method}.{format.lower()}",
+        f"{model_id}/{method.lower()}.{format.lower()}",
         f"{model_id}/{method}.{format}".lower(),
         f"{model_name}_{method}.{format.lower()}",
+        f"{model_name}_{method.lower()}.{format.lower()}",
         f"{model_name}_{method}.{format}".lower(),
         f"{model_name}/{method}.{format.lower()}",
+        f"{model_name}/{method.lower()}.{format.lower()}",
         f"{model_name}/{method}.{format}".lower(),
     ]
     return variants
