@@ -22,7 +22,7 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
         format=values.get("format"),
         client=client,
     )
-    llama_cpp_kwargs = values.get("llama_cpp_kwargs", {})
+    llama_cpp_kwargs = values.get("llama_cpp_options", {})
     if embedding:
         llama_cpp_kwargs["embedding"] = None
 
