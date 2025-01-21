@@ -40,9 +40,10 @@ class AnacondaModelMixin:
                 {} if self.llama_cpp_options is None else self.llama_cpp_options
             )
             if embedding:
-                llama_cpp_kwargs["embedding"] = ""
+                llama_cpp_kwargs["embedding"] = None
+                llama_cpp_kwargs["pooling"] = "mean"
 
-            self.llama_cpp_service = self.anaconda_model.start()
+            self.llama_cpp_service = self.anaconda_model.start(**llama_cpp_kwargs)
 
         self.api_base = urljoin(self.llama_cpp_service.url, "/v1")
 
@@ -87,6 +88,26 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
         return ([float(r) for r in result.embedding] for result in results)
 
 
+def _accepted_model_name_variants(
+    model_id: str, model_name: str, method: str, format: str
+) -> List[str]:
+    variants = [
+        f"{model_id}_{method}.{format.lower()}",
+        f"{model_id}_{method.lower()}.{format.lower()}",
+        f"{model_id}_{method}.{format}".lower(),
+        f"{model_id}/{method}.{format.lower()}",
+        f"{model_id}/{method.lower()}.{format.lower()}",
+        f"{model_id}/{method}.{format}".lower(),
+        f"{model_name}_{method}.{format.lower()}",
+        f"{model_name}_{method.lower()}.{format.lower()}",
+        f"{model_name}_{method}.{format}".lower(),
+        f"{model_name}/{method}.{format.lower()}",
+        f"{model_name}/{method.lower()}.{format.lower()}",
+        f"{model_name}/{method}.{format}".lower(),
+    ]
+    return variants
+
+
 @llm.hookimpl
 def register_models(register: Callable) -> None:
     for model in get_models():
@@ -96,68 +117,29 @@ def register_models(register: Callable) -> None:
             method = quant["quantMethod"]
             format = quant["format"]
 
-            file_id = f"{model_id}_{method}.{format}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}/{method}.{format}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}_{method}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}/{method}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}/{method}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}_{method}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}/{method}.{format}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}_{method}.{format}"
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-
-            file_id = f"{model_id}_{method}.{format}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}/{method}.{format}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}_{method}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_id}/{method}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}/{method}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}_{method}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}/{method}.{format}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
-            file_id = f"{model_name}_{method}.{format}".lower()
-            quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-            register(quant_chat)
+            file_ids = _accepted_model_name_variants(
+                model_id, model_name, method, format
+            )
+            for file_id in file_ids:
+                quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
+                register(quant_chat)
 
 
 @hookimpl
 def register_embedding_models(register: Callable) -> None:
     for model in get_models():
         model_id = model["modelId"]
+        model_name = model["name"]
         for quant in sorted(model["quantizedFiles"], key=lambda q: q["quantMethod"]):
             method = quant["quantMethod"]
             format = quant["format"]
-            file_id = f"{model_id}_{method.lower()}.{format.lower()}"
 
-            embed = AnacondaQuantizedEmbedding(model_id=f"anaconda:{file_id}")
-            register(embed)
+            file_ids = _accepted_model_name_variants(
+                model_id, model_name, method, format
+            )
+            for file_id in file_ids:
+                embed = AnacondaQuantizedEmbedding(model_id=f"anaconda:{file_id}")
+                register(embed)
 
 
 @hookimpl
