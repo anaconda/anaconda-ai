@@ -1,0 +1,15 @@
+channels:
+  - defaults
+  - anaconda-cloud
+  - ai-staging
+  - conda-forge
+
+dependencies:
+  - python=3.11
+  - notebook
+  - anaconda-models
+  - langchain-openai
+  - pandas
+  - pip
+  - pip:
+    - parsera
