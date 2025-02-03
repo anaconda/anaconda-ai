@@ -29,7 +29,7 @@ anaconda = "anaconda_models.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-models[langchain,llm,pandasai,panel]"
+  "anaconda-models[langchain,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
@@ -40,6 +40,7 @@ dev = [
   "types-requests"
 ]
 langchain = ["langchain-openai>=0.2.8"]
+llama-index = ["llama-index-llms-openai"]
 llm = ["llm", "click"]
 pandasai = ["pandasai>=2.4"]
 panel = [
@@ -61,17 +62,22 @@ version-file = "src/anaconda_models/_version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/anaconda_models",
+  "/src/llama_index",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
   "/environment-dev.yml"
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/anaconda_models", "src/llama_index"]
+
 [tool.hatch.version]
 source = "vcs"
 
 [tool.mypy]
 disallow_untyped_defs = true
+explicit_package_bases = true
 files = [
   "src/**/*.py",
   "tests/**/*.py"
@@ -85,6 +91,14 @@ module = "*._version"
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = "rich_click.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "llama_index.core.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "llama_index.llms.openai.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
