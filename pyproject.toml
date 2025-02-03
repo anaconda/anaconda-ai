@@ -40,6 +40,7 @@ dev = [
   "types-requests"
 ]
 langchain = ["langchain-openai>=0.2.8"]
+llama-index = ["llama-index-llms-openai"]
 llm = ["llm", "click"]
 pandasai = ["pandasai>=2.4"]
 panel = [
