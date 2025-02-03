@@ -29,7 +29,7 @@ anaconda = "anaconda_models.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-models[langchain,llm,pandasai,panel]"
+  "anaconda-models[langchain,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
