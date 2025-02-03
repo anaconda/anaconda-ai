@@ -9,5 +9,7 @@ dependencies:
 - tox=3
 - tox-conda
 - pip
+- numpy
+- pandas
 - pip:
     - "-e .[dev,all]"
