@@ -62,11 +62,15 @@ version-file = "src/anaconda_models/_version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/anaconda_models",
+  "/src/llama_index",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
   "/environment-dev.yml"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anaconda_models", "src/llama_index"]
 
 [tool.hatch.version]
 source = "vcs"
