@@ -159,7 +159,7 @@ To download a quantized model to local cache provide the full name of the file `
 
 The path to the downloaded file is printed.
 
-```
+```text
 ❯ anaconda models download TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf
 Downloading TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 667.8/667.8 MB 72.1 MB/s 0:00:09
 /Users/adefusco/Library/Caches/anaconda-models/TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf
@@ -169,7 +169,7 @@ Downloading TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf ━━━━━━━
 
 To launch an inference service with llama.cpp the `launch` command takes several input values. The launch command uses the Intake 2 LlamaServerReader service to launch llaama.cpp. You must have llama.cpp installed.
 
-```
+```text
 ❯ anaconda models launch --help
 
  Usage: anaconda models launch [OPTIONS] MODEL_ID
@@ -279,6 +279,30 @@ message = chain.invoke({'topic': 'python'})
 
 In addition to standard OpenAI parameters you can adjust llama.cpp server flags with `llama_cpp_options={...}`.
 
+## LlamaIndex
+
+LlamaIndex is support through a namespace package installed with `anaconda-models`. You will need at
+least the `llama-index-llms-openai` package installed to use the integration.
+
+```python
+from llama_index.llms.anaconda_models import AnacondaModel
+
+llm = AnacondaModel(
+    model='OpenHermes-2.5-Mistral-7B_q4_k_m'
+)
+```
+
+The `AnacondaModel` class supports the following arguments
+
+* `model`: Name of the model using the pattern defined above
+* `quantization`: Optional quantization method if not included in `model`
+* `format`: Optional file format if not included in `model`
+* `system_prompt`: Optional system prompt to apply to completions and chats
+* `client`: Optional `anaconda_models.client.Client` object
+* `llama_cpp_kwargs`: Optional dictionary of llama.cpp server parameters
+* `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
+* `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
+
 ## PandasAI
 
 [PandasAI](https://github.com/Sinaptik-AI/pandas-ai): chat with data
@@ -287,7 +311,7 @@ In addition to standard OpenAI parameters you can adjust llama.cpp server flags 
 from anaconda_models.pandasai import AnacondaModel
 from pandasai import SmartDataframe
 
-llm = AnacondaModel(model_name='OpenHermes-2.5-Mistral-7B_q4_k_m.gguf', run_on="local", temperature=0.1)
+llm = AnacondaModel(model_name='OpenHermes-2.5-Mistral-7B_q4_k_m.gguf', temperature=0.1)
 sdf = SmartDataframe(df, config={'llm': llm})
 sdf.chat('what is the average of this column where some condition is true?')
 ```
