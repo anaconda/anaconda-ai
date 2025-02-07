@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, Optional, Any, Union
 
 import litellm
 from httpx import Timeout
@@ -25,16 +25,16 @@ class AnacondaLLM(CustomLLM):
         custom_prompt_dict: dict,
         model_response: ModelResponse,
         print_verbose: Callable,
-        encoding,
-        api_key,
-        logging_obj,
+        encoding: Any,
+        api_key: Any,
+        logging_obj: Any,
         optional_params: dict,
-        acompletion=None,
-        litellm_params=None,
-        logger_fn=None,
-        headers={},
-        timeout: float | Timeout | None = None,
-        client: HTTPHandler | None = None,
+        acompletion: Optional[Any] = None,
+        litellm_params: Optional[Any] = None,
+        logger_fn: Optional[Any] = None,
+        headers: Optional[dict] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        client: Optional[HTTPHandler] = None,
     ) -> ModelResponse:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start()
@@ -53,16 +53,16 @@ class AnacondaLLM(CustomLLM):
         custom_prompt_dict: dict,
         model_response: ModelResponse,
         print_verbose: Callable,
-        encoding,
-        api_key,
-        logging_obj,
+        encoding: Any,
+        api_key: Any,
+        logging_obj: Any,
         optional_params: dict,
-        acompletion=None,
-        litellm_params=None,
-        logger_fn=None,
-        headers={},
-        timeout: float | Timeout | None = None,
-        client: HTTPHandler | None = None,
+        acompletion: Optional[Any] = None,
+        litellm_params: Optional[Any] = None,
+        logger_fn: Optional[Any] = None,
+        headers: Optional[dict] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        client: Optional[HTTPHandler] = None,
     ) -> Iterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start()
