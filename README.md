@@ -14,6 +14,9 @@ Below you will find documentation for
 * [Integration with LLM CLI](#llm)
 * [Anaconda Model Cache SDK](#sdk)
 * [Langchain](#langchain)
+* [LlamaIndex](#llamaindex)
+* [LiteLLM](#litellm)
+* [DSPy](#dspy)
 * [PandasAI](#pandasai)
 * [Panel ChatInterface](#panel)
 * [Appendix: model download path](#download-path)
@@ -302,6 +305,46 @@ The `AnacondaModel` class supports the following arguments
 * `llama_cpp_kwargs`: Optional dictionary of llama.cpp server parameters
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
+
+## LiteLLM
+
+This provides a CustomLLM provider for use with `litellm`. But, since litellm does not currently support entrypoints to register the provider, the user must import the module first.
+
+```python
+import litellm
+import anaconda_models.litellm
+
+response = litellm.completion(
+    'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
+    messages=[{'role': 'user', 'content': 'what is pi?'}]
+)
+```
+
+Supported usage:
+
+* completion (with and without stream=True)
+* acompletion (with and without stream=True)
+* Most OpenAI [inference parameters](https://docs.litellm.ai/docs/completion/input)
+  * `n`: number of completions is not supported
+* llama.cpp server options are passed as a dictionary called `llama_cpp_kwargs` (see above)
+
+## DSPy
+
+Since DSPy uses LiteLLM, Anaconda models can be used with dspy.
+Streaming and async are supported for raw LLM calls and for modules
+like Predict or ChainofThought
+.
+
+```python
+import dspy
+import anaconda_models.litellm
+
+lm = dspy.LM('anaconda/openhermes-2.5-mistral-7b/q4_k_m')
+dspy.configure(lm=lm)
+
+chai = dspy.ChainOfThought("question -> answer")
+chain(question="Who are you?")
+```
 
 ## PandasAI
 
