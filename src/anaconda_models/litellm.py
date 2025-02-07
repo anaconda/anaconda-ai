@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Optional, Any, Union
+from typing import Callable, Iterator, Optional, Any, Union, cast
 
 import litellm
 from httpx import Timeout
@@ -76,8 +76,11 @@ class AnacondaLLM(CustomLLM):
         )
 
         for chunk in wrapped:
-            handled = wrapped.handle_openai_chat_completion_chunk(chunk)
-            yield GenericStreamingChunk(**handled)
+            handled = cast(
+                GenericStreamingChunk,
+                wrapped.handle_openai_chat_completion_chunk(chunk),
+            )
+            yield handled
 
         _service.options["Process"].terminate()
 
