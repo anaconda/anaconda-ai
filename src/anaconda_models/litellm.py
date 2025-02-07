@@ -17,6 +17,12 @@ class AnacondaLLM(CustomLLM):
     _model: Optional[AnacondaQuantizedModelCache] = None
     _service: Optional[AnacondaQuantizedModelService] = None
 
+    def _prepare_inference_kwargs(self, optional_params: dict) -> dict:
+        inference_kwargs = optional_params.copy()
+        _ = inference_kwargs.pop("stream", None)
+        _ = inference_kwargs.pop("stream_options", None)
+        return inference_kwargs
+
     def completion(
         self,
         model: str,
@@ -37,10 +43,13 @@ class AnacondaLLM(CustomLLM):
         client: Optional[HTTPHandler] = None,
     ) -> ModelResponse:
         _model = AnacondaQuantizedModelCache(name=model)
-        _service = _model.start()
+        _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_client
 
-        response = _client.chat.completions.create(messages=messages, model=model)
+        inference_kwargs = self._prepare_inference_kwargs(optional_params)
+        response = _client.chat.completions.create(
+            messages=messages, model=model, **inference_kwargs
+        )
         mresponse = ModelResponse(**response.model_dump())
         _service.options["Process"].terminate()
         return mresponse
@@ -65,11 +74,12 @@ class AnacondaLLM(CustomLLM):
         client: Optional[HTTPHandler] = None,
     ) -> Iterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
-        _service = _model.start()
+        _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_client
 
+        inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = _client.chat.completions.create(
-            messages=messages, model=model, stream=True
+            messages=messages, model=model, stream=True, **inference_kwargs
         )
         wrapped = CustomStreamWrapper(
             custom_llm_provider="openai",
@@ -102,15 +112,18 @@ class AnacondaLLM(CustomLLM):
         acompletion=None,
         litellm_params=None,
         logger_fn=None,
-        headers={},
+        headers=None,
         timeout: Optional[Any] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
         _model = AnacondaQuantizedModelCache(name=model)
-        _service = _model.start()
+        _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
 
-        response = await _client.chat.completions.create(messages=messages, model=model)
+        inference_kwargs = self._prepare_inference_kwargs(optional_params)
+        response = await _client.chat.completions.create(
+            messages=messages, model=model, **inference_kwargs
+        )
         mresponse = ModelResponse(**response.model_dump())
         _service.options["Process"].terminate()
         return mresponse
@@ -130,16 +143,17 @@ class AnacondaLLM(CustomLLM):
         acompletion=None,
         litellm_params=None,
         logger_fn=None,
-        headers={},
+        headers=None,
         timeout: Optional[Any] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
-        _service = _model.start()
+        _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
 
+        inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
-            messages=messages, model=model, stream=True
+            messages=messages, model=model, stream=True, **inference_kwargs
         )
         wrapped = CustomStreamWrapper(
             custom_llm_provider="openai",
