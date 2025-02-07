@@ -1,8 +1,8 @@
-from typing import Callable, Iterator, Optional, Any, Union, cast
+from typing import Callable, AsyncIterator, Iterator, Optional, Any, Union, cast
 
 import litellm
 from httpx import Timeout
-from litellm.llms.custom_httpx.http_handler import HTTPHandler
+from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
 from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
@@ -72,10 +72,83 @@ class AnacondaLLM(CustomLLM):
             messages=messages, model=model, stream=True
         )
         wrapped = CustomStreamWrapper(
-            completion_stream=response, model=model, logging_obj=logging_obj
+            custom_llm_provider="openai",
+            completion_stream=response,
+            model=model,
+            logging_obj=logging_obj,
         )
 
         for chunk in wrapped:
+            handled = cast(
+                GenericStreamingChunk,
+                wrapped.handle_openai_chat_completion_chunk(chunk),
+            )
+            yield handled
+
+        _service.options["Process"].terminate()
+
+    async def acompletion(
+        self,
+        model: str,
+        messages: list,
+        api_base: str,
+        custom_prompt_dict: dict,
+        model_response: ModelResponse,
+        print_verbose: Callable,
+        encoding,
+        api_key,
+        logging_obj,
+        optional_params: dict,
+        acompletion=None,
+        litellm_params=None,
+        logger_fn=None,
+        headers={},
+        timeout: Optional[Any] = None,
+        client: Optional[AsyncHTTPHandler] = None,
+    ) -> ModelResponse:
+        _model = AnacondaQuantizedModelCache(name=model)
+        _service = _model.start()
+        _client = _service.openai_async_client
+
+        response = await _client.chat.completions.create(messages=messages, model=model)
+        mresponse = ModelResponse(**response.model_dump())
+        _service.options["Process"].terminate()
+        return mresponse
+
+    async def astreaming(
+        self,
+        model: str,
+        messages: list,
+        api_base: str,
+        custom_prompt_dict: dict,
+        model_response: ModelResponse,
+        print_verbose: Callable,
+        encoding,
+        api_key,
+        logging_obj,
+        optional_params: dict,
+        acompletion=None,
+        litellm_params=None,
+        logger_fn=None,
+        headers={},
+        timeout: Optional[Any] = None,
+        client: Optional[AsyncHTTPHandler] = None,
+    ) -> AsyncIterator[GenericStreamingChunk]:
+        _model = AnacondaQuantizedModelCache(name=model)
+        _service = _model.start()
+        _client = _service.openai_async_client
+
+        response = await _client.chat.completions.create(
+            messages=messages, model=model, stream=True
+        )
+        wrapped = CustomStreamWrapper(
+            custom_llm_provider="openai",
+            completion_stream=response,
+            model=model,
+            logging_obj=logging_obj,
+        )
+
+        async for chunk in wrapped:
             handled = cast(
                 GenericStreamingChunk,
                 wrapped.handle_openai_chat_completion_chunk(chunk),
