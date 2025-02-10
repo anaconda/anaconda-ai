@@ -1,8 +1,8 @@
-from typing import Callable, AsyncIterator, Iterator, Optional, Any, Union, cast
+from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncGenerator
 
 import litellm
 from httpx import Timeout
-from litellm.llms.custom_httpx.http_handler import HTTPHandler
+from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
 from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
@@ -35,7 +35,7 @@ class AnacondaLLM(CustomLLM):
         api_key: Any,
         logging_obj: Any,
         optional_params: dict,
-        acompletion: Optional[Any] = None,
+        acompletion: Optional[AsyncHTTPHandler] = None,
         litellm_params: Optional[Any] = None,
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
@@ -66,7 +66,7 @@ class AnacondaLLM(CustomLLM):
         api_key: Any,
         logging_obj: Any,
         optional_params: dict,
-        acompletion: Optional[Any] = None,
+        acompletion: Optional[AsyncHTTPHandler] = None,
         litellm_params: Optional[Any] = None,
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
@@ -109,7 +109,7 @@ class AnacondaLLM(CustomLLM):
         api_key: Any,
         logging_obj: Any,
         optional_params: dict,
-        acompletion: Optional[Any] = None,
+        acompletion: Optional[AsyncHTTPHandler] = None,
         litellm_params: Optional[Any] = None,
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
@@ -140,13 +140,13 @@ class AnacondaLLM(CustomLLM):
         api_key: Any,
         logging_obj: Any,
         optional_params: dict,
-        acompletion: Optional[Any] = None,
+        acompletion: Optional[AsyncHTTPHandler] = None,
         litellm_params: Optional[Any] = None,
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[HTTPHandler] = None,
-    ) -> AsyncIterator[GenericStreamingChunk]:
+    ) -> AsyncGenerator[Any, GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
