@@ -2,7 +2,7 @@ from typing import Callable, AsyncIterator, Iterator, Optional, Any, Union, cast
 
 import litellm
 from httpx import Timeout
-from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
+from litellm.llms.custom_httpx.http_handler import HTTPHandler
 from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
@@ -109,12 +109,12 @@ class AnacondaLLM(CustomLLM):
         api_key,
         logging_obj,
         optional_params: dict,
-        acompletion=None,
-        litellm_params=None,
-        logger_fn=None,
-        headers=None,
-        timeout: Optional[Any] = None,
-        client: Optional[AsyncHTTPHandler] = None,
+        acompletion: Optional[Any] = None,
+        litellm_params: Optional[Any] = None,
+        logger_fn: Optional[Any] = None,
+        headers: Optional[dict] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        client: Optional[HTTPHandler] = None,
     ) -> ModelResponse:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
@@ -140,12 +140,12 @@ class AnacondaLLM(CustomLLM):
         api_key,
         logging_obj,
         optional_params: dict,
-        acompletion=None,
-        litellm_params=None,
-        logger_fn=None,
-        headers=None,
-        timeout: Optional[Any] = None,
-        client: Optional[AsyncHTTPHandler] = None,
+        acompletion: Optional[Any] = None,
+        litellm_params: Optional[Any] = None,
+        logger_fn: Optional[Any] = None,
+        headers: Optional[dict] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        client: Optional[HTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
