@@ -29,7 +29,7 @@ anaconda = "anaconda_models.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-models[langchain,llm,llama-index,panel]"
+  "anaconda-models[langchain,litellm,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
@@ -40,6 +40,7 @@ dev = [
   "types-requests"
 ]
 langchain = ["langchain-openai>=0.2.8"]
+litellm = ["litellm"]
 llama-index = ["llama-index-llms-openai"]
 llm = ["llm", "click"]
 pandasai = ["pandasai>=2.4"]
