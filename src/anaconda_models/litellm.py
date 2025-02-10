@@ -128,7 +128,7 @@ class AnacondaLLM(CustomLLM):
         _service.options["Process"].terminate()
         return mresponse
 
-    async def astreaming(
+    async def astreaming(  # type: ignore
         self,
         model: str,
         messages: list,
@@ -146,7 +146,7 @@ class AnacondaLLM(CustomLLM):
         headers: Optional[dict] = None,
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
-    ) -> AsyncIterator[GenericStreamingChunk]:  # type: ignore
+    ) -> AsyncIterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
