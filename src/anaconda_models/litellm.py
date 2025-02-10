@@ -146,7 +146,7 @@ class AnacondaLLM(CustomLLM):
         headers: Optional[dict] = None,
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
-    ) -> AsyncIterator[GenericStreamingChunk]:
+    ) -> AsyncIterator[GenericStreamingChunk]:  # type: ignore (https://github.com/python/mypy/issues/12662)
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
