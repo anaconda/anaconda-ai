@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncGenerator
+from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator
 
 import litellm
 from httpx import Timeout
@@ -114,7 +114,7 @@ class AnacondaLLM(CustomLLM):
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
         timeout: Optional[Union[float, Timeout]] = None,
-        client: Optional[HTTPHandler] = None,
+        client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
@@ -145,8 +145,8 @@ class AnacondaLLM(CustomLLM):
         logger_fn: Optional[Any] = None,
         headers: Optional[dict] = None,
         timeout: Optional[Union[float, Timeout]] = None,
-        client: Optional[HTTPHandler] = None,
-    ) -> AsyncGenerator[Any, GenericStreamingChunk]:
+        client: Optional[AsyncHTTPHandler] = None,
+    ) -> AsyncIterator[GenericStreamingChunk]:
         _model = AnacondaQuantizedModelCache(name=model)
         _service = _model.start(**optional_params.pop("llama_cpp_kwargs", {}))
         _client = _service.openai_async_client
