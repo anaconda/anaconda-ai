@@ -105,18 +105,28 @@ def quantized_model_info(
 
 
 class AnacondaQuantizedModelService(LlamaCPPService):
+    def __init__(
+        self,
+        url: str,
+        api_key: str = "none",
+        options: Optional[Any] = None,
+        metadata: Optional[Any] = None,
+    ):
+        super().__init__(url, options, metadata)
+        self.api_key = api_key
+
     @property
     def openai_url(self) -> str:
         return urljoin(self.url, "/v1")
 
-    @property
-    def openai_client(self) -> openai.OpenAI:
-        client = openai.OpenAI(base_url=self.openai_url, api_key="none")
+    def openai_client(self, **kwargs: Any) -> openai.OpenAI:
+        client = openai.OpenAI(base_url=self.openai_url, api_key=self.api_key, **kwargs)
         return client
 
-    @property
-    def openai_async_client(self) -> openai.AsyncOpenAI:
-        client = openai.AsyncOpenAI(base_url=self.openai_url, api_key="none")
+    def openai_async_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
+        client = openai.AsyncOpenAI(
+            base_url=self.openai_url, api_key=self.api_key, **kwargs
+        )
         return client
 
 

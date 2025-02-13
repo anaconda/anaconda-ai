@@ -236,7 +236,7 @@ service = model.start()
 service.open()
 
 # Or get an OpenAI Client
-client = service.openai_client
+client = service.openai_client()
 ```
 
 ### Server parameters
@@ -247,7 +247,7 @@ The `.start()` method accepts [llama.cpp server CLI flags](https://github.com/gg
 service = model.start(ctx_size=1024)
 ```
 
-For CLI flags (without arguments), you can use the value `None`. For example
+For CLI flags (without arguments), you can use the value `None`. For example to enable embeddings:
 
 ```python
 service = model.start(embedding=None)
@@ -261,8 +261,11 @@ use the `service.url` attribute to determine the discovered port number.
 The output of `.start()` is a subclass of the Intake LlamaCPPService with a few extra attributes.
 
 * `.openai_url`: is the url with `/v1` appended to utilize the OpenAI compatibility endpoints
-* `.openai_client`: is a pre-configured OpenAI client for this url
-* `.openai_async_client`: is a pre-configured Async OpenAI client for this url
+* `.openai_client()`: creates a pre-configured OpenAI client for this url
+* `.openai_async_client()`: creates a pre-configured Async OpenAI client for this url
+
+Each of  `.openai_client()` and `opeanai_async_client()` allow extra keyword parameters to pass to the
+client initialization.
 
 ## Langchain
 
