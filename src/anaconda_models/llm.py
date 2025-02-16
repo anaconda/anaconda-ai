@@ -91,20 +91,15 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
 def _accepted_model_name_variants(
     model_id: str, model_name: str, method: str, format: str
 ) -> List[str]:
-    variants = [
-        f"{model_id}_{method}.{format.lower()}",
-        f"{model_id}_{method.lower()}.{format.lower()}",
-        f"{model_id}_{method}.{format}".lower(),
-        f"{model_id}/{method}.{format.lower()}",
-        f"{model_id}/{method.lower()}.{format.lower()}",
-        f"{model_id}/{method}.{format}".lower(),
-        f"{model_name}_{method}.{format.lower()}",
-        f"{model_name}_{method.lower()}.{format.lower()}",
-        f"{model_name}_{method}.{format}".lower(),
-        f"{model_name}/{method}.{format.lower()}",
-        f"{model_name}/{method.lower()}.{format.lower()}",
-        f"{model_name}/{method}.{format}".lower(),
-    ]
+    variants = []
+
+    for id_ in model_id, model_id.lower(), model_name, model_name.lower():
+        for method_ in method.upper(), method.lower():
+            for format_ in format.upper(), format.lower():
+                for sep in "_", "/":
+                    v = f"{id_}{sep}{method_}.{format_}"
+                    variants.append(v)
+
     return variants
 
 
