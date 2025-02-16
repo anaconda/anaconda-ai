@@ -1,6 +1,5 @@
 import atexit
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,22 +13,12 @@ from intake.readers.datatypes import LlamaCPPService
 from intake.readers.readers import LlamaServerReader
 from rich.console import Console
 
-from anaconda_models.client import AINavigatorClient
+from anaconda_models.client import AINavigatorClient, MODEL_NAME, Model
 from anaconda_models.client import Client
 from anaconda_models.config import config
 from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.exceptions import QuantizedFileNotFound
 from anaconda_models.utils import find_free_port
-
-
-MODEL_NAME = re.compile(
-    r"^"
-    r"(?:(?P<author>[^/]+)[/])??"
-    r"(?P<model>[^/]+?)"
-    r"(?:(?:[_/])(?P<quantization>Q4_K_M|Q5_K_M|Q6_K|Q8_0)(?:[.](?P<format>gguf))?)?"
-    r"$",
-    flags=re.IGNORECASE,
-)
 
 
 def get_models(client: Optional[Client] = None, expire_after: int = 60) -> Any:
@@ -38,7 +27,7 @@ def get_models(client: Optional[Client] = None, expire_after: int = 60) -> Any:
         client = Client()
     response = client.get("/api/models", expire_after=expire_after)
     response.raise_for_status()
-    return response.json()["result"]["data"]
+    return [Model(**m) for m in response.json()["result"]["data"]]
 
 
 def model_info(model: str, client: Optional[Client] = None) -> Any:
