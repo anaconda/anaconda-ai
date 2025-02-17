@@ -4,3 +4,6 @@ class QuantizedFileNotFound(Exception):
 
 class ModelNotFound(Exception):
     pass
+
+
+class APIKeyMissing(Exception): ...
