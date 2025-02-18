@@ -44,7 +44,6 @@ def set_config(table: str, key: str, value: Any) -> None:
 
 class AINavigatorConfig(BaseModel):
     port: int = 8001
-    api_key: Optional[str] = None
 
 
 class KuratorConfig(BaseModel):

@@ -29,7 +29,8 @@ from anaconda_models import __version__ as version
 from anaconda_models.config import AnacondaModelsConfig, set_config
 from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.utils import find_free_port
-from anaconda_cli_base.config import anaconda_config_path
+from anaconda_cloud_auth.token import TokenInfo
+from anaconda_cloud_auth.exceptions import TokenNotFoundError
 
 MODEL_NAME = re.compile(
     r"^"
@@ -430,19 +431,18 @@ class AINavigatorClient(BaseClient):
 
         self._config = AnacondaModelsConfig(**kwargs)
 
-        if self._config.backends.ai_navigator.api_key is None:
+        try:
+            token = TokenInfo.load(domain="ai-navigator")
+        except TokenNotFoundError:
             api_key = Prompt.ask("Paste the AI Navigator API key here", password=True)
             set_config("plugin.models.backends.ai_navigator", "api_key", api_key)
-            self._config = AnacondaModelsConfig(**kwargs)
-            print(f"AI Navigator API Key saved in {anaconda_config_path()}")
+            token = TokenInfo(domain="ai-navigator", api_key=api_key)
+            token.save()
+            print("AI Navigator API Key saved in keyring")
 
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
-        super().__init__(
-            domain=domain,
-            ssl_verify=False,
-            api_key=self._config.backends.ai_navigator.api_key,
-        )
+        super().__init__(domain=domain, ssl_verify=False, api_key=token.api_key)
 
         self._base_uri = f"http://{domain}"
 
