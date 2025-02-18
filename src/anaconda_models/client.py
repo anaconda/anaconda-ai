@@ -20,13 +20,14 @@ from pydantic.types import UUID4
 from requests import Response
 from requests_cache import CacheMixin, DO_NOT_CACHE
 from requests.exceptions import ConnectionError
+from rich.prompt import Prompt
 
 from anaconda_cloud_auth.client import BaseClient
 from anaconda_cloud_auth.client import BearerAuth
 from anaconda_cloud_auth.config import AnacondaCloudConfig
 from anaconda_models import __version__ as version
-from anaconda_models.config import AnacondaModelsConfig
-from anaconda_models.exceptions import ModelNotFound, APIKeyMissing
+from anaconda_models.config import AnacondaModelsConfig, set_config
+from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.utils import find_free_port
 from anaconda_cli_base.config import anaconda_config_path
 
@@ -430,9 +431,10 @@ class AINavigatorClient(BaseClient):
         self._config = AnacondaModelsConfig(**kwargs)
 
         if self._config.backends.ai_navigator.api_key is None:
-            raise APIKeyMissing(
-                f"The AI Navigator API Key was not found in {anaconda_config_path()}"
-            )
+            api_key = Prompt.ask("Paste the AI Navigator API key here", password=True)
+            set_config("plugin.models.backends.ai_navigator", "api_key", api_key)
+            self._config = AnacondaModelsConfig(**kwargs)
+            print(f"AI Navigator API Key saved in {anaconda_config_path()}")
 
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
