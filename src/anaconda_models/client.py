@@ -26,7 +26,7 @@ from anaconda_cloud_auth.client import BaseClient
 from anaconda_cloud_auth.client import BearerAuth
 from anaconda_cloud_auth.config import AnacondaCloudConfig
 from anaconda_models import __version__ as version
-from anaconda_models.config import AnacondaModelsConfig, set_config
+from anaconda_models.config import AnacondaModelsConfig
 from anaconda_models.exceptions import ModelNotFound
 from anaconda_models.utils import find_free_port
 from anaconda_cloud_auth.token import TokenInfo
@@ -435,7 +435,6 @@ class AINavigatorClient(BaseClient):
             token = TokenInfo.load(domain="ai-navigator")
         except TokenNotFoundError:
             api_key = Prompt.ask("Paste the AI Navigator API key here", password=True)
-            set_config("plugin.models.backends.ai_navigator", "api_key", api_key)
             token = TokenInfo(domain="ai-navigator", api_key=api_key)
             token.save()
             print("AI Navigator API Key saved in keyring")
