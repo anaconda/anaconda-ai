@@ -66,7 +66,7 @@ class Backends(BaseModel):
 
 class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
     models_path: Path = Path("~/.ai-navigator/models").expanduser()
-    default_backend: Literal["kurator", "ai-navigator"] = "kurator"
+    default_backend: Literal["kurator", "ai-navigator"] = "ai-navigator"
     backends: Backends = Backends()
 
     @field_validator("models_path")
