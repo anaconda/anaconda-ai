@@ -1,12 +1,19 @@
+import json
+import os
 import re
 import datetime as dt
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Union
-from uuid import UUID
+from typing import cast
+from uuid import UUID, uuid4
 from urllib.parse import urljoin
 
+import openai
+from intake.readers.readers import LlamaServerReader
+from intake.readers.datatypes import LlamaCPPService
 from pydantic import BaseModel, HttpUrl, computed_field, Field
 from pydantic.types import UUID4
 from requests import Response
@@ -17,7 +24,7 @@ from anaconda_cloud_auth.client import BaseClient
 from anaconda_cloud_auth.client import BearerAuth
 from anaconda_cloud_auth.config import AnacondaCloudConfig
 from anaconda_models import __version__ as version
-from anaconda_models.config import ModelsConfig
+from anaconda_models.config import AnacondaModelsConfig
 from anaconda_models.exceptions import ModelNotFound, APIKeyMissing
 from anaconda_models.utils import find_free_port
 from anaconda_cli_base.config import anaconda_config_path
@@ -57,13 +64,22 @@ class QuantizedFile(BaseModel):
 
     @computed_field
     @property
-    def filename(self) -> str:
+    def path(self) -> Path:
         match = MODEL_NAME.match(self.id)
         assert match, f"{self.id} is not a valid model name?"
 
-        _, name, quantization, _ = match.groups()
+        owner, name, quantization, _ = match.groups()
         fn = f"{name}_{quantization}.{self.format.lower()}"
-        return fn
+
+        path = AnacondaModelsConfig().models_path / owner / name / fn
+        return path
+
+    @property
+    def is_downloaded(self) -> bool:
+        if not self.path.exists():
+            return False
+
+        return self.sizeBytes == os.stat(self.path).st_size
 
 
 class Source(BaseModel):
@@ -158,7 +174,7 @@ class APIParams(BaseModel):
 
 
 class ServerConfig(BaseModel):
-    modelFileName: str
+    modelFileName: Path
     apiParams: APIParams = APIParams()
     loadParams: dict = Field(default_factory=dict)
     inferParams: dict = Field(default_factory=dict)
@@ -178,6 +194,7 @@ class Server(BaseModel):
     createdAt: dt.datetime
     startImmediately: bool
     serverConfig: ServerConfig
+    api_key: str | None = None
 
     @computed_field
     @property
@@ -189,14 +206,32 @@ class Server(BaseModel):
     def openai_url(self) -> str:
         return urljoin(self.url, "/v1")
 
+    def openai_client(self, **kwargs: Any) -> openai.OpenAI:
+        client = openai.OpenAI(base_url=self.openai_url, api_key=self.api_key, **kwargs)
+        return client
 
-class Servers(BaseClient):
+    def openai_async_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
+        client = openai.AsyncOpenAI(
+            base_url=self.openai_url, api_key=self.api_key, **kwargs
+        )
+        return client
+
+
+class BaseServers(BaseClient):
     def __init__(self, client: BaseClient):
         self._client = client
 
-    def list(self): ...
+    def list(self) -> list[Server]:
+        raise NotImplementedError
 
-    def create(self, model: str | QuantizedFile) -> Server:
+    def _create(
+        self, server_config: ServerConfig, start_immediately: bool = False
+    ) -> Server:
+        raise NotImplementedError
+
+    def create(
+        self, model: str | QuantizedFile, start_immediately: bool = False
+    ) -> Server:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
             if match is None:
@@ -207,7 +242,10 @@ class Servers(BaseClient):
             if not quantization:
                 raise ValueError("You must provide a quantization level")
 
-            model = self._client.models.get(model_name).quantizations[quantization]
+            model = cast(
+                QuantizedFile,
+                self._client.models.get(model_name).quantizations[quantization],
+            )
         elif isinstance(model, QuantizedFile):
             pass
         else:
@@ -215,37 +253,113 @@ class Servers(BaseClient):
                 f"model={model} of type {type(model)} is not a supported way to specify a model."
             )
 
-        config = ServerConfig(modelFileName=model.filename)
+        server_config = ServerConfig(modelFileName=model.path)
 
-        if config.apiParams.port == 0:
+        if server_config.apiParams.port == 0:
             port = find_free_port()
-            config.apiParams.port = port
+            server_config.apiParams.port = port
 
-        server_config = {
-            "serverConfig": config.model_dump(exclude={"id"}),
-            "startImmediately": True,
-        }
-
-        res = self._client.post("/api/servers", json=server_config)
-        res.raise_for_status()
-        print(res.json())
-        server = Server(**res.json())
+        server = self._create(
+            server_config=server_config, start_immediately=start_immediately
+        )
         return server
+
+    def _start(self, server_id: str) -> ServerStatus:
+        raise NotImplementedError
 
     def start(self, server: UUID4 | Server | str) -> ServerStatus:
         if isinstance(server, Server):
-            server_id = server.id
+            server_id = str(server.id)
         elif isinstance(server, UUID):
             server_id = str(server)
         elif isinstance(server, str):
             server_id = server
+        else:
+            raise ValueError(f"{server}")
 
+        status = self._start(server_id)
+        return status
+
+    def delete(self, server: UUID4 | Server | str) -> ServerStatus:
+        raise NotImplementedError
+
+
+class AINavigatorServers(BaseServers):
+    def _create(
+        self, server_config: ServerConfig, start_immediately: bool = False
+    ) -> Server:
+        body = {
+            "serverConfig": server_config.model_dump(exclude={"id"}),
+            "startImmediately": start_immediately,
+        }
+        body["serverConfig"]["modelFileName"] = body["serverConfig"][
+            "modelFileName"
+        ].name
+
+        res = self._client.post("/api/servers", json=body)
+        res.raise_for_status()
+        server = Server(**res.json())
+        return server
+
+    def _start(self, server_id: str) -> ServerStatus:
         res = self._client.post(f"/api/servers/{server_id}/start")
         res.raise_for_status()
         return ServerStatus(**res.json())
 
 
-class Client(CacheMixin, BaseClient):  # type: ignore
+class LocalServers(BaseServers):
+    def _create(
+        self, server_config: ServerConfig, start_immediately: bool = False
+    ) -> Server:
+        uuid = uuid4()
+        server_entry = Server(
+            id=uuid,
+            createdAt=dt.datetime.now(tz=dt.timezone.utc),
+            startImmediately=start_immediately,
+            serverConfig=server_config,
+        )
+        server_file = (
+            self._client._config.backends.kurator.local_servers_path / f"{uuid}.json"
+        )
+        server_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with server_file.open("w") as f:
+            f.write(server_entry.model_dump_json(indent=2))
+
+        return server_entry
+
+    def _start(self, server_id: str) -> ServerStatus:
+        server_file = (
+            self._client._config.backends.kurator.local_servers_path
+            / f"{server_id}.json"
+        )
+        with server_file.open("r") as f:
+            data = json.load(f)
+
+        server = Server(**data)
+        llama_cpp = LlamaServerReader(str(server.serverConfig.modelFileName))
+
+        llama_cpp_kwargs = {
+            **server.serverConfig.loadParams,
+            **server.serverConfig.inferParams,
+            **{
+                "port": server.serverConfig.apiParams.port,
+                "ctx-size": 0,
+            },
+        }
+        _: LlamaCPPService = llama_cpp.read(**llama_cpp_kwargs)
+
+        status = ServerStatus(
+            id=server.id,
+            host=server.serverConfig.apiParams.host,
+            port=server.serverConfig.apiParams.port,
+            status="running",
+            startedAt=dt.datetime.now(tz=dt.timezone.utc),
+        )
+        return status
+
+
+class KuratorClient(CacheMixin, BaseClient):  # type: ignore
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(
@@ -257,21 +371,21 @@ class Client(CacheMixin, BaseClient):  # type: ignore
         ssl_verify: Optional[bool] = None,
         extra_headers: Optional[Union[str, dict]] = None,
     ):
-        kwargs: Dict[str, Any] = {}
+        kwargs: Dict[str, Any] = {"kurator": {}}
         if domain is not None:
-            kwargs["domain"] = domain
+            kwargs["kurator"]["domain"] = domain
         if ssl_verify is not None:
-            kwargs["ssl_verify"] = ssl_verify
+            kwargs["kurator"]["ssl_verify"] = ssl_verify
         if extra_headers is not None:
-            kwargs["extra_headers"] = extra_headers
+            kwargs["kurator"]["extra_headers"] = extra_headers
 
-        self._config = ModelsConfig(**kwargs)
+        self._config = AnacondaModelsConfig(**kwargs)
 
         super().__init__(
-            domain=self._config.domain,
+            domain=self._config.backends.kurator.domain,
             user_agent=user_agent,
-            extra_headers=self._config.extra_headers,
-            ssl_verify=self._config.ssl_verify,
+            extra_headers=self._config.backends.kurator.extra_headers,
+            ssl_verify=self._config.backends.kurator.ssl_verify,
             backend="memory",
         )
 
@@ -290,36 +404,39 @@ class Client(CacheMixin, BaseClient):  # type: ignore
         self.expire_after = DO_NOT_CACHE
 
         self.models = Models(self)
+        self.servers = LocalServers(self)
 
 
 class AINavigatorClient(BaseClient):
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(self, port: Optional[int] = None, api_key: Optional[str] = None):
-        kwargs: Dict[str, Any] = {}
+        kwargs: Dict[str, Any] = {"ai_navigator": {}}
         if port is not None:
-            kwargs["ai_navigator"] = {"port": port}
+            kwargs["ai_navigator"]["port"] = port
         if api_key is not None:
-            kwargs["ai_navigator"] = {"api_key": api_key}
+            kwargs["ai_navigator"]["api_key"] = api_key
 
-        self._config = ModelsConfig(**kwargs)
+        self._config = AnacondaModelsConfig(**kwargs)
 
-        if self._config.ai_navigator.api_key is None:
+        if self._config.backends.ai_navigator.api_key is None:
             raise APIKeyMissing(
                 f"The AI Navigator API Key was not found in {anaconda_config_path()}"
             )
 
-        domain = f"localhost:{self._config.ai_navigator.port}"
+        domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
         super().__init__(
-            domain=domain, ssl_verify=False, api_key=self._config.ai_navigator.api_key
+            domain=domain,
+            ssl_verify=False,
+            api_key=self._config.backends.ai_navigator.api_key,
         )
 
         self._base_uri = f"http://{domain}"
 
-        _kurator = Client()
+        _kurator = KuratorClient()
         self.models = Models(_kurator)
-        self.servers = Servers(self)
+        self.servers = AINavigatorServers(self)
 
     def request(
         self,

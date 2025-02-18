@@ -42,22 +42,33 @@ def set_config(table: str, key: str, value: Any) -> None:
         tomlkit.dump(config, f)
 
 
-class AINavigator(BaseModel):
+class AINavigatorConfig(BaseModel):
     port: int = 8001
     api_key: Optional[str] = None
 
 
-class ModelsConfig(AnacondaBaseSettings, plugin_name="models"):
-    cache_path: Path = Path("~/.ai-navigator/models").expanduser()
+class KuratorConfig(BaseModel):
     domain: str = "kurator.anaconda.com"
     ssl_verify: bool = True
     extra_headers: Optional[Union[Dict[str, str], str]] = None
-    ai_navigator: AINavigator = AINavigator()
-    run_on: Literal["local", "ai-navigator"] = "local"
+    run_on: Literal["local"] = "local"
+    local_servers_path: Path = Path("~/.ai-navigator/local-servers").expanduser()
 
-    @field_validator("cache_path")
-    def expand_variables(cls, v: Union[Path, str]) -> Path:
+    @field_validator("local_servers_path")
+    def expand_variables_servers_path(cls, v: Union[Path, str]) -> Path:
         return Path(os.path.expandvars(v)).expanduser()
 
 
-config = ModelsConfig()
+class Backends(BaseModel):
+    ai_navigator: AINavigatorConfig = AINavigatorConfig()
+    kurator: KuratorConfig = KuratorConfig()
+
+
+class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
+    models_path: Path = Path("~/.ai-navigator/models").expanduser()
+    default_backend: Literal["kurator", "ai-navigator"] = "kurator"
+    backends: Backends = Backends()
+
+    @field_validator("models_path")
+    def expand_variables_models_path(cls, v: Union[Path, str]) -> Path:
+        return Path(os.path.expandvars(v)).expanduser()
