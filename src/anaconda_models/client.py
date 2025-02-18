@@ -149,20 +149,12 @@ class Models(BaseClient):
     def __init__(self, client: BaseClient):
         self._client = client
 
-    def list(self, downloaded_only: bool = False) -> list[Model]:
+    def list(self) -> list[Model]:
         response = self._client.get("/api/models", expire_after=60)
         response.raise_for_status()
         data = response.json()["result"]["data"]
         models = [Model(**m) for m in data]
-
-        if downloaded_only:
-            filtered = []
-            for model in models:
-                if any(q.is_downloaded for q in model.quantizedFiles):
-                    filtered.append(model)
-            return filtered
-        else:
-            return models
+        return models
 
     def get(self, model: str) -> Model | QuantizedFile:
         match = MODEL_NAME.match(model)
