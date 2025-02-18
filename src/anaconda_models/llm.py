@@ -55,9 +55,9 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
             model_name=model_id,
         )
 
-    def execute(self, prompt, stream, response, conversation=None):  # type: ignore
+    def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore
         self._create_and_start(embedding=False)
-        return super().execute(prompt, stream, response, conversation)
+        return super().execute(prompt, stream, response, conversation, key)
 
     def __str__(self) -> str:
         return f"Anaconda Model Chat: {self.model_id}"
