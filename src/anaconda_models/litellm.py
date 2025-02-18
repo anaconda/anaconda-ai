@@ -37,6 +37,7 @@ class AnacondaLLM(CustomLLM):
         inference_kwargs = optional_params.copy()
         _ = inference_kwargs.pop("stream", None)
         _ = inference_kwargs.pop("stream_options", None)
+        _ = inference_kwargs.pop("max_retries", None)
         return inference_kwargs
 
     def completion(
