@@ -4,48 +4,44 @@ from typing import Iterable
 from typing import Iterator
 from typing import List
 from typing import Optional
-from urllib.parse import urljoin
 
-import click
 import llm
 import openai
-from intake.readers.datatypes import LlamaCPPService
 from llm import hookimpl
 from llm.default_plugins.openai_models import Chat
 from llm.default_plugins.openai_models import OpenAIEmbeddingModel
+from rich.console import Console
+from rich.status import Status
 
-from anaconda_models.core import AnacondaQuantizedModelCache
-from anaconda_models.core import get_models
+from anaconda_models.client import get_default_client, QuantizedFile, Server
+
+client = get_default_client()
+console = Console(stderr=True)
 
 
 class AnacondaModelMixin:
     model_id: str
-    client_options: dict | None = None
-    anaconda_model: AnacondaQuantizedModelCache | None = None
-    llama_cpp_options: dict | None = None
-    llama_cpp_service: LlamaCPPService | None = None
+    anaconda_model: QuantizedFile | None = None
+    server: Server | None = None
 
-    def _get_or_create_service(self, embedding: bool = False) -> None:
-        if self.anaconda_model is None:
-            client_kwargs = {} if self.client_options is None else self.client_options
-            _, model_name = self.model_id.split("anaconda:")
-            self.anaconda_model = AnacondaQuantizedModelCache(
-                model_name, **client_kwargs
-            )
+    def _create_and_start(self, embedding: bool = False) -> None:
+        if self.server is None:
+            model_name = self.model_id.split(":", maxsplit=1)[1]
+            text = f"{model_name} (creating)"
+            with Status(text, console=console) as display:
+                client = get_default_client()
+                self.server = client.servers.create(model_name)
+                status = client.servers.start(self.server)
+                text = f"{model_name} ({status.status})"
+                display.update(text)
 
-        if (self.llama_cpp_service is None) or (
-            self.llama_cpp_service.options["Process"].poll() is not None
-        ):
-            llama_cpp_kwargs = (
-                {} if self.llama_cpp_options is None else self.llama_cpp_options
-            )
-            if embedding:
-                llama_cpp_kwargs["embedding"] = None
-                llama_cpp_kwargs["pooling"] = "mean"
+                while status.status != "running":
+                    status = client.servers.start(self.server)
+                    text = f"{model_name} ({status.status})"
+                    display.update(text)
+            console.print(f"[bold green]✓[/] {text}", highlight=False)
 
-            self.llama_cpp_service = self.anaconda_model.start(**llama_cpp_kwargs)
-
-        self.api_base = urljoin(self.llama_cpp_service.url, "/v1")
+        self.api_base = self.server.openai_url
 
 
 class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
@@ -60,11 +56,11 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
         )
 
     def execute(self, prompt, stream, response, conversation=None):  # type: ignore
-        self._get_or_create_service(embedding=False)
+        self._create_and_start(embedding=False)
         return super().execute(prompt, stream, response, conversation)
 
     def __str__(self) -> str:
-        return f"Anaconda Quantized Chat: {self.model_id}"
+        return f"Anaconda Model Chat: {self.model_id}"
 
 
 class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
@@ -76,7 +72,7 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
         super().__init__(model_id, openai_model_id=model_id, dimensions=dimensions)
 
     def embed_batch(self, items: Iterable[str | bytes]) -> Iterator[List[float]]:
-        self._get_or_create_service(embedding=True)
+        self._create_and_start(embedding=True)
         kwargs = {
             "input": items,
             "model": self.openai_model_id,
@@ -105,16 +101,20 @@ def _accepted_model_name_variants(
 
 @llm.hookimpl
 def register_models(register: Callable) -> None:
-    for model in get_models():
-        model_id = model["modelId"]
-        model_name = model["name"]
-        for quant in sorted(model["quantizedFiles"], key=lambda q: q["quantMethod"]):
-            method = quant["quantMethod"]
-            format = quant["format"]
+    for model in client.models.list():
+        if model.trainedFor != "text-generation":
+            continue
+        for quant in sorted(model.quantizedFiles, key=lambda q: q.quantMethod):
+            if not quant.is_downloaded:
+                continue
 
-            file_ids = _accepted_model_name_variants(
-                model_id, model_name, method, format
-            )
+            method = quant.quantMethod
+            format = quant.format
+
+            # file_ids = _accepted_model_name_variants(
+            #     model_id, model_name, method, format
+            # )
+            file_ids = [f"{model.name}_{method}.{format.lower()}"]
             for file_id in file_ids:
                 quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
                 register(quant_chat)
@@ -122,75 +122,17 @@ def register_models(register: Callable) -> None:
 
 @hookimpl
 def register_embedding_models(register: Callable) -> None:
-    for model in get_models():
-        model_id = model["modelId"]
-        model_name = model["name"]
-        for quant in sorted(model["quantizedFiles"], key=lambda q: q["quantMethod"]):
-            method = quant["quantMethod"]
-            format = quant["format"]
+    for model in client.models.list():
+        if model.trainedFor != "sentence-similarity":
+            continue
+        for quant in sorted(model.quantizedFiles, key=lambda q: q.quantMethod):
+            method = quant.quantMethod
+            format = quant.format
 
-            file_ids = _accepted_model_name_variants(
-                model_id, model_name, method, format
-            )
+            # file_ids = _accepted_model_name_variants(
+            #     model_id, model_name, method, format
+            # )
+            file_ids = [f"{model.name}_{method}.{format.lower()}"]
             for file_id in file_ids:
                 embed = AnacondaQuantizedEmbedding(model_id=f"anaconda:{file_id}")
                 register(embed)
-
-
-@hookimpl
-def register_commands(cli: click.Group) -> None:
-    @cli.group(name="anaconda")
-    def anaconda_() -> None:
-        "Commands for working directly with Anaconda models"
-
-    @anaconda_.command()
-    @click.option("json_", "--json", is_flag=True, help="Output as JSON")
-    @click.option("--key", help="Anaconda.cloud API key")
-    def models(json_: bool, key: str) -> None:
-        from llm.cli import get_key
-        from rich.table import Table, Column
-        from rich.console import Console
-
-        from anaconda_models.client import Client
-
-        api_key = get_key(key, "anaconda", "ANACONDA_CLOUD_API_KEY")
-
-        client = Client(api_key=api_key)
-        models = get_models(client=client)
-
-        console = Console()
-        table = Table(
-            Column("Model", no_wrap=True),
-            "Method\n(downloaded in bold)",
-            "Max Ram (GB)",
-            "Size (GB)",
-            header_style="bold green",
-        )
-
-        quantized = []
-        for model in models:
-            model_id = model["modelId"]
-            quantized_files = model.pop("quantizedFiles")
-            for qf in sorted(quantized_files, key=lambda q: q["quantMethod"]):
-                method = qf["quantMethod"]
-                format = qf["format"]
-                file_id = f"anaconda:{model_id}_{method}.{format.lower()}"
-                qf["model_id"] = file_id
-                quant = {**qf, **model}
-                quantized.append(quant)
-
-                cacher = AnacondaQuantizedModelCache(
-                    f"{model_id}/{method}", client=client
-                )
-                if cacher.is_cached:
-                    method = f"[bold green]{method}[/bold green]"
-
-                ram = f"{quant['maxRamUsage'] / 1024 / 1024 / 1024:.2f}"
-                size = f"{quant['sizeBytes'] / 1024 / 1024 / 1024:.2f}"
-                table.add_row(file_id, method, ram, size)
-            table.add_section()
-
-        if json_:
-            console.print_json(data=quantized)
-        else:
-            console.print(table)
