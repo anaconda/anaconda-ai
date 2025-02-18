@@ -157,7 +157,7 @@ class Models(BaseClient):
         models = [Model(**m) for m in data]
         return models
 
-    def get(self, model: str) -> Model | QuantizedFile:
+    def get(self, model: str) -> Model:
         match = MODEL_NAME.match(model)
         if match is None:
             raise ValueError(f"{model} does not look like a model name.")

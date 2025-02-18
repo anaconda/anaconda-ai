@@ -291,7 +291,7 @@ LlamaIndex is support through a namespace package installed with `anaconda-model
 least the `llama-index-llms-openai` package installed to use the integration.
 
 ```python
-from llama_index.llms.anaconda_models import AnacondaModel
+from anaconda_models.llama_index import AnacondaModel
 
 llm = AnacondaModel(
     model='OpenHermes-2.5-Mistral-7B_q4_k_m'
@@ -301,11 +301,8 @@ llm = AnacondaModel(
 The `AnacondaModel` class supports the following arguments
 
 * `model`: Name of the model using the pattern defined above
-* `quantization`: Optional quantization method if not included in `model`
-* `format`: Optional file format if not included in `model`
 * `system_prompt`: Optional system prompt to apply to completions and chats
-* `client`: Optional `anaconda_models.client.Client` object
-* `llama_cpp_kwargs`: Optional dictionary of llama.cpp server parameters
+* `client`: Optional `anaconda_models.client.AINavigator` or `anaconda_models.client.KuratorClient` object
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
 

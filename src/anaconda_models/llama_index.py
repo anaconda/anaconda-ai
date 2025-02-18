@@ -1,12 +1,11 @@
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
 from llama_index.llms.openai import OpenAI
 from llama_index.core.base.llms.types import LLMMetadata
 from pydantic import Field
 
-from anaconda_models.core import AnacondaQuantizedModelCache
-from anaconda_models.client import Client
+from anaconda_models.client import get_default_client, AINavigatorClient, KuratorClient
 
 
 class AnacondaModel(OpenAI):
@@ -23,29 +22,29 @@ class AnacondaModel(OpenAI):
     def __init__(
         self,
         model: str,
-        quantization: Optional[str] = None,
-        format: Optional[str] = None,
         system_prompt: Optional[str] = None,
-        client: Optional[Client] = None,
-        llama_cpp_kwargs: Optional[Dict[str, Any]] = None,
+        client: Optional[AINavigatorClient | KuratorClient] = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: Optional[int] = None,
     ) -> None:
-        cacher = AnacondaQuantizedModelCache(
-            name=model, quantization=quantization, format=format, client=client
-        )
+        if client is None:
+            client = get_default_client()
 
-        kwargs = {} if llama_cpp_kwargs is None else llama_cpp_kwargs
-        service = cacher.start(**kwargs)
+        server = client.servers.create(model)
+        status = client.servers.start(server)
+        while status.status != "running":
+            status = client.servers.start(server)
+
+        context_window = client.models.get(model).contextWindowSize
 
         super().__init__(
             model=model,
-            api_key="empty",
-            api_base=service.openai_url,
+            api_key=server.api_key,
+            api_base=server.openai_url,
             is_chat_model=True,
             api_version="empty",
             system_prompt=system_prompt,
-            context_window=cacher.metadata["contextWindowSize"],
+            context_window=context_window,
             max_tokens=max_tokens,
             is_function_calling_model=False,
             temperature=temperature,
