@@ -8,13 +8,14 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 from typing import cast
+from typing_extensions import Self
 from uuid import UUID, uuid4
 from urllib.parse import urljoin
 
 import openai
 from intake.readers.readers import LlamaServerReader
 from intake.readers.datatypes import LlamaCPPService
-from pydantic import BaseModel, HttpUrl, computed_field, Field
+from pydantic import BaseModel, HttpUrl, computed_field, Field, model_validator
 from pydantic.types import UUID4
 from requests import Response
 from requests_cache import CacheMixin, DO_NOT_CACHE
@@ -61,21 +62,11 @@ class QuantizedFile(BaseModel):
     quantMethod: str
     sha256: str
     sizeBytes: int
-
-    @computed_field
-    @property
-    def path(self) -> Path:
-        match = MODEL_NAME.match(self.id)
-        assert match, f"{self.id} is not a valid model name?"
-
-        owner, name, quantization, _ = match.groups()
-        fn = f"{name}_{quantization}.{self.format.lower()}"
-
-        path = AnacondaModelsConfig().models_path / owner / name / fn
-        return path
+    path: Path | None = None
 
     @property
     def is_downloaded(self) -> bool:
+        assert self.path
         if not self.path.exists():
             return False
 
@@ -139,19 +130,41 @@ class Model(BaseModel):
 
         return q
 
+    @model_validator(mode="after")
+    def update_quantized_files(self) -> Self:
+        for quantization in self.quantizedFiles:
+            models_path = AnacondaModelsConfig().models_path
+            quantization.path = (
+                models_path
+                / self.modelId
+                / f"{self.name}_{quantization.quantMethod}.gguf"
+            )
+
+        self.quantizedFiles = sorted(self.quantizedFiles, key=lambda q: q.quantMethod)
+
+        return self
+
 
 class Models(BaseClient):
     def __init__(self, client: BaseClient):
         self._client = client
 
-    def list(self) -> list[Model]:
+    def list(self, downloaded_only: bool = False) -> list[Model]:
         response = self._client.get("/api/models", expire_after=60)
         response.raise_for_status()
         data = response.json()["result"]["data"]
         models = [Model(**m) for m in data]
-        return models
 
-    def get(self, model) -> Model:
+        if downloaded_only:
+            filtered = []
+            for model in models:
+                if any(q.is_downloaded for q in model.quantizedFiles):
+                    filtered.append(model)
+            return filtered
+        else:
+            return models
+
+    def get(self, model: str) -> Model | QuantizedFile:
         match = MODEL_NAME.match(model)
         if match is None:
             raise ValueError(f"{model} does not look like a model name.")
@@ -161,11 +174,15 @@ class Models(BaseClient):
         models = self.list()
         for entry in models:
             if entry.name.lower() == model_name.lower():
-                return entry
+                model_info = entry
+                break
             elif entry.id.lower().endswith(model_name.lower()):
-                return entry
+                model_info = entry
+                break
         else:
             raise ModelNotFound(f"{model} was not found")
+
+        return model_info
 
 
 class APIParams(BaseModel):
@@ -451,3 +468,13 @@ class AINavigatorClient(BaseClient):
             raise RuntimeError(
                 "Could not connect to AI Navigator. It may not be running. Or you may have the wrong port configured."
             )
+
+
+def get_default_client() -> AINavigatorClient | KuratorClient:
+    config = AnacondaModelsConfig()
+    if config.default_backend == "kurator":
+        return KuratorClient()
+    elif config.default_backend == "ai-navigator":
+        return AINavigatorClient()
+    else:
+        raise NotImplementedError(f"Backend {config.default_backend} not implemented")
