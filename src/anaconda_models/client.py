@@ -203,7 +203,7 @@ class Server(BaseModel):
     createdAt: dt.datetime
     startImmediately: bool
     serverConfig: ServerConfig
-    api_key: str | None = None
+    api_key: str = "empty"
 
     @computed_field
     @property
@@ -247,6 +247,7 @@ class BaseServers(BaseClient):
                 raise ValueError(f"{model} does not like a quantized model name")
 
             _, model_name, quantization, _ = match.groups()
+            quantization = quantization.upper()
 
             if not quantization:
                 raise ValueError("You must provide a quantization level")
