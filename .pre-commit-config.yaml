@@ -9,6 +9,7 @@ repos:
         args: [--autofix]
       - id: check-yaml
         args: [--allow-multiple-documents]
+        exclude: ^conda.recipe/meta.yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit
