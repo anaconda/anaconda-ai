@@ -65,7 +65,6 @@ class QuantizedFile(BaseModel):
     _path: Path | None = None
 
     @property
-    @computed_field
     def path(self) -> Path:
         if self._path is None:
             raise RuntimeError(
