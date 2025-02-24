@@ -13,8 +13,6 @@ from uuid import UUID, uuid4
 from urllib.parse import urljoin
 
 import openai
-from intake.readers.readers import LlamaServerReader
-from intake.readers.datatypes import LlamaCPPService
 from pydantic import BaseModel, HttpUrl, computed_field, Field, model_validator
 from pydantic.types import UUID4
 from requests import Response
@@ -155,8 +153,14 @@ class Model(BaseModel):
         return self
 
 
+class GenericClient(CacheMixin, BaseClient):
+    models: "Models"
+    servers: "BaseServers"
+    _config: AnacondaModelsConfig
+
+
 class Models(BaseClient):
-    def __init__(self, client: BaseClient):
+    def __init__(self, client: GenericClient):
         self._client = client
 
     def list(self) -> list[Model]:
@@ -237,7 +241,7 @@ class Server(BaseModel):
 
 
 class BaseServers(BaseClient):
-    def __init__(self, client: BaseClient):
+    def __init__(self, client: GenericClient):
         self._client = client
 
     def list(self) -> list[Server]:
@@ -353,6 +357,9 @@ class LocalServers(BaseServers):
         return server_entry
 
     def _start(self, server_id: str) -> ServerStatus:
+        from intake.readers.readers import LlamaServerReader
+        from intake.readers.datatypes import LlamaCPPService
+
         server_file = (
             self._client._config.backends.kurator.local_servers_path
             / f"{server_id}.json"
@@ -383,7 +390,7 @@ class LocalServers(BaseServers):
         return status
 
 
-class KuratorClient(CacheMixin, BaseClient):  # type: ignore
+class KuratorClient(GenericClient):
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(
@@ -431,7 +438,7 @@ class KuratorClient(CacheMixin, BaseClient):  # type: ignore
         self.servers = LocalServers(self)
 
 
-class AINavigatorClient(BaseClient):
+class AINavigatorClient(GenericClient):
     _user_agent = f"anaconda-models/{version}"
 
     def __init__(self, port: Optional[int] = None, api_key: Optional[str] = None):
@@ -463,8 +470,8 @@ class AINavigatorClient(BaseClient):
 
     def request(
         self,
-        method: Union[str, bytes],
-        url: Union[str, bytes],
+        method: str,
+        url: str,
         *args: Any,
         **kwargs: Any,
     ) -> Response:
@@ -476,7 +483,7 @@ class AINavigatorClient(BaseClient):
             )
 
 
-def get_default_client() -> AINavigatorClient | KuratorClient:
+def get_default_client() -> GenericClient:
     config = AnacondaModelsConfig()
     if config.default_backend == "kurator":
         return KuratorClient()
