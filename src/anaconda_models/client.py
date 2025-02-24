@@ -64,11 +64,19 @@ class QuantizedFile(BaseModel):
     quantMethod: str
     sha256: str
     sizeBytes: int
-    path: Path | None = None
+    _path: Path | None = None
+
+    @property
+    @computed_field
+    def path(self) -> Path:
+        if self._path is None:
+            raise RuntimeError(
+                "The path to the downloaded model could not be determined."
+            )
+        return self._path
 
     @property
     def is_downloaded(self) -> bool:
-        assert self.path
         if not self.path.exists():
             return False
 
@@ -136,7 +144,7 @@ class Model(BaseModel):
     def update_quantized_files(self) -> Self:
         for quantization in self.quantizedFiles:
             models_path = AnacondaModelsConfig().models_path
-            quantization.path = (
+            quantization._path = (
                 models_path
                 / self.modelId
                 / f"{self.name}_{quantization.quantMethod}.gguf"
@@ -246,13 +254,17 @@ class BaseServers(BaseClient):
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
             if match is None:
-                raise ValueError(f"{model} does not like a quantized model name")
+                raise ValueError(
+                    f"{model} does not look like a quantized model name in the format <model>/<quant>"
+                )
 
             _, model_name, quantization, _ = match.groups()
             quantization = quantization.upper()
 
             if not quantization:
-                raise ValueError("You must provide a quantization level")
+                raise ValueError(
+                    "You must provide a quantization level in the model name as <model>/<quant>"
+                )
 
             model = cast(
                 QuantizedFile,
