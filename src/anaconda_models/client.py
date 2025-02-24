@@ -13,12 +13,14 @@ from uuid import UUID, uuid4
 from urllib.parse import urljoin
 
 import openai
+import rich.progress
 from pydantic import BaseModel, HttpUrl, computed_field, Field, model_validator
 from pydantic.types import UUID4
 from requests import Response
 from requests_cache import CacheMixin, DO_NOT_CACHE
 from requests.exceptions import ConnectionError
 from rich.prompt import Prompt
+from rich.console import Console
 
 from anaconda_cloud_auth.client import BaseClient
 from anaconda_cloud_auth.client import BearerAuth
@@ -153,21 +155,24 @@ class Model(BaseModel):
 
 
 class GenericClient(CacheMixin, BaseClient):
-    models: "Models"
+    models: "BaseModels"
     servers: "BaseServers"
     _config: AnacondaModelsConfig
 
 
-class Models(BaseClient):
+class BaseModels(BaseClient):
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def list(self) -> list[Model]:
-        response = self._client.get("/api/models", expire_after=60)
-        response.raise_for_status()
-        data = response.json()["result"]["data"]
-        models = [Model(**m) for m in data]
-        return models
+    def _list(self) -> list[Model]:
+        raise NotImplementedError
+
+    def list(self, downloaded_only: bool = False) -> list[Model]:
+        models = self._list()
+        if downloaded_only:
+            return [m for m in models if any(q.is_downloaded for q in m.quantizedFiles)]
+        else:
+            return models
 
     def get(self, model: str) -> Model:
         match = MODEL_NAME.match(model)
@@ -188,6 +193,82 @@ class Models(BaseClient):
             raise ModelNotFound(f"{model} was not found")
 
         return model_info
+
+    def get_quantized(self, model: str) -> QuantizedFile:
+        match = MODEL_NAME.match(model)
+        if match is None:
+            raise ValueError(f"{model} does not look like a model name.")
+
+        _, model_name, quant_method, _ = match.groups()
+
+        if quant_method is None:
+            raise ValueError(
+                "You must include the quantization method in the model as <model>/<quantization>"
+            )
+
+        model_info = self.get(model_name)
+        quantfile = model_info.quantizations[quant_method.upper()]
+        return quantfile
+
+    def _download(self, model: QuantizedFile, show_progress: bool = True) -> Path:
+        raise NotImplementedError
+
+    def download(
+        self,
+        model: str | QuantizedFile,
+        force: bool = False,
+        show_progress: bool = True,
+    ) -> Path:
+        if isinstance(model, str):
+            model = self.get_quantized(model)
+
+        if model.is_downloaded and not force:
+            return model.path
+
+        path = self._download(model=model, show_progress=show_progress)
+        return path
+
+
+class KuratorModels(BaseModels):
+    def _list(self) -> list[Model]:
+        response = self._client.get("/api/models", expire_after=60)
+        response.raise_for_status()
+        data = response.json()["result"]["data"]
+        models = [Model(**m) for m in data]
+        return models
+
+    def _download(self, model: QuantizedFile, show_progress: bool = True) -> Path:
+        model.path.parent.mkdir(parents=True, exist_ok=True)
+
+        response = self._client.get(str(model.downloadUrl), stream=True)
+        response.raise_for_status()
+
+        console = Console(stderr=True)
+        size = response.headers["Content-Length"]
+        stream_progress = rich.progress.Progress(
+            rich.progress.TextColumn("[progress.description]{task.description}"),
+            rich.progress.BarColumn(),
+            rich.progress.DownloadColumn(),
+            rich.progress.TransferSpeedColumn(),
+            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
+            console=console,
+            refresh_per_second=10,
+        )
+        task = stream_progress.add_task(
+            f"Downloading {model.id}", total=int(size), visible=show_progress
+        )
+
+        with open(model.path, "wb") as f:
+            with stream_progress as s:
+                for chunk in response.iter_content(1024**2):
+                    f.write(chunk)
+                    s.update(task, advance=len(chunk))
+
+        return model.path
+
+
+class AINavigatorModels(BaseModels):
+    pass
 
 
 class APIParams(BaseModel):
@@ -433,7 +514,7 @@ class KuratorClient(GenericClient):
         self.cache.clear()  # this is likely redundant for backend=memory, but safe
         self.expire_after = DO_NOT_CACHE
 
-        self.models = Models(self)
+        self.models = KuratorModels(self)
         self.servers = LocalServers(self)
 
 
@@ -464,7 +545,7 @@ class AINavigatorClient(GenericClient):
         self._base_uri = f"http://{domain}"
 
         _kurator = KuratorClient()
-        self.models = Models(_kurator)
+        self.models = KuratorModels(_kurator)
         self.servers = AINavigatorServers(self)
 
     def request(
