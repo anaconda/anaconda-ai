@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel, computed_field, Field
+from pydantic import BaseModel, computed_field
 from pydantic.types import UUID4
 from requests_cache import CacheMixin
 
@@ -123,7 +123,7 @@ class BaseModels(BaseClient):
         _ = self._download(model=model, show_progress=show_progress)
 
 
-class APIParams(BaseModel):
+class APIParams(BaseModel, extra="forbid"):
     host: str = "127.0.0.1"
     port: int = 0
     api_key: str | None = None
@@ -136,7 +136,7 @@ class APIParams(BaseModel):
     metrics: bool | None = None
 
 
-class LoadParams(BaseModel):
+class LoadParams(BaseModel, extra="forbid"):
     batch_size: int | None = None
     cont_batchin: bool | None = None
     ctx_size: int | None = None
@@ -151,7 +151,7 @@ class LoadParams(BaseModel):
     use_mmap: bool | None = None
 
 
-class InferParams(BaseModel):
+class InferParams(BaseModel, extra="forbid"):
     threads: int | None = None
     n_predict: int | None = None
     top_k: int | None = None
@@ -159,7 +159,7 @@ class InferParams(BaseModel):
     min_p: float | None = None
     repeat_last: int | None = None
     repeat_penalty: float | None = None
-    temp: float | None = Field(default=None, alias="temperature")
+    temp: float | None = None
     parallel: int | None = None
 
 
@@ -186,6 +186,40 @@ class Server(BaseModel):
     startImmediately: bool
     serverConfig: ServerConfig
     api_key: str = "empty"
+    _client: GenericClient
+
+    def status(self):
+        return self._client.servers.status(self.id)
+
+    @property
+    def is_running(self):
+        return self.status().status == "running"
+
+    def stop(self):
+        return self._client.servers.stop(self.id)
+
+    class ServerContext:
+        def __init__(self, parent: "Server") -> None:
+            self.parent = parent
+            status = self.parent._client.servers.start(self.parent.id)
+            while True:
+                status = self.parent._client.servers.status(self.parent.id)
+                if status.status == "running":
+                    break
+                elif status.status == "errored":
+                    raise RuntimeError(status.model_dump_json())
+                else:
+                    continue
+
+        def __enter__(self) -> None:
+            pass
+
+        def __exit__(self, exc_type, exc_value, traceback) -> bool:
+            _ = self.parent._client.servers.stop(self.parent.id)
+            return exc_type is None
+
+    def start(self):
+        return self.ServerContext(self)
 
     @computed_field
     @property
@@ -283,6 +317,7 @@ class BaseServers(BaseClient):
         server = self._create(
             server_config=server_config, start_immediately=start_immediately
         )
+        server._client = self._client
         return server
 
     def _start(self, server_id: str) -> ServerStatus:
