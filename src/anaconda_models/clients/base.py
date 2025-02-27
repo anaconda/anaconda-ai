@@ -127,7 +127,7 @@ class BaseModels(BaseClient):
             model = self.get_quantized_model(model)
 
         if model.isDownloaded and not force:
-            return model.modelFileName
+            return
 
         _ = self._download(model=model, show_progress=show_progress)
 
@@ -279,7 +279,6 @@ class BaseServers(BaseClient):
     def create(
         self,
         model: str | ModelQuantization,
-        start_immediately: bool = True,
         api_params: APIParams | dict[str, Any] | None = None,
         load_params: LoadParams | dict[str, Any] | None = None,
         infer_params: InferParams | dict[str, Any] | None = None,
@@ -324,9 +323,7 @@ class BaseServers(BaseClient):
             port = find_free_port()
             server_config.apiParams.port = port
 
-        server = self._create(
-            server_config=server_config, start_immediately=start_immediately
-        )
+        server = self._create(server_config=server_config)
         server._client = self._client
         return server
 
