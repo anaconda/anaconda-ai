@@ -158,6 +158,7 @@ class LoadParams(BaseModel, extra="forbid"):
     seed: int | None = None
     tensor_split: list[int] | None = None
     use_mmap: bool | None = None
+    embedding: bool | None = None
 
 
 class InferParams(BaseModel, extra="forbid"):
