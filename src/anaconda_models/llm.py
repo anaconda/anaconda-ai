@@ -1,3 +1,4 @@
+import atexit
 from typing import Any
 from typing import Callable
 from typing import Iterable
@@ -13,7 +14,8 @@ from llm.default_plugins.openai_models import OpenAIEmbeddingModel
 from rich.console import Console
 from rich.status import Status
 
-from anaconda_models.client import get_default_client, QuantizedFile, Server
+from anaconda_models.clients import get_default_client
+from anaconda_models.clients.base import ModelQuantization, Server
 
 client = get_default_client()
 console = Console(stderr=True)
@@ -21,7 +23,7 @@ console = Console(stderr=True)
 
 class AnacondaModelMixin:
     model_id: str
-    anaconda_model: QuantizedFile | None = None
+    anaconda_model: ModelQuantization | None = None
     server: Server | None = None
 
     def _create_and_start(self, embedding: bool = False) -> None:
@@ -40,6 +42,7 @@ class AnacondaModelMixin:
                     text = f"{model_name} ({status.status})"
                     display.update(text)
             console.print(f"[bold green]✓[/] {text}", highlight=False)
+            atexit.register(client.servers.stop, self.server)
 
         self.api_base = self.server.openai_url
 
@@ -102,22 +105,16 @@ def _accepted_model_name_variants(
 @llm.hookimpl
 def register_models(register: Callable) -> None:
     for model in client.models.list():
-        if model.trainedFor != "text-generation":
+        if model.metadata.trainedFor != "text-generation":
             continue
-        for quant in sorted(model.quantizedFiles, key=lambda q: q.quantMethod):
-            if not quant.is_downloaded:
+        for quant in model.metadata.quantizations:
+            if not quant.isDownloaded:
                 continue
 
-            method = quant.quantMethod
-            format = quant.format
-
-            # file_ids = _accepted_model_name_variants(
-            #     model_id, model_name, method, format
-            # )
-            file_ids = [f"{model.name}_{method}.{format.lower()}"]
-            for file_id in file_ids:
-                quant_chat = AnacondaQuantizedChat(model_id=f"anaconda:{file_id}")
-                register(quant_chat)
+            quant_chat = AnacondaQuantizedChat(
+                model_id=f"anaconda:{quant.modelFileName}"
+            )
+            register(quant_chat)
 
 
 @hookimpl
