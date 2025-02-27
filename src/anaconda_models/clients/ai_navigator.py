@@ -21,11 +21,20 @@ from .base import (
 
 class AINavigatorModels(BaseModels):
     def list(self) -> list[ModelSummary]:
-        res = self._client.get("api/models")
+        res = self._client.get("api/models", expire_after=100)
         res.raise_for_status()
         data = res.json()["data"]
         models = [ModelSummary(**m) for m in data]
-        return models
+
+        config = AnacondaModelsConfig()
+        downloaded = [fn.name for fn in config.models_path.glob("**/*.gguf")]
+        for model in models:
+            for quant in model.metadata.quantizations:
+                if quant.modelFileName in downloaded:
+                    quant.isDownloaded = True
+        return [
+            m for m in models if any(q.isDownloaded for q in m.metadata.quantizations)
+        ]
 
 
 class AINavigatorServers(BaseServers):

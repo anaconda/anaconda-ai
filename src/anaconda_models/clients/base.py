@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, field_validator
 from pydantic.types import UUID4
 from requests_cache import CacheMixin
 
@@ -40,6 +40,13 @@ class ModelMetadata(BaseModel):
     description: str
     quantizations: list[ModelQuantization]
 
+    @field_validator("quantizations", mode="after")
+    @classmethod
+    def sort_quantizations(
+        cls, value: list[ModelQuantization]
+    ) -> list[ModelQuantization]:
+        return sorted(value, key=lambda q: q.method)
+
 
 class ModelSummary(BaseModel):
     id: str
@@ -56,7 +63,7 @@ class ModelSummary(BaseModel):
             )
 
 
-class GenericClient(BaseClient, CacheMixin):
+class GenericClient(CacheMixin, BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     _config: AnacondaModelsConfig
@@ -66,7 +73,7 @@ class BaseModels(BaseClient):
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def list(self, downloaded_only: bool = False) -> list[ModelSummary]:
+    def list(self) -> list[ModelSummary]:
         raise NotImplementedError
 
     def get(self, model: str) -> ModelSummary:
@@ -106,7 +113,9 @@ class BaseModels(BaseClient):
         return quantfile
 
     def _download(self, model: ModelQuantization, show_progress: bool = True) -> Path:
-        raise NotImplementedError
+        raise NotImplementedError(
+            "Downloading models is not available with this client"
+        )
 
     def download(
         self,
@@ -118,7 +127,7 @@ class BaseModels(BaseClient):
             model = self.get_quantized_model(model)
 
         if model.isDownloaded and not force:
-            return
+            return model.modelFileName
 
         _ = self._download(model=model, show_progress=show_progress)
 
