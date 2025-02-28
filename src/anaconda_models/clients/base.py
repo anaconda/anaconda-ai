@@ -10,6 +10,8 @@ import openai
 from pydantic import BaseModel, computed_field, field_validator
 from pydantic.types import UUID4
 from requests_cache import CacheMixin
+from rich.status import Status
+from rich.console import Console
 
 from anaconda_cloud_auth.client import BaseClient
 from anaconda_models.config import AnacondaModelsConfig
@@ -192,34 +194,46 @@ class ServerStatus(BaseModel):
 
 class Server(BaseModel):
     id: UUID4
-    createdAt: dt.datetime
-    startImmediately: bool
+    createdAt: dt.datetime | None = None
+    startImmediately: bool | None = None
+    tag: str | None = None
     serverConfig: ServerConfig
-    api_key: str = "empty"
+    api_key: str | None = "empty"
     _client: GenericClient
 
+    @property
     def status(self):
         return self._client.servers.status(self.id)
 
     @property
     def is_running(self):
-        return self.status().status == "running"
+        return self.status == "running"
 
     def stop(self):
         return self._client.servers.stop(self.id)
 
     class ServerContext:
-        def __init__(self, parent: "Server") -> None:
+        def __init__(
+            self,
+            parent: "Server",
+            show_progress: bool = True,
+            console: Console | None = None,
+        ) -> None:
             self.parent = parent
-            status = self.parent._client.servers.start(self.parent.id)
-            while True:
-                status = self.parent._client.servers.status(self.parent.id)
-                if status.status == "running":
-                    break
-                elif status.status == "errored":
-                    raise RuntimeError(status.model_dump_json())
-                else:
-                    continue
+            text = f"{self.parent.serverConfig.modelFileName} (creating)"
+            console = Console() if console is None else console
+            console.quiet = not show_progress
+            with Status(text, console=console) as display:
+                status = self.parent._client.servers.start(self.parent)
+                text = f"{self.parent.serverConfig.modelFileName} ({status.status})"
+                display.update(text)
+
+                status = status.status
+                while status != "running":
+                    status = self.parent._client.servers.status(self.parent)
+                    text = f"{self.parent.serverConfig.modelFileName} ({status})"
+                    display.update(text)
+            console.print(f"[bold green]✓[/] {text}", highlight=False)
 
         def __enter__(self) -> None:
             pass
@@ -228,8 +242,11 @@ class Server(BaseModel):
             _ = self.parent._client.servers.stop(self.parent.id)
             return exc_type is None
 
-    def start(self):
-        return self.ServerContext(self)
+    def start(self, show_progress: bool = True, console: Console | None = None):
+        return self.ServerContext(self, show_progress=show_progress, console=console)
+
+    def delete(self) -> None:
+        self._client.servers.delete(self.id)
 
     @computed_field
     @property
@@ -335,10 +352,10 @@ class BaseServers(BaseClient):
         status = self._start(server_id)
         return status
 
-    def _status(self, server_id: str) -> ServerStatus:
+    def _status(self, server_id: str) -> str:
         raise NotImplementedError
 
-    def status(self, server: UUID4 | Server | str) -> ServerStatus:
+    def status(self, server: UUID4 | Server | str) -> str:
         server_id = self._get_server_id(server)
         status = self._status(server_id)
         return status

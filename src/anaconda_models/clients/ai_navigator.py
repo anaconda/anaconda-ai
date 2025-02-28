@@ -4,6 +4,7 @@ from anaconda_cloud_auth.client import BearerAuth
 from anaconda_cloud_auth.token import TokenInfo
 from anaconda_cloud_auth.exceptions import TokenNotFoundError
 from requests import Response
+from requests_cache import DO_NOT_CACHE
 from rich.prompt import Prompt
 
 from .. import __version__ as version
@@ -38,6 +39,18 @@ class AINavigatorModels(BaseModels):
 
 
 class AINavigatorServers(BaseServers):
+    def list(self) -> list[Server]:
+        res = self._client.get("api/servers")
+        res.raise_for_status()
+        servers = []
+        for s in res.json():
+            if "id" not in s:
+                continue
+            server = Server(**s)
+            server._client = self._client
+            servers.append(server)
+        return servers
+
     def _create(
         self, server_config: ServerConfig, start_immediately: bool = False
     ) -> Server:
@@ -56,15 +69,20 @@ class AINavigatorServers(BaseServers):
         res.raise_for_status()
         return ServerStatus(**res.json())
 
-    def _status(self, server_id: str) -> ServerStatus:
-        res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
-        res.raise_for_status()
-        return ServerStatus(**res.json())
+    def _status(self, server_id: str) -> str:
+        servers: list[dict] = self._client.get("api/servers").json()
+        matched = [s for s in servers if s["id"] == server_id]
+        if not matched:
+            raise RuntimeError(f"{server_id} not found")
+        return matched[0]["status"]
 
-    def _stop(self, server_id: str) -> ServerStatus:
+    def _stop(self, server_id: str) -> None:
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
         res.raise_for_status()
-        return ServerStatus(**res.json())
+
+    def _delete(self, server_id: str) -> None:
+        res = self._client.delete(f"api/servers/{server_id}")
+        res.raise_for_status()
 
 
 class AINavigatorClient(GenericClient):
@@ -87,7 +105,14 @@ class AINavigatorClient(GenericClient):
 
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
-        super().__init__(domain=domain, ssl_verify=False, api_key=token.api_key)
+        super().__init__(
+            domain=domain, ssl_verify=False, api_key=token.api_key, backend="memory"
+        )
+        # Cache Settings
+        # The cache is disabled by default, but can be enabled as needed by request
+        # for a client session. New Client objects have an empty cache
+        self.cache.clear()  # this is likely redundant for backend=memory, but safe
+        self.expire_after = DO_NOT_CACHE
 
         self._base_uri = f"http://{domain}"
 
