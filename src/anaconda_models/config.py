@@ -1,10 +1,13 @@
 import os
+import json
 from pathlib import Path
+from typing import Any
 from typing import Dict
 from typing import Literal
 from typing import Optional
 from typing import Union
 
+import platformdirs
 from pydantic import BaseModel
 from pydantic import field_validator
 
@@ -12,7 +15,13 @@ from anaconda_cli_base.config import AnacondaBaseSettings
 
 
 class AINavigatorConfig(BaseModel):
+    config_file: Path = Path(platformdirs.user_data_dir("ai-navigator")) / "config.json"
     port: int = 8001
+
+    def get_config(self, key: str) -> Any:
+        with self.config_file.open("r") as f:
+            config = json.load(f)
+        return config.get(key)
 
 
 class KuratorConfig(BaseModel):

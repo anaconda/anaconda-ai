@@ -1,11 +1,8 @@
 from typing import Optional, Any, Dict
 
-from anaconda_cloud_auth.client import BearerAuth
-from anaconda_cloud_auth.token import TokenInfo
-from anaconda_cloud_auth.exceptions import TokenNotFoundError
-from requests import Response
+from requests import PreparedRequest, Response
 from requests_cache import DO_NOT_CACHE
-from rich.prompt import Prompt
+from requests.auth import AuthBase
 
 from .. import __version__ as version
 from ..config import AnacondaModelsConfig
@@ -18,6 +15,7 @@ from .base import (
     Server,
     ServerStatus,
 )
+from ..exceptions import APIKeyMissing
 
 
 class AINavigatorModels(BaseModels):
@@ -85,29 +83,36 @@ class AINavigatorServers(BaseServers):
         res.raise_for_status()
 
 
+class AINavigatorAPIKey(AuthBase):
+    def __init__(self, config: AnacondaModelsConfig) -> None:
+        self.config = config
+        super().__init__()
+
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        api_key = self.config.backends.ai_navigator.get_config("aiNavApiKey")
+        if api_key is None:
+            raise APIKeyMissing(
+                "The aiNavApiKey was not found. Try upgrading and restarting AI Navigator"
+            )
+
+        r.headers["Authorization"] = f"Bearer {api_key}"
+        return r
+
+
 class AINavigatorClient(GenericClient):
     _user_agent = f"anaconda-models/{version}"
-    auth: BearerAuth
+    auth: AuthBase
 
-    def __init__(self, port: Optional[int] = None, api_key: Optional[str] = None):
+    def __init__(self, port: Optional[int] = None):
         kwargs: Dict[str, Any] = {"ai_navigator": {}}
         if port is not None:
             kwargs["ai_navigator"]["port"] = port
-        if api_key is not None:
-            kwargs["ai_navigator"]["api_key"] = api_key
 
         self._config = AnacondaModelsConfig(**kwargs)
 
-        try:
-            token = TokenInfo.load(domain="ai-navigator")
-        except TokenNotFoundError:
-            token = self.ask_for_api_key()
-
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
-        super().__init__(
-            domain=domain, ssl_verify=False, api_key=token.api_key, backend="memory"
-        )
+        super().__init__(domain=domain, ssl_verify=False, backend="memory")
         # Cache Settings
         # The cache is disabled by default, but can be enabled as needed by request
         # for a client session. New Client objects have an empty cache
@@ -118,13 +123,7 @@ class AINavigatorClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
-
-    def ask_for_api_key(self) -> TokenInfo:
-        api_key = Prompt.ask("Paste the AI Navigator API key here", password=True)
-        token = TokenInfo(domain="ai-navigator", api_key=api_key)
-        token.save()
-        print("AI Navigator API Key saved in keyring")
-        return token
+        self.auth = AINavigatorAPIKey(self._config)
 
     def request(
         self,
@@ -137,12 +136,7 @@ class AINavigatorClient(GenericClient):
             response = super().request(method, url, *args, **kwargs)
         except ConnectionError:
             raise RuntimeError(
-                "Could not connect to AI Navigator. It may not be running. Or you may have the wrong port configured."
+                "Could not connect to AI Navigator. It may not be running."
             )
-
-        if response.status_code == 401:
-            token = self.ask_for_api_key()
-            self.auth.api_key = token.api_key
-            response = super().request(method, url, *args, **kwargs)
 
         return response
