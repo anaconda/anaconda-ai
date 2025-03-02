@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pydantic import field_validator
 
 from anaconda_cli_base.config import AnacondaBaseSettings
+from anaconda_models.exceptions import APIKeyMissing
 
 
 class AINavigatorConfig(BaseModel):
@@ -20,8 +21,25 @@ class AINavigatorConfig(BaseModel):
 
     def get_config(self, key: str) -> Any:
         with self.config_file.open("r") as f:
-            config = json.load(f)
+            try:
+                config = json.load(f)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "There was a problem reading the AINavigator application config file"
+                )
         return config.get(key)
+
+    @property
+    def api_key(self) -> str:
+        key = self.get_config("aiNavApiKey")
+        if key is None:
+            raise APIKeyMissing("Error: The API Key was not found in the config file.")
+        return key
+
+    @property
+    def models_path(self) -> Path:
+        path = self.get_config("downloadLocation")
+        return Path(path)
 
 
 class KuratorConfig(BaseModel):
@@ -30,9 +48,14 @@ class KuratorConfig(BaseModel):
     extra_headers: Optional[Union[Dict[str, str], str]] = None
     run_on: Literal["local"] = "local"
     local_servers_path: Path = Path("~/.ai-navigator/local-servers").expanduser()
+    models_path: Path = Path("~/.ai-navigator/models").expanduser()
 
     @field_validator("local_servers_path")
     def expand_variables_servers_path(cls, v: Union[Path, str]) -> Path:
+        return Path(os.path.expandvars(v)).expanduser()
+
+    @field_validator("models_path")
+    def expand_variables_models_path(cls, v: Union[Path, str]) -> Path:
         return Path(os.path.expandvars(v)).expanduser()
 
 
@@ -42,10 +65,5 @@ class Backends(BaseModel):
 
 
 class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
-    models_path: Path = Path("~/.ai-navigator/models").expanduser()
     default_backend: Literal["kurator", "ai-navigator"] = "ai-navigator"
     backends: Backends = Backends()
-
-    @field_validator("models_path")
-    def expand_variables_models_path(cls, v: Union[Path, str]) -> Path:
-        return Path(os.path.expandvars(v)).expanduser()

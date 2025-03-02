@@ -1,5 +1,4 @@
 import re
-import datetime as dt
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -188,15 +187,10 @@ class ServerStatus(BaseModel):
     host: str | None = None
     port: int | None = None
     status: str
-    startedAt: dt.datetime | None = None
-    stoppedAt: dt.datetime | None = None
 
 
 class Server(BaseModel):
     id: UUID4
-    createdAt: dt.datetime | None = None
-    startImmediately: bool | None = None
-    tag: str | None = None
     serverConfig: ServerConfig
     api_key: str | None = "empty"
     _client: GenericClient
@@ -288,6 +282,17 @@ class BaseServers(BaseClient):
     def list(self) -> list[Server]:
         raise NotImplementedError
 
+    def match(self, server_config: ServerConfig) -> Server | None:
+        exclude = {"apiParams": {"host", "port", "api_key"}}
+        servers = self.list()
+        for server in servers:
+            if server_config.model_dump(
+                exclude=exclude
+            ) == server.serverConfig.model_dump(exclude=exclude):
+                return server
+        else:
+            return None
+
     def _create(
         self, server_config: ServerConfig, start_immediately: bool = False
     ) -> Server:
@@ -340,9 +345,13 @@ class BaseServers(BaseClient):
             port = find_free_port()
             server_config.apiParams.port = port
 
-        server = self._create(server_config=server_config)
-        server._client = self._client
-        return server
+        matched = self.match(server_config)
+        if matched is None:
+            server = self._create(server_config=server_config)
+            server._client = self._client
+            return server
+        else:
+            return matched
 
     def _start(self, server_id: str) -> ServerStatus:
         raise NotImplementedError

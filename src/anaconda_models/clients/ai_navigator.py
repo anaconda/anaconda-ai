@@ -26,7 +26,9 @@ class AINavigatorModels(BaseModels):
         models = [ModelSummary(**m) for m in data]
 
         config = AnacondaModelsConfig()
-        downloaded = [fn.name for fn in config.models_path.glob("**/*.gguf")]
+        downloaded = [
+            fn.name for fn in config.backends.ai_navigator.models_path.glob("**/*.gguf")
+        ]
         for model in models:
             for quant in model.metadata.quantizations:
                 if quant.modelFileName in downloaded:
