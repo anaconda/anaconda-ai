@@ -43,7 +43,7 @@ class AINavigatorServers(BaseServers):
         res = self._client.get("api/servers")
         res.raise_for_status()
         servers = []
-        for s in res.json():
+        for s in res.json()["data"]:
             if "id" not in s:
                 continue
             server = Server(**s)
@@ -52,25 +52,25 @@ class AINavigatorServers(BaseServers):
         return servers
 
     def _create(
-        self, server_config: ServerConfig, start_immediately: bool = False
+        self,
+        server_config: ServerConfig,
     ) -> Server:
         body = {
             "serverConfig": server_config.model_dump(exclude={"id"}),
-            "startImmediately": start_immediately,
         }
 
         res = self._client.post("api/servers", json=body)
         res.raise_for_status()
-        server = Server(**res.json())
+        server = Server(**res.json()["data"])
         return server
 
     def _start(self, server_id: str) -> ServerStatus:
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
         res.raise_for_status()
-        return ServerStatus(**res.json())
+        return ServerStatus(**res.json()["data"])
 
     def _status(self, server_id: str) -> str:
-        servers: list[dict] = self._client.get("api/servers").json()
+        servers: list[dict] = self._client.get("api/servers").json()["data"]
         matched = [s for s in servers if s["id"] == server_id]
         if not matched:
             raise RuntimeError(f"{server_id} not found")
@@ -78,7 +78,14 @@ class AINavigatorServers(BaseServers):
 
     def _stop(self, server_id: str) -> None:
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
-        res.raise_for_status()
+        if not res.ok:
+            if (
+                res.status_code == 400
+                and res.json().get("error", {}).get("code", "") == "SERVER_NOT_RUNNING"
+            ):
+                return
+            else:
+                res.raise_for_status()
 
     def _delete(self, server_id: str) -> None:
         res = self._client.delete(f"api/servers/{server_id}")

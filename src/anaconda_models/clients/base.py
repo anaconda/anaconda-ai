@@ -36,7 +36,8 @@ class ModelQuantization(BaseModel):
 
 
 class ModelMetadata(BaseModel):
-    numParameters: str
+    numParameters: int
+    contextWindowSize: int
     trainedFor: str
     description: str
     quantizations: list[ModelQuantization]
@@ -238,9 +239,6 @@ class Server(BaseModel):
 
     def start(self, show_progress: bool = True, console: Console | None = None):
         return self.ServerContext(self, show_progress=show_progress, console=console)
-
-    def delete(self) -> None:
-        self._client.servers.delete(self.id)
 
     @computed_field
     @property
