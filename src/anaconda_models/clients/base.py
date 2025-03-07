@@ -190,6 +190,7 @@ class Server(BaseModel):
     serverConfig: ServerConfig
     api_key: str | None = "empty"
     _client: GenericClient
+    _matched: bool = False
 
     @property
     def status(self):
@@ -286,9 +287,10 @@ class BaseServers(BaseClient):
         exclude = {"apiParams": {"host", "port", "api_key"}}
         servers = self.list()
         for server in servers:
-            if server_config.model_dump(
-                exclude=exclude
-            ) == server.serverConfig.model_dump(exclude=exclude):
+            config_dump = server_config.model_dump(exclude=exclude)
+            server_dump = server.serverConfig.model_dump(exclude=exclude)
+            if server.is_running and (config_dump == server_dump):
+                server._matched = True
                 return server
         else:
             return None
