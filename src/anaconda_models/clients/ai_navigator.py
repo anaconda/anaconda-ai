@@ -3,6 +3,7 @@ from typing import Optional, Any, Dict
 from requests import PreparedRequest, Response
 from requests_cache import DO_NOT_CACHE
 from requests.auth import AuthBase
+from urllib.parse import quote
 
 from .. import __version__ as version
 from ..config import AnacondaModelsConfig
@@ -20,22 +21,21 @@ from ..exceptions import APIKeyMissing
 
 class AINavigatorModels(BaseModels):
     def list(self) -> list[ModelSummary]:
-        res = self._client.get("api/models", expire_after=100)
+        res = self._client.get("api/models")
         res.raise_for_status()
-        data = res.json()["data"]
-        models = [ModelSummary(**m) for m in data]
+        model_catalog = res.json()["data"]
 
-        config = AnacondaModelsConfig()
-        downloaded = [
-            fn.name for fn in config.backends.ai_navigator.models_path.glob("**/*.gguf")
-        ]
-        for model in models:
-            for quant in model.metadata.quantizations:
-                if quant.modelFileName in downloaded:
-                    quant.isDownloaded = True
-        return [
-            m for m in models if any(q.isDownloaded for q in m.metadata.quantizations)
-        ]
+        models = []
+        for model in model_catalog:
+            quoted = quote(model["id"], safe="")
+            res = self._client.get(f"api/models/{quoted}/files")
+            res.raise_for_status()
+            files = res.json()["data"]
+            model["metadata"]["quantizations"] = files
+
+            model_summary = ModelSummary(**model)
+            models.append(model_summary)
+        return models
 
 
 class AINavigatorServers(BaseServers):

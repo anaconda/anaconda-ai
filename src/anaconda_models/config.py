@@ -36,11 +36,6 @@ class AINavigatorConfig(BaseModel):
             raise APIKeyMissing("Error: The API Key was not found in the config file.")
         return key
 
-    @property
-    def models_path(self) -> Path:
-        path = self.get_config("downloadLocation")
-        return Path(path)
-
 
 class KuratorConfig(BaseModel):
     domain: str = "kurator.anaconda.com"
@@ -67,3 +62,4 @@ class Backends(BaseModel):
 class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
     default_backend: Literal["kurator", "ai-navigator"] = "ai-navigator"
     backends: Backends = Backends()
+    stop_server_on_exit: bool = False

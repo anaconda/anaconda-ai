@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel, computed_field, field_validator
+from pydantic import BaseModel, computed_field, field_validator, Field
 from pydantic.types import UUID4
 from requests_cache import CacheMixin
 from rich.status import Status
@@ -28,11 +28,13 @@ MODEL_NAME = re.compile(
 
 
 class ModelQuantization(BaseModel):
-    modelFileName: str
-    method: str
+    id: str = Field(alias="sha256checksum")
+    modelFileName: str = Field(alias="name")
+    method: str = Field(alias="quantization")
     sizeBytes: int
     maxRamUsage: int
-    isDownloaded: bool | None = None
+    isDownloaded: bool = False
+    localPath: str | None = None
 
 
 class ModelMetadata(BaseModel):
