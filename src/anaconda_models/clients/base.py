@@ -185,13 +185,6 @@ class ServerConfig(BaseModel):
     logsDir: str = "./logs"
 
 
-class ServerStatus(BaseModel):
-    id: UUID4
-    host: str | None = None
-    port: int | None = None
-    status: str
-
-
 class Server(BaseModel):
     id: UUID4
     serverConfig: ServerConfig
@@ -202,45 +195,52 @@ class Server(BaseModel):
     def status(self):
         return self._client.servers.status(self.id)
 
+    class ServerContext:
+        def __init__(self, parent: "Server") -> None:
+            self.parent = parent
+
+        def __enter__(self) -> None:
+            return
+
+        def __exit__(self, exc_type, exc_value, traceback) -> bool:
+            self.parent._client.servers.stop(self.parent.id)
+            return exc_type is None
+
+    def start(
+        self, show_progress: bool = True, console: Console | None = None
+    ) -> ServerContext:
+        text = f"{self.serverConfig.modelFileName} (creating)"
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        with Status(text, console=console) as display:
+            self._client.servers.start(self)
+            status = "starting"
+            text = f"{self.serverConfig.modelFileName} ({status})"
+            display.update(text)
+
+            while status != "running":
+                status = self._client.servers.status(self)
+                text = f"{self.serverConfig.modelFileName} ({status})"
+                display.update(text)
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+        return self.ServerContext(self)
+
     @property
     def is_running(self):
         return self.status == "running"
 
-    def stop(self):
-        return self._client.servers.stop(self.id)
-
-    class ServerContext:
-        def __init__(
-            self,
-            parent: "Server",
-            show_progress: bool = True,
-            console: Console | None = None,
-        ) -> None:
-            self.parent = parent
-            text = f"{self.parent.serverConfig.modelFileName} (creating)"
-            console = Console() if console is None else console
-            console.quiet = not show_progress
-            with Status(text, console=console) as display:
-                status = self.parent._client.servers.start(self.parent)
-                text = f"{self.parent.serverConfig.modelFileName} ({status.status})"
+    def stop(self, show_progress: bool = True, console: Console | None = None) -> None:
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        text = f"{self.serverConfig.modelFileName} (stopping)"
+        with Status(text, console=console) as display:
+            status = "stopping"
+            self._client.servers.stop(self.id)
+            while status != "stopped":
+                status = self._client.servers.status(self)
+                text = f"{self.serverConfig.modelFileName} ({status})"
                 display.update(text)
-
-                status = status.status
-                while status != "running":
-                    status = self.parent._client.servers.status(self.parent)
-                    text = f"{self.parent.serverConfig.modelFileName} ({status})"
-                    display.update(text)
-            console.print(f"[bold green]✓[/] {text}", highlight=False)
-
-        def __enter__(self) -> None:
-            pass
-
-        def __exit__(self, exc_type, exc_value, traceback) -> bool:
-            _ = self.parent._client.servers.stop(self.parent.id)
-            return exc_type is None
-
-    def start(self, show_progress: bool = True, console: Console | None = None):
-        return self.ServerContext(self, show_progress=show_progress, console=console)
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
 
     @computed_field
     @property
@@ -293,9 +293,7 @@ class BaseServers(BaseClient):
         else:
             return None
 
-    def _create(
-        self, server_config: ServerConfig, start_immediately: bool = False
-    ) -> Server:
+    def _create(self, server_config: ServerConfig) -> Server:
         raise NotImplementedError
 
     def create(
@@ -304,6 +302,7 @@ class BaseServers(BaseClient):
         api_params: APIParams | dict[str, Any] | None = None,
         load_params: LoadParams | dict[str, Any] | None = None,
         infer_params: InferParams | dict[str, Any] | None = None,
+        download_if_needed: bool = True,
     ) -> Server:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -331,6 +330,12 @@ class BaseServers(BaseClient):
                 f"model={model} of type {type(model)} is not a supported way to specify a model."
             )
 
+        if not model.isDownloaded:
+            if not download_if_needed:
+                raise RuntimeError
+            # else:
+            #     model.download()
+
         apiParams = api_params if api_params else APIParams()
         loadParams = load_params if load_params else LoadParams()
         inferParams = infer_params if infer_params else InferParams()
@@ -353,13 +358,12 @@ class BaseServers(BaseClient):
         else:
             return matched
 
-    def _start(self, server_id: str) -> ServerStatus:
+    def _start(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def start(self, server: UUID4 | Server | str) -> ServerStatus:
+    def start(self, server: UUID4 | Server | str) -> None:
         server_id = self._get_server_id(server)
-        status = self._start(server_id)
-        return status
+        self._start(server_id)
 
     def _status(self, server_id: str) -> str:
         raise NotImplementedError
@@ -369,18 +373,18 @@ class BaseServers(BaseClient):
         status = self._status(server_id)
         return status
 
-    def _stop(self, server_id: str) -> ServerStatus:
+    def _stop(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def stop(self, server: UUID4 | Server | str) -> ServerStatus:
+    def stop(self, server: UUID4 | Server | str) -> None:
         server_id = self._get_server_id(server)
         status = self._stop(server_id)
         return status
 
-    def _delete(self, server_id: str) -> ServerStatus:
+    def _delete(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def delete(self, server: UUID4 | Server | str) -> ServerStatus:
+    def delete(self, server: UUID4 | Server | str) -> None:
         server_id = self._get_server_id(server)
         status = self._delete(server_id)
         return status

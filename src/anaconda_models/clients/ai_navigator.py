@@ -14,7 +14,6 @@ from .base import (
     BaseServers,
     ServerConfig,
     Server,
-    ServerStatus,
 )
 from ..exceptions import APIKeyMissing
 
@@ -64,17 +63,15 @@ class AINavigatorServers(BaseServers):
         server = Server(**res.json()["data"])
         return server
 
-    def _start(self, server_id: str) -> ServerStatus:
+    def _start(self, server_id: str) -> None:
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
         res.raise_for_status()
-        return ServerStatus(**res.json()["data"])
 
     def _status(self, server_id: str) -> str:
-        servers: list[dict] = self._client.get("api/servers").json()["data"]
-        matched = [s for s in servers if s["id"] == server_id]
-        if not matched:
-            raise RuntimeError(f"{server_id} not found")
-        return matched[0]["status"]
+        res = self._client.get(f"api/servers/{server_id}")
+        res.raise_for_status()
+        status = res.json()["data"]["status"]
+        return status
 
     def _stop(self, server_id: str) -> None:
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
@@ -98,7 +95,7 @@ class AINavigatorAPIKey(AuthBase):
         super().__init__()
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
-        api_key = self.config.backends.ai_navigator.get_config("aiNavApiKey")
+        api_key = self.config.backends.ai_navigator.api_key
         if api_key is None:
             raise APIKeyMissing(
                 "The aiNavApiKey was not found. Try upgrading and restarting AI Navigator"
