@@ -3,6 +3,8 @@ from typing import Optional, Any, Dict
 from requests import PreparedRequest, Response
 from requests_cache import DO_NOT_CACHE
 from requests.auth import AuthBase
+from rich.console import Console
+import rich.progress
 from urllib.parse import quote
 
 from .. import __version__ as version
@@ -10,6 +12,7 @@ from ..config import AnacondaModelsConfig
 from .base import (
     GenericClient,
     ModelSummary,
+    ModelQuantization,
     BaseModels,
     BaseServers,
     ServerConfig,
@@ -35,6 +38,47 @@ class AINavigatorModels(BaseModels):
             model_summary = ModelSummary(**model)
             models.append(model_summary)
         return models
+
+    def _download(
+        self,
+        model_summary: ModelSummary,
+        quantization: ModelQuantization,
+        show_progress: bool = True,
+        console: Console | None = None,
+    ) -> None:
+        model_id = quote(model_summary.id, safe="")
+        url = f"api/models/{model_id}/files/{quantization.id}"
+
+        size = quantization.sizeBytes
+        console = Console() if console is None else console
+        stream_progress = rich.progress.Progress(
+            rich.progress.TextColumn("[progress.description]{task.description}"),
+            rich.progress.BarColumn(),
+            rich.progress.DownloadColumn(),
+            rich.progress.TransferSpeedColumn(),
+            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
+            console=console,
+            refresh_per_second=10,
+        )
+        task = stream_progress.add_task(
+            f"Downloading {quantization.modelFileName}",
+            total=int(size),
+            visible=show_progress,
+        )
+
+        res = self._client.patch(url, json={"action": "start"})
+        res.raise_for_status()
+        status = res.json()["data"]
+        downloaded = 0
+        with stream_progress as progress_bar:
+            while status["status"] != "completed":
+                res = self._client.patch(url, json={"action": "start"})
+                res.raise_for_status()
+                status = res.json()["data"]
+                downloaded = status.get("progress", {}).get(
+                    "transferredBytes", downloaded
+                )
+                progress_bar.update(task, completed=downloaded)
 
 
 class AINavigatorServers(BaseServers):

@@ -35,6 +35,7 @@ class ModelQuantization(BaseModel):
     maxRamUsage: int
     isDownloaded: bool = False
     localPath: str | None = None
+    _model_id: str
 
 
 class ModelMetadata(BaseModel):
@@ -100,23 +101,12 @@ class BaseModels(BaseClient):
 
         return model_info
 
-    def get_quantized_model(self, model: str) -> ModelQuantization:
-        match = MODEL_NAME.match(model)
-        if match is None:
-            raise ValueError(f"{model} does not look like a model name.")
-
-        _, model_name, quant_method, _ = match.groups()
-
-        if quant_method is None:
-            raise ValueError(
-                "You must include the quantization method in the model as <model>/<quantization>"
-            )
-
-        model_info = self.get(model_name)
-        quantfile = model_info.get_quantization(quant_method)
-        return quantfile
-
-    def _download(self, model: ModelQuantization, show_progress: bool = True) -> Path:
+    def _download(
+        self,
+        model_summary: ModelSummary,
+        quantization: ModelQuantization,
+        show_progress: bool = True,
+    ) -> Path:
         raise NotImplementedError(
             "Downloading models is not available with this client"
         )
@@ -128,12 +118,28 @@ class BaseModels(BaseClient):
         show_progress: bool = True,
     ) -> None:
         if isinstance(model, str):
-            model = self.get_quantized_model(model)
+            match = MODEL_NAME.match(model)
+            if match is None:
+                raise ValueError(f"{model} does not look like a model name.")
 
-        if model.isDownloaded and not force:
+            _, model_name, quant_method, _ = match.groups()
+
+            if quant_method is None:
+                raise ValueError(
+                    "You must include the quantization method in the model as <model>/<quantization>"
+                )
+
+            model_info = self.get(model_name)
+            quantization = model_info.get_quantization(quant_method)
+
+        if quantization.isDownloaded and not force:
             return
 
-        _ = self._download(model=model, show_progress=show_progress)
+        self._download(
+            model_summary=model_info,
+            quantization=quantization,
+            show_progress=show_progress,
+        )
 
 
 class APIParams(BaseModel, extra="forbid"):
