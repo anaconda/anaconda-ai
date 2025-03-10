@@ -21,6 +21,7 @@ def models_list() -> None:
         "Params (B)",
         "Quantizations\n(downloaded in bold)",
         "Trained for",
+        "Servers",
         header_style="bold green",
     )
     for model in sorted(models, key=lambda m: m.id):
@@ -35,13 +36,19 @@ def models_list() -> None:
 
         quants = ", ".join(quantizations)
 
-        parameters = model.metadata.numParameters
-        table.add_row(
-            model.id,
-            parameters,
-            quants,
-            model.metadata.trainedFor,
-        )
+        servers = [
+            s
+            for s in client.servers.list()
+            if str(s.serverConfig.modelFileName).startswith(model.name)
+            and s.status == "running"
+        ]
+        if servers:
+            urls = "\n".join([s.url for s in servers])
+        else:
+            urls = ""
+
+        parameters = f"{model.metadata.numParameters/1e9:8.2f}"
+        table.add_row(model.id, parameters, quants, model.metadata.trainedFor, urls)
     console.print(table)
 
 
@@ -59,7 +66,8 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
     table.add_column("Metadata", no_wrap=True, justify="center", style="bold green")
     table.add_column("Value", justify="left")
     table.add_row("Description", info.metadata.description)
-    table.add_row("Parameters", info.metadata.numParameters)
+    parameters = f"{info.metadata.numParameters/1e9:8.2f}"
+    table.add_row("Parameters", parameters)
     table.add_row("Trained For", info.metadata.trainedFor)
 
     quantized = Table(
@@ -92,8 +100,7 @@ def models_download(
 ) -> None:
     """Download a model"""
     client = get_default_client()
-    path = client.models.download(model, force=force)
-    console.print(path)
+    client.models.download(model, show_progress=True, force=force, console=console)
 
 
 @app.command(
@@ -119,19 +126,23 @@ def models_launch(
         False, help="Download the model file even if it is already cached"
     ),
     show_logs: Optional[bool] = typer.Option(True, help="Stream server logs"),
+    temperature: Optional[float] = typer.Option(
+        None, help="default temperature for server"
+    ),
 ) -> None:
     """Launch an inference server for a model"""
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
         client = get_default_client()
         server = client.servers.create(model, api_params={"port": port})
-        status = client.servers.start(server)
-        text = f"{model} ({status.status})"
+        client.servers.start(server)
+        status = client.servers.status(server)
+        text = f"{model} ({status})"
         display.update(text)
 
-        while status.status != "running":
-            status = client.servers.start(server)
-            text = f"{model} ({status.status})"
+        while status != "running":
+            status = client.servers.status(server)
+            text = f"{model} ({status})"
             display.update(text)
     console.print(f"[bold green]✓[/] {text}", highlight=False)
     console.print(f"URL: [link='{server.url}']{server.url}[/link]")
@@ -147,6 +158,19 @@ def models_launch(
         while True:
             pass
     except KeyboardInterrupt:
+        if server._matched:
+            return
+
         with Status(f"{model} (stopping)", console=console) as display:
             client.servers.stop(server)
+            display.update(f"{model} (stopped)")
         return
+
+
+@app.command("stop")
+def models_stop(
+    model: str = typer.Argument(
+        help="Name of the quantized model or catalog entry, it will download first if needed.",
+    ),
+) -> None:
+    pass
