@@ -9,8 +9,9 @@ from typing import Optional
 import llm
 import openai
 from llm import hookimpl
-from llm.default_plugins.openai_models import Chat
+from llm.default_plugins.openai_models import Chat, SharedOptions
 from llm.default_plugins.openai_models import OpenAIEmbeddingModel
+from pydantic import Field, BaseModel
 from rich.console import Console
 
 from anaconda_models.clients import get_default_client
@@ -20,20 +21,34 @@ client = get_default_client()
 console = Console(stderr=True)
 
 
+class ServerOptions(BaseModel):
+    show_progress: bool = Field(
+        default=False, description="Show server start and stop progress", exclude=True
+    )
+
+
 class AnacondaModelMixin:
     model_id: str
     anaconda_model: ModelQuantization | None = None
     server: Server | None = None
 
-    def _create_and_start(self, embedding: bool | None = None) -> None:
+    def _create_and_start(
+        self, embedding: bool | None, server_options: ServerOptions
+    ) -> None:
         if self.server is None:
             model_name = self.model_id.split(":", maxsplit=1)[1]
             self.server = client.servers.create(
                 model_name, load_params=LoadParams(embedding=embedding)
             )
-            self.server.start(show_progress=True, console=console)
+            self.server.start(
+                show_progress=server_options.show_progress, console=console
+            )
             if not self.server._matched:
-                atexit.register(self.server.stop, console=console)
+                atexit.register(
+                    self.server.stop,
+                    console=console,
+                    show_progress=server_options.show_progress,
+                )
 
         self.api_base = self.server.openai_url
 
@@ -41,6 +56,9 @@ class AnacondaModelMixin:
 class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
     model_id: str
     needs_key: str = ""
+
+    class Options(SharedOptions, ServerOptions):
+        pass
 
     def __init__(self, model_id: str):
         super().__init__(
@@ -50,7 +68,7 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
         )
 
     def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore
-        self._create_and_start()
+        self._create_and_start(embedding=None, server_options=prompt.options)
         return super().execute(prompt, stream, response, conversation, key)
 
     def __str__(self) -> str:
