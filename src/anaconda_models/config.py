@@ -16,8 +16,12 @@ from anaconda_models.exceptions import APIKeyMissing
 
 
 class AINavigatorConfig(BaseModel):
-    config_file: Path = Path(platformdirs.user_data_dir("ai-navigator")) / "config.json"
+    app_name: str = "ai-navigator"
     port: int = 8001
+
+    @property
+    def config_file(self) -> Path:
+        return Path(platformdirs.user_data_dir(self.app_name)) / "config.json"
 
     def get_config(self, key: str) -> Any:
         with self.config_file.open("r") as f:
