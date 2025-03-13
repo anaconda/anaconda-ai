@@ -3,6 +3,7 @@ from typing import Optional, Any, Dict
 from requests import PreparedRequest, Response
 from requests_cache import DO_NOT_CACHE
 from requests.auth import AuthBase
+from requests.exceptions import ConnectionError
 from rich.console import Console
 import rich.progress
 from urllib.parse import quote
