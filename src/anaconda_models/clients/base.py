@@ -133,6 +133,9 @@ class BaseModels(BaseClient):
 
             model_info = self.get(model_name)
             quantization = model_info.get_quantization(quant_method)
+        else:
+            model_info = self.get(model.modelFileName)
+            quantization = model
 
         if quantization.isDownloaded and not force:
             return
@@ -338,8 +341,8 @@ class BaseServers(BaseClient):
         if not model.isDownloaded:
             if not download_if_needed:
                 raise RuntimeError
-            # else:
-            #     model.download()
+            else:
+                self._client.models.download(model)
 
         apiParams = api_params if api_params else APIParams()
         loadParams = load_params if load_params else LoadParams()
