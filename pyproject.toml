@@ -23,7 +23,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 
 [project.entry-points."anaconda_cli.subcommand"]
-models = "anaconda_models.cli.models:app"
+models = "anaconda_models.cli:app"
 
 [project.entry-points.llm]
 anaconda = "anaconda_models.llm"
