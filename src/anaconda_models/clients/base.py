@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from typing import Any
+from typing_extensions import Self
 from typing import cast
 from urllib.parse import urljoin
 from uuid import UUID
@@ -35,7 +36,6 @@ class ModelQuantization(BaseModel):
     maxRamUsage: int
     isDownloaded: bool = False
     localPath: str | None = None
-    _model_id: str
 
 
 class ModelMetadata(BaseModel):
@@ -43,9 +43,9 @@ class ModelMetadata(BaseModel):
     contextWindowSize: int
     trainedFor: str
     description: str
-    quantizations: list[ModelQuantization]
+    files: list[ModelQuantization]
 
-    @field_validator("quantizations", mode="after")
+    @field_validator("files", mode="after")
     @classmethod
     def sort_quantizations(
         cls, value: list[ModelQuantization]
@@ -59,7 +59,7 @@ class ModelSummary(BaseModel):
     metadata: ModelMetadata
 
     def get_quantization(self, method: str) -> ModelQuantization:
-        for quant in self.metadata.quantizations:
+        for quant in self.metadata.files:
             if quant.method.lower() == method.lower():
                 return quant
         else:
@@ -106,6 +106,7 @@ class BaseModels(BaseClient):
         model_summary: ModelSummary,
         quantization: ModelQuantization,
         show_progress: bool = True,
+        console: Console | None = None,
     ) -> Path:
         raise NotImplementedError(
             "Downloading models is not available with this client"
@@ -116,6 +117,7 @@ class BaseModels(BaseClient):
         model: str | ModelQuantization,
         force: bool = False,
         show_progress: bool = True,
+        console: Console | None = None,
     ) -> None:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -139,6 +141,7 @@ class BaseModels(BaseClient):
             model_summary=model_info,
             quantization=quantization,
             show_progress=show_progress,
+            console=console,
         )
 
 
@@ -202,20 +205,15 @@ class Server(BaseModel):
     def status(self):
         return self._client.servers.status(self.id)
 
-    class ServerContext:
-        def __init__(self, parent: "Server") -> None:
-            self.parent = parent
+    def __enter__(self) -> Self:
+        self.start()
+        return self
 
-        def __enter__(self) -> None:
-            return
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        self.stop()
+        return exc_type is None
 
-        def __exit__(self, exc_type, exc_value, traceback) -> bool:
-            self.parent._client.servers.stop(self.parent.id)
-            return exc_type is None
-
-    def start(
-        self, show_progress: bool = True, console: Console | None = None
-    ) -> ServerContext:
+    def start(self, show_progress: bool = True, console: Console | None = None) -> None:
         text = f"{self.serverConfig.modelFileName} (creating)"
         console = Console() if console is None else console
         console.quiet = not show_progress
@@ -230,7 +228,6 @@ class Server(BaseModel):
                 text = f"{self.serverConfig.modelFileName} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
-        return self.ServerContext(self)
 
     @property
     def is_running(self):

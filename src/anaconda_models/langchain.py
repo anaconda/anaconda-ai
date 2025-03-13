@@ -1,3 +1,4 @@
+import atexit
 from typing import Any
 from typing import Dict
 
@@ -8,15 +9,16 @@ from pydantic import Field
 from pydantic import SecretStr
 from pydantic import model_validator
 
-from anaconda_models.client import get_default_client, Server
+from anaconda_models.clients import get_default_client
+from anaconda_models.clients.base import Server
 
 
 def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> dict:
     client = get_default_client()
     server = client.servers.create(model_name)
-    status = client.servers.start(server)
-    while status.status != "running":
-        status = client.servers.start(server)
+    server.start()
+    if not server._matched:
+        atexit.register(server.stop)
 
     values["server"] = server
     values["openai_api_base"] = server.openai_url

@@ -26,7 +26,7 @@ def models_list() -> None:
     )
     for model in sorted(models, key=lambda m: m.id):
         quantizations = []
-        for quant in model.metadata.quantizations:
+        for quant in model.metadata.files:
             if quant.isDownloaded:
                 method = f"[bold green]{quant.method}[/bold green]"
             else:

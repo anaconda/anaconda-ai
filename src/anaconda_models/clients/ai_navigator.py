@@ -33,7 +33,7 @@ class AINavigatorModels(BaseModels):
             res = self._client.get(f"api/models/{quoted}/files")
             res.raise_for_status()
             files = res.json()["data"]
-            model["metadata"]["quantizations"] = files
+            model["metadata"]["files"] = files
 
             model_summary = ModelSummary(**model)
             models.append(model_summary)
@@ -60,8 +60,9 @@ class AINavigatorModels(BaseModels):
             console=console,
             refresh_per_second=10,
         )
+        description = f"Downloading {quantization.modelFileName}"
         task = stream_progress.add_task(
-            f"Downloading {quantization.modelFileName}",
+            description=description,
             total=int(size),
             visible=show_progress,
         )
@@ -69,16 +70,44 @@ class AINavigatorModels(BaseModels):
         res = self._client.patch(url, json={"action": "start"})
         res.raise_for_status()
         status = res.json()["data"]
-        downloaded = 0
+        status_msg = status["status"]
+        if status_msg == "paused":
+            res = self._client.patch(url, json={"action": "resume"})
+            res.raise_for_status()
+            status = res.json()["data"]
+            status_msg = status["status"]
+
+        if status_msg != "in_progress":
+            raise RuntimeError(
+                f"Cannot initiate download of {quantization.modelFileName}"
+            )
+
         with stream_progress as progress_bar:
-            while status["status"] != "completed":
-                res = self._client.patch(url, json={"action": "start"})
+            res = self._client.get(url)
+            res.raise_for_status()
+            status = res.json()["data"]
+            # Must wait until the download officially
+            # starts then we can poll for progress
+            while "downloadStatus" not in status:
+                res = self._client.get(url)
                 res.raise_for_status()
                 status = res.json()["data"]
-                downloaded = status.get("progress", {}).get(
-                    "transferredBytes", downloaded
-                )
-                progress_bar.update(task, completed=downloaded)
+
+            while True:
+                res = self._client.get(url)
+                res.raise_for_status()
+                status = res.json()["data"]
+                if status["isDownloaded"]:
+                    break
+
+                download_status = status.get("downloadStatus", {})
+                if download_status.get("status", "") == "in_progress":
+                    downloaded = download_status.get("progress", {}).get(
+                        "transferredBytes", 0
+                    )
+                    progress_bar.update(task, completed=downloaded)
+                else:
+                    break
 
 
 class AINavigatorServers(BaseServers):
