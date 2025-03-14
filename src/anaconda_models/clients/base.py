@@ -1,21 +1,24 @@
 import re
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing_extensions import Self
-from typing import cast
 from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
 from pydantic import BaseModel, computed_field, field_validator, Field
 from pydantic.types import UUID4
-from requests_cache import CacheMixin
 from rich.status import Status
 from rich.console import Console
 
 from anaconda_cloud_auth.client import BaseClient
 from anaconda_models.config import AnacondaModelsConfig
-from anaconda_models.exceptions import ModelNotFound, QuantizedFileNotFound
+from anaconda_models.exceptions import (
+    ModelNotFound,
+    QuantizedFileNotFound,
+    ModelNotDownloadedError,
+)
 from anaconda_models.utils import find_free_port
 
 MODEL_NAME = re.compile(
@@ -38,10 +41,15 @@ class ModelQuantization(BaseModel):
     localPath: str | None = None
 
 
+class TrainedFor(str, Enum):
+    sentence_similarity = "sentence-similarity"
+    text_generation = "text-generation"
+
+
 class ModelMetadata(BaseModel):
     numParameters: int
     contextWindowSize: int
-    trainedFor: str
+    trainedFor: TrainedFor
     description: str
     files: list[ModelQuantization]
 
@@ -68,13 +76,13 @@ class ModelSummary(BaseModel):
             )
 
 
-class GenericClient(CacheMixin, BaseClient):
+class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     _config: AnacondaModelsConfig
 
 
-class BaseModels(BaseClient):
+class BaseModels:
     def __init__(self, client: GenericClient):
         self._client = client
 
@@ -270,7 +278,7 @@ class Server(BaseModel):
         return client
 
 
-class BaseServers(BaseClient):
+class BaseServers:
     def __init__(self, client: GenericClient):
         self._client = client
 
@@ -327,10 +335,8 @@ class BaseServers(BaseClient):
                     "You must provide a quantization level in the model name as <model>/<quant>"
                 )
 
-            model = cast(
-                ModelQuantization,
-                self._client.models.get(model_name).get_quantization(quantization),
-            )
+            model_summary = self._client.models.get(model_name)
+            model = model_summary.get_quantization(quantization)
         elif isinstance(model, ModelQuantization):
             pass
         else:
@@ -340,19 +346,23 @@ class BaseServers(BaseClient):
 
         if not model.isDownloaded:
             if not download_if_needed:
-                raise RuntimeError
+                raise ModelNotDownloadedError(f"{model} has not been downloaded")
             else:
                 self._client.models.download(model)
 
         apiParams = api_params if api_params else APIParams()
         loadParams = load_params if load_params else LoadParams()
         inferParams = infer_params if infer_params else InferParams()
+
         server_config = ServerConfig(
             modelFileName=model.modelFileName,
             apiParams=apiParams,  # type: ignore
             loadParams=loadParams,  # type: ignore
             inferParams=inferParams,  # type: ignore
         )
+
+        if model_summary.metadata.trainedFor == TrainedFor.sentence_similarity:
+            server_config.loadParams.embedding = True
 
         if server_config.apiParams.port == 0:
             port = find_free_port()
