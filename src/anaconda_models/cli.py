@@ -7,13 +7,29 @@ from rich.table import Table
 
 from anaconda_cli_base import console
 from anaconda_models.clients import get_default_client
+from anaconda_models.clients.base import ModelSummary, GenericClient
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 
-@app.command(name="list")
+def get_running_servers(client: GenericClient, model: ModelSummary) -> str:
+    servers = [
+        s
+        for s in client.servers.list()
+        if str(s.serverConfig.modelFileName).startswith(model.name)
+        and s.status == "running"
+    ]
+    if servers:
+        urls = "\n".join([s.url for s in servers])
+    else:
+        urls = ""
+
+    return urls
+
+
+@app.command(name="models")
 def models_list() -> None:
-    """List models"""
+    """List models and running servers"""
     client = get_default_client()
     models = client.models.list()
     table = Table(
@@ -35,17 +51,7 @@ def models_list() -> None:
             quantizations.append(method)
 
         quants = ", ".join(quantizations)
-
-        servers = [
-            s
-            for s in client.servers.list()
-            if str(s.serverConfig.modelFileName).startswith(model.name)
-            and s.status == "running"
-        ]
-        if servers:
-            urls = "\n".join([s.url for s in servers])
-        else:
-            urls = ""
+        urls = get_running_servers(client, model)
 
         parameters = f"{model.metadata.numParameters/1e9:8.2f}"
         table.add_row(model.id, parameters, quants, model.metadata.trainedFor, urls)
@@ -66,7 +72,7 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
     table.add_column("Metadata", no_wrap=True, justify="center", style="bold green")
     table.add_column("Value", justify="left")
     table.add_row("Description", info.metadata.description)
-    parameters = f"{info.metadata.numParameters/1e9:8.2f}"
+    parameters = f"{info.metadata.numParameters/1e9:8.2f}B"
     table.add_row("Parameters", parameters)
     table.add_row("Trained For", info.metadata.trainedFor)
 
@@ -76,15 +82,17 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
         "Downloaded",
         "Max Ram (GB)",
         "Size (GB)",
+        "Servers",
         header_style="bold green",
     )
-    for quant in info.metadata.quantizations:
+    for quant in info.metadata.files:
         method = quant.method
         downloaded = "[bold green]✔︎[/bold green]" if quant.isDownloaded else ""
 
         ram = f"{quant.maxRamUsage / 1024 / 1024 / 1024:.2f}"
         size = f"{quant.sizeBytes / 1024 / 1024 / 1024:.2f}"
-        quantized.add_row(quant.modelFileName, method, downloaded, ram, size)
+        urls = get_running_servers(client, info)
+        quantized.add_row(quant.modelFileName, method, downloaded, ram, size, urls)
 
     table.add_row("Quantized Files", quantized)
 
