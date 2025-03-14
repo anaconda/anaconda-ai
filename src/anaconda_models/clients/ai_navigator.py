@@ -1,7 +1,6 @@
 from typing import Optional, Any, Dict
 
 from requests import PreparedRequest, Response
-from requests_cache import DO_NOT_CACHE
 from requests.auth import AuthBase
 from requests.exceptions import ConnectionError
 from rich.console import Console
@@ -19,7 +18,6 @@ from .base import (
     ServerConfig,
     Server,
 )
-from ..exceptions import APIKeyMissing
 
 
 class AINavigatorModels(BaseModels):
@@ -170,11 +168,6 @@ class AINavigatorAPIKey(AuthBase):
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
         api_key = self.config.backends.ai_navigator.api_key
-        if api_key is None:
-            raise APIKeyMissing(
-                "The aiNavApiKey was not found. Try upgrading and restarting AI Navigator"
-            )
-
         r.headers["Authorization"] = f"Bearer {api_key}"
         return r
 
@@ -183,21 +176,18 @@ class AINavigatorClient(GenericClient):
     _user_agent = f"anaconda-models/{version}"
     auth: AuthBase
 
-    def __init__(self, port: Optional[int] = None):
-        kwargs: Dict[str, Any] = {"ai_navigator": {}}
+    def __init__(self, port: Optional[int] = None, app_name: Optional[str] = None):
+        kwargs: Dict[str, Any] = {"backends": {"ai_navigator": {}}}
         if port is not None:
-            kwargs["ai_navigator"]["port"] = port
+            kwargs["backends"]["ai_navigator"]["port"] = port
+        if app_name is not None:
+            kwargs["backends"]["ai_navigator"]["app_name"] = app_name
 
         self._config = AnacondaModelsConfig(**kwargs)
 
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 
-        super().__init__(domain=domain, ssl_verify=False, backend="memory")
-        # Cache Settings
-        # The cache is disabled by default, but can be enabled as needed by request
-        # for a client session. New Client objects have an empty cache
-        self.cache.clear()  # this is likely redundant for backend=memory, but safe
-        self.expire_after = DO_NOT_CACHE
+        super().__init__(domain=domain, ssl_verify=False)
 
         self._base_uri = f"http://{domain}"
 
