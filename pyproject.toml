@@ -6,12 +6,10 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 dependencies = [
   "anaconda-cloud-auth >=0.7.2",
   "anaconda-cli-base >=0.4.1",
-  "intake >=2.0.7",
   "rich",
   "pydantic >=2",
   "typer",
   "ruamel.yaml",
-  "requests-cache",
   "openai",
   "platformdirs"
 ]
