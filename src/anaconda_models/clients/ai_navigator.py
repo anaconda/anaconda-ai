@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Optional, Any, Dict
 
 from requests import PreparedRequest, Response
@@ -70,7 +71,7 @@ class AINavigatorModels(BaseModels):
         res.raise_for_status()
         status = res.json()["data"]
         status_msg = status["status"]
-        if status_msg == "paused":
+        if status.get("progress", {}).get("paused", False):
             res = self._client.patch(url, json={"action": "resume"})
             res.raise_for_status()
             status = res.json()["data"]
@@ -105,6 +106,7 @@ class AINavigatorModels(BaseModels):
                         "transferredBytes", 0
                     )
                     progress_bar.update(task, completed=downloaded)
+                    sleep(0.1)
                 else:
                     break
 
