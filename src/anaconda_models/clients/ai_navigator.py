@@ -110,6 +110,14 @@ class AINavigatorModels(BaseModels):
                 else:
                     break
 
+    def _delete(
+        self, model_summary: ModelSummary, quantization: ModelQuantization
+    ) -> None:
+        model_id = quote(model_summary.id, safe="")
+        url = f"api/models/{model_id}/files/{quantization.id}"
+        res = self._client.delete(url)
+        res.raise_for_status()
+
 
 class AINavigatorServers(BaseServers):
     def list(self) -> list[Server]:

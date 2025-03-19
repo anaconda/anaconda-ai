@@ -2,6 +2,7 @@ import re
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from typing import Tuple
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
@@ -120,13 +121,9 @@ class BaseModels:
             "Downloading models is not available with this client"
         )
 
-    def download(
-        self,
-        model: str | ModelQuantization,
-        force: bool = False,
-        show_progress: bool = True,
-        console: Console | None = None,
-    ) -> None:
+    def _model_quant(
+        self, model: str | ModelQuantization
+    ) -> Tuple[ModelSummary, ModelQuantization]:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
             if match is None:
@@ -145,8 +142,22 @@ class BaseModels:
             model_info = self.get(model.modelFileName)
             quantization = model
 
+        return model_info, quantization
+
+    def download(
+        self,
+        model: str | ModelQuantization,
+        force: bool = False,
+        show_progress: bool = True,
+        console: Console | None = None,
+    ) -> None:
+        model_info, quantization = self._model_quant(model)
+
         if quantization.isDownloaded and not force:
             return
+
+        if force:
+            self.delete(model)
 
         self._download(
             model_summary=model_info,
@@ -154,6 +165,19 @@ class BaseModels:
             show_progress=show_progress,
             console=console,
         )
+
+    def _delete(
+        self, model_summary: ModelSummary, quantization: ModelQuantization
+    ) -> None:
+        raise NotImplementedError
+
+    def delete(
+        self,
+        model: str | ModelQuantization,
+    ) -> None:
+        model_info, quantization = self._model_quant(model)
+
+        self._delete(model_info, quantization)
 
 
 class APIParams(BaseModel, extra="forbid"):
