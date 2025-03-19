@@ -1,4 +1,5 @@
 from typing import Optional
+from typing_extensions import Annotated
 
 import typer
 from rich.status import Status
@@ -27,10 +28,7 @@ def get_running_servers(client: GenericClient, model: ModelSummary) -> str:
     return urls
 
 
-@app.command(name="models")
-def models_list() -> None:
-    """List models and running servers"""
-    client = get_default_client()
+def _list_models(client: GenericClient) -> Table:
     models = client.models.list()
     table = Table(
         Column("Model", no_wrap=True),
@@ -55,13 +53,10 @@ def models_list() -> None:
 
         parameters = f"{model.metadata.numParameters/1e9:8.2f}"
         table.add_row(model.id, parameters, quants, model.metadata.trainedFor, urls)
-    console.print(table)
+    return table
 
 
-@app.command(name="info")
-def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
-    """Information about a single model"""
-    client = get_default_client()
+def _model_info(client: GenericClient, model_id: str) -> Table | None:
     info = client.models.get(model_id)
     if info is None:
         console.print(f"{model_id} not found")
@@ -95,12 +90,26 @@ def models_info(model_id: str = typer.Argument(help="Model id")) -> None:
         quantized.add_row(quant.modelFileName, method, downloaded, ram, size, urls)
 
     table.add_row("Quantized Files", quantized)
+    return table
 
+
+@app.command(name="models")
+def models(
+    model_id: Annotated[
+        str | None, typer.Argument(help="Optional Model name for detailed information")
+    ] = None,
+) -> None:
+    """Model model information"""
+    client = get_default_client()
+    if model_id is None:
+        table = _list_models(client)
+    else:
+        table = _model_info(client, model_id)
     console.print(table)
 
 
 @app.command(name="download")
-def models_download(
+def download(
     model: str = typer.Argument(help="Model name with quantization"),
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
@@ -113,36 +122,105 @@ def models_download(
 
 @app.command(
     name="launch",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    # context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
-def models_launch(
-    ctx: typer.Context,
+def launch(
     model: str = typer.Argument(
-        help="Name of the quantized model or catalog entry, it will download first if needed.",
+        help="Name of the quantized model, it will download first if needed.",
     ),
     detach: bool = typer.Option(
         default=False, help="Start model server and leave it running."
     ),
     show: Optional[bool] = typer.Option(
-        False, help="Open your webbrowser when the inference service starts."
+        False, help="Open your webbrowser when the server starts."
     ),
     port: Optional[int] = typer.Option(
         0,
-        help="Port number for the inference service. Default is to find a free open port",
+        help="Port number for the server. Default is to find a free open port",
     ),
     force_download: bool = typer.Option(
         False, help="Download the model file even if it is already cached"
     ),
-    show_logs: Optional[bool] = typer.Option(True, help="Stream server logs"),
-    temperature: Optional[float] = typer.Option(
-        None, help="default temperature for server"
-    ),
+    api_key: str | None = None,
+    log_disable: bool | None = None,
+    mmproj: str | None = None,
+    timeout: int | None = None,
+    verbose: bool | None = None,
+    main_gpu: int | None = None,
+    metrics: bool | None = None,
+    batch_size: int | None = None,
+    cont_batching: bool | None = None,
+    ctx_size: int | None = None,
+    memory_f32: bool | None = None,
+    mlock: bool | None = None,
+    n_gpu_layers: int | None = None,
+    rope_freq_base: int | None = None,
+    rope_freq_scale: int | None = None,
+    seed: int | None = None,
+    tensor_split: list[int] | None = None,
+    use_mmap: bool | None = None,
+    embedding: bool | None = None,
+    threads: int | None = None,
+    n_predict: int | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
+    min_p: float | None = None,
+    repeat_last: int | None = None,
+    repeat_penalty: float | None = None,
+    temp: float | None = None,
+    parallel: int | None = None,
 ) -> None:
     """Launch an inference server for a model"""
+
+    client = get_default_client()
+    client.models.download(model, force=force_download)
+
+    api_params = {
+        "port": port,
+        "api_key": api_key,
+        "log_disable": log_disable,
+        "mmproj": mmproj,
+        "timeout": timeout,
+        "verbose": verbose,
+        "metrics": metrics,
+    }
+
+    load_params = {
+        "batch_size": batch_size,
+        "cont_batching": cont_batching,
+        "ctx_size": ctx_size,
+        "main_gpu": main_gpu,
+        "memory_f32": memory_f32,
+        "mlock": mlock,
+        "n_gpu_layers": n_gpu_layers,
+        "rope_freq_base": rope_freq_base,
+        "rope_freq_scale": rope_freq_scale,
+        "seed": seed,
+        "tensor_split": tensor_split,
+        "use_mmap": use_mmap,
+        "embedding": embedding,
+    }
+
+    infer_params = {
+        "threads": threads,
+        "n_predict": n_predict,
+        "top_k": top_k,
+        "top_p": top_p,
+        "min_p": min_p,
+        "repeat_last": repeat_last,
+        "repeat_penalty": repeat_penalty,
+        "temp": temp,
+        "parallel": parallel,
+    }
+
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
-        client = get_default_client()
-        server = client.servers.create(model, api_params={"port": port})
+        server = client.servers.create(
+            model=model,
+            api_params=api_params,
+            load_params=load_params,
+            infer_params=infer_params,
+        )
         client.servers.start(server)
         status = client.servers.status(server)
         text = f"{model} ({status})"
@@ -175,10 +253,40 @@ def models_launch(
         return
 
 
+@app.command("servers")
+def servers() -> None:
+    """List running servers"""
+    client = get_default_client()
+    servers = client.servers.list()
+
+    table = Table(
+        Column("ID", no_wrap=True),
+        "ModelFile",
+        "URL",
+        "Params",
+        header_style="bold green",
+    )
+
+    for server in servers:
+        if not server.is_running:
+            continue
+
+        params = server.serverConfig.model_dump_json(
+            indent=2,
+            exclude={"modelFileName", "logsDir"},
+            exclude_none=True,
+            exclude_defaults=True,
+        )
+        table.add_row(
+            str(server.id), str(server.serverConfig.modelFileName), server.url, params
+        )
+
+    console.print(table)
+
+
 @app.command("stop")
-def models_stop(
-    model: str = typer.Argument(
-        help="Name of the quantized model or catalog entry, it will download first if needed.",
-    ),
+def stop(
+    server: str = typer.Argument(help="ID of the server to stop"),
 ) -> None:
-    pass
+    client = get_default_client()
+    client.servers.stop(server)

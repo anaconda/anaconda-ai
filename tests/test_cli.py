@@ -11,6 +11,8 @@ from typer.testing import CliRunner
 
 from anaconda_cli_base.cli import app
 
+SUBCOMMANDS = ["models", "download", "launch", "servers", "stop"]
+
 
 class CLIInvoker(Protocol):
     def __call__(self, *args: str) -> Any: ...
@@ -29,6 +31,7 @@ def invoke_cli(tmp_path: Path, monkeypatch: MonkeyPatch) -> CLIInvoker:
     return f
 
 
-def test_feature_action(invoke_cli: CLIInvoker) -> None:
-    result = invoke_cli("models", "list", "--help")
+@pytest.mark.parametrize("action", SUBCOMMANDS)
+def test_feature_action(invoke_cli: CLIInvoker, action: str) -> None:
+    result = invoke_cli("models", action, "--help")
     assert result.exit_code == 0
