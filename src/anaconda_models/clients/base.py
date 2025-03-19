@@ -171,7 +171,7 @@ class APIParams(BaseModel, extra="forbid"):
 
 class LoadParams(BaseModel, extra="forbid"):
     batch_size: int | None = None
-    cont_batchin: bool | None = None
+    cont_batching: bool | None = None
     ctx_size: int | None = None
     main_gpu: int | None = None
     memory_f32: bool | None = None
