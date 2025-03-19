@@ -1,5 +1,7 @@
-from typing import Optional
 from typing import Annotated
+from typing import List
+from typing import Union
+from typing import Optional
 
 import typer
 from rich.status import Status
@@ -56,7 +58,7 @@ def _list_models(client: GenericClient) -> Table:
     return table
 
 
-def _model_info(client: GenericClient, model_id: str) -> Table | None:
+def _model_info(client: GenericClient, model_id: str) -> Union[Table, None]:
     info = client.models.get(model_id)
     if info is None:
         console.print(f"{model_id} not found")
@@ -96,7 +98,8 @@ def _model_info(client: GenericClient, model_id: str) -> Table | None:
 @app.command(name="models")
 def models(
     model_id: Annotated[
-        str | None, typer.Argument(help="Optional Model name for detailed information")
+        Optional[str],
+        typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
 ) -> None:
     """Model model information"""
@@ -141,34 +144,34 @@ def launch(
     force_download: bool = typer.Option(
         False, help="Download the model file even if it is already cached"
     ),
-    api_key: str | None = None,
-    log_disable: bool | None = None,
-    mmproj: str | None = None,
-    timeout: int | None = None,
-    verbose: bool | None = None,
-    main_gpu: int | None = None,
-    metrics: bool | None = None,
-    batch_size: int | None = None,
-    cont_batching: bool | None = None,
-    ctx_size: int | None = None,
-    memory_f32: bool | None = None,
-    mlock: bool | None = None,
-    n_gpu_layers: int | None = None,
-    rope_freq_base: int | None = None,
-    rope_freq_scale: int | None = None,
-    seed: int | None = None,
-    tensor_split: list[int] | None = None,
-    use_mmap: bool | None = None,
-    embedding: bool | None = None,
-    threads: int | None = None,
-    n_predict: int | None = None,
-    top_k: int | None = None,
-    top_p: float | None = None,
-    min_p: float | None = None,
-    repeat_last: int | None = None,
-    repeat_penalty: float | None = None,
-    temp: float | None = None,
-    parallel: int | None = None,
+    api_key: Optional[str] = None,
+    log_disable: Optional[bool] = None,
+    mmproj: Optional[str] = None,
+    timeout: Optional[int] = None,
+    verbose: Optional[bool] = None,
+    main_gpu: Optional[int] = None,
+    metrics: Optional[bool] = None,
+    batch_size: Optional[int] = None,
+    cont_batching: Optional[bool] = None,
+    ctx_size: Optional[int] = None,
+    memory_f32: Optional[bool] = None,
+    mlock: Optional[bool] = None,
+    n_gpu_layers: Optional[int] = None,
+    rope_freq_base: Optional[int] = None,
+    rope_freq_scale: Optional[int] = None,
+    seed: Optional[int] = None,
+    tensor_split: Optional[List[int]] = None,
+    use_mmap: Optional[bool] = None,
+    embedding: Optional[bool] = None,
+    threads: Optional[int] = None,
+    n_predict: Optional[int] = None,
+    top_k: Optional[int] = None,
+    top_p: Optional[float] = None,
+    min_p: Optional[float] = None,
+    repeat_last: Optional[int] = None,
+    repeat_penalty: Optional[float] = None,
+    temp: Optional[float] = None,
+    parallel: Optional[int] = None,
 ) -> None:
     """Launch an inference server for a model"""
 

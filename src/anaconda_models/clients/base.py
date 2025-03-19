@@ -2,7 +2,11 @@ import re
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from typing import List
+from typing import Dict
+from typing import Optional
 from typing import Tuple
+from typing import Union
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
@@ -39,7 +43,7 @@ class ModelQuantization(BaseModel):
     sizeBytes: int
     maxRamUsage: int
     isDownloaded: bool = False
-    localPath: str | None = None
+    localPath: Optional[str] = None
 
 
 class TrainedFor(str, Enum):
@@ -52,13 +56,13 @@ class ModelMetadata(BaseModel):
     contextWindowSize: int
     trainedFor: TrainedFor
     description: str
-    files: list[ModelQuantization]
+    files: List[ModelQuantization]
 
     @field_validator("files", mode="after")
     @classmethod
     def sort_quantizations(
-        cls, value: list[ModelQuantization]
-    ) -> list[ModelQuantization]:
+        cls, value: List[ModelQuantization]
+    ) -> List[ModelQuantization]:
         return sorted(value, key=lambda q: q.method)
 
 
@@ -87,7 +91,7 @@ class BaseModels:
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def list(self) -> list[ModelSummary]:
+    def list(self) -> List[ModelSummary]:
         raise NotImplementedError
 
     def get(self, model: str) -> ModelSummary:
@@ -115,14 +119,14 @@ class BaseModels:
         model_summary: ModelSummary,
         quantization: ModelQuantization,
         show_progress: bool = True,
-        console: Console | None = None,
+        console: Optional[Console] = None,
     ) -> Path:
         raise NotImplementedError(
             "Downloading models is not available with this client"
         )
 
     def _model_quant(
-        self, model: str | ModelQuantization
+        self, model: Union[str, ModelQuantization]
     ) -> Tuple[ModelSummary, ModelQuantization]:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -146,10 +150,10 @@ class BaseModels:
 
     def download(
         self,
-        model: str | ModelQuantization,
+        model: Union[str, ModelQuantization],
         force: bool = False,
         show_progress: bool = True,
-        console: Console | None = None,
+        console: Optional[Console] = None,
     ) -> None:
         model_info, quantization = self._model_quant(model)
 
@@ -171,10 +175,7 @@ class BaseModels:
     ) -> None:
         raise NotImplementedError
 
-    def delete(
-        self,
-        model: str | ModelQuantization,
-    ) -> None:
+    def delete(self, model: Union[str, ModelQuantization]) -> None:
         model_info, quantization = self._model_quant(model)
 
         self._delete(model_info, quantization)
@@ -183,46 +184,46 @@ class BaseModels:
 class APIParams(BaseModel, extra="forbid"):
     host: str = "127.0.0.1"
     port: int = 0
-    api_key: str | None = None
-    log_disable: bool | None = None
-    mmproj: str | None = None
-    timeout: int | None = None
-    verbose: bool | None = None
-    n_gpu_layers: int | None = None
-    main_gpu: int | None = None
-    metrics: bool | None = None
+    api_key: Optional[str] = None
+    log_disable: Optional[bool] = None
+    mmproj: Optional[str] = None
+    timeout: Optional[int] = None
+    verbose: Optional[bool] = None
+    n_gpu_layers: Optional[int] = None
+    main_gpu: Optional[int] = None
+    metrics: Optional[bool] = None
 
 
 class LoadParams(BaseModel, extra="forbid"):
-    batch_size: int | None = None
-    cont_batching: bool | None = None
-    ctx_size: int | None = None
-    main_gpu: int | None = None
-    memory_f32: bool | None = None
-    mlock: bool | None = None
-    n_gpu_layers: int | None = None
-    rope_freq_base: int | None = None
-    rope_freq_scale: int | None = None
-    seed: int | None = None
-    tensor_split: list[int] | None = None
-    use_mmap: bool | None = None
-    embedding: bool | None = None
+    batch_size: Optional[int] = None
+    cont_batching: Optional[bool] = None
+    ctx_size: Optional[int] = None
+    main_gpu: Optional[int] = None
+    memory_f32: Optional[bool] = None
+    mlock: Optional[bool] = None
+    n_gpu_layers: Optional[int] = None
+    rope_freq_base: Optional[int] = None
+    rope_freq_scale: Optional[int] = None
+    seed: Optional[int] = None
+    tensor_split: Optional[List[int]] = None
+    use_mmap: Optional[bool] = None
+    embedding: Optional[bool] = None
 
 
 class InferParams(BaseModel, extra="forbid"):
-    threads: int | None = None
-    n_predict: int | None = None
-    top_k: int | None = None
-    top_p: float | None = None
-    min_p: float | None = None
-    repeat_last: int | None = None
-    repeat_penalty: float | None = None
-    temp: float | None = None
-    parallel: int | None = None
+    threads: Optional[int] = None
+    n_predict: Optional[int] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    min_p: Optional[float] = None
+    repeat_last: Optional[int] = None
+    repeat_penalty: Optional[float] = None
+    temp: Optional[float] = None
+    parallel: Optional[int] = None
 
 
 class ServerConfig(BaseModel):
-    modelFileName: Path | str
+    modelFileName: Union[Path, str]
     apiParams: APIParams = APIParams()
     loadParams: LoadParams = LoadParams()
     inferParams: InferParams = InferParams()
@@ -232,7 +233,7 @@ class ServerConfig(BaseModel):
 class Server(BaseModel):
     id: UUID4
     serverConfig: ServerConfig
-    api_key: str | None = "empty"
+    api_key: Optional[str] = "empty"
     _client: GenericClient
     _matched: bool = False
 
@@ -248,7 +249,9 @@ class Server(BaseModel):
         self.stop()
         return exc_type is None
 
-    def start(self, show_progress: bool = True, console: Console | None = None) -> None:
+    def start(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
         text = f"{self.serverConfig.modelFileName} (creating)"
         console = Console() if console is None else console
         console.quiet = not show_progress
@@ -268,7 +271,9 @@ class Server(BaseModel):
     def is_running(self):
         return self.status == "running"
 
-    def stop(self, show_progress: bool = True, console: Console | None = None) -> None:
+    def stop(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
         console = Console() if console is None else console
         console.quiet = not show_progress
         text = f"{self.serverConfig.modelFileName} (stopping)"
@@ -306,7 +311,7 @@ class BaseServers:
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def _get_server_id(self, server: UUID4 | Server | str) -> str:
+    def _get_server_id(self, server: Union[UUID4, Server, str]) -> str:
         if isinstance(server, Server):
             server_id = str(server.id)
         elif isinstance(server, UUID):
@@ -318,10 +323,10 @@ class BaseServers:
 
         return server_id
 
-    def list(self) -> list[Server]:
+    def list(self) -> List[Server]:
         raise NotImplementedError
 
-    def match(self, server_config: ServerConfig) -> Server | None:
+    def match(self, server_config: ServerConfig) -> Union[Server, None]:
         exclude = {"apiParams": {"host", "port", "api_key"}}
         servers = self.list()
         for server in servers:
@@ -338,10 +343,10 @@ class BaseServers:
 
     def create(
         self,
-        model: str | ModelQuantization,
-        api_params: APIParams | dict[str, Any] | None = None,
-        load_params: LoadParams | dict[str, Any] | None = None,
-        infer_params: InferParams | dict[str, Any] | None = None,
+        model: Union[str, ModelQuantization],
+        api_params: Optional[Union[APIParams, Dict[str, Any]]] = None,
+        load_params: Optional[Union[LoadParams, Dict[str, Any]]] = None,
+        infer_params: Optional[Union[InferParams, Dict[str, Any]]] = None,
         download_if_needed: bool = True,
     ) -> Server:
         if isinstance(model, str):
@@ -403,14 +408,14 @@ class BaseServers:
     def _start(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def start(self, server: UUID4 | Server | str) -> None:
+    def start(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._start(server_id)
 
     def _status(self, server_id: str) -> str:
         raise NotImplementedError
 
-    def status(self, server: UUID4 | Server | str) -> str:
+    def status(self, server: Union[UUID4, Server, str]) -> str:
         server_id = self._get_server_id(server)
         status = self._status(server_id)
         return status
@@ -418,7 +423,7 @@ class BaseServers:
     def _stop(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def stop(self, server: UUID4 | Server | str) -> None:
+    def stop(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         status = self._stop(server_id)
         return status
@@ -426,7 +431,7 @@ class BaseServers:
     def _delete(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def delete(self, server: UUID4 | Server | str) -> None:
+    def delete(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         status = self._delete(server_id)
         return status

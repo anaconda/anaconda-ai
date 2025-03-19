@@ -1,5 +1,5 @@
 from time import sleep
-from typing import Optional, Any, Dict
+from typing import Optional, Any
 
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
@@ -44,7 +44,7 @@ class AINavigatorModels(BaseModels):
         model_summary: ModelSummary,
         quantization: ModelQuantization,
         show_progress: bool = True,
-        console: Console | None = None,
+        console: Optional[Console] = None,
     ) -> None:
         model_id = quote(model_summary.id, safe="")
         url = f"api/models/{model_id}/files/{quantization.id}"
@@ -187,7 +187,7 @@ class AINavigatorClient(GenericClient):
     auth: AuthBase
 
     def __init__(self, port: Optional[int] = None, app_name: Optional[str] = None):
-        kwargs: Dict[str, Any] = {"backends": {"ai_navigator": {}}}
+        kwargs: dict[str, Any] = {"backends": {"ai_navigator": {}}}
         if port is not None:
             kwargs["backends"]["ai_navigator"]["port"] = port
         if app_name is not None:
