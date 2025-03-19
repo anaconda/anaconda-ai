@@ -1,6 +1,5 @@
 from typing import Annotated
 from typing import List
-from typing import Union
 from typing import Optional
 
 import typer
@@ -58,11 +57,8 @@ def _list_models(client: GenericClient) -> Table:
     return table
 
 
-def _model_info(client: GenericClient, model_id: str) -> Union[Table, None]:
+def _model_info(client: GenericClient, model_id: str) -> Table:
     info = client.models.get(model_id)
-    if info is None:
-        console.print(f"{model_id} not found")
-        return
 
     table = Table.grid(padding=1, pad_edge=True)
     table.title = model_id
