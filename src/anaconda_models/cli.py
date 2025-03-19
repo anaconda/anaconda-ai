@@ -1,5 +1,5 @@
 from typing import Optional
-from typing_extensions import Annotated
+from typing import Annotated
 
 import typer
 from rich.status import Status
