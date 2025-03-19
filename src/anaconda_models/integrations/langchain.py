@@ -1,4 +1,5 @@
 import atexit
+from typing import Optional
 from typing import Any
 from typing import Dict
 
@@ -30,7 +31,7 @@ class AnacondaQuantizedLLM(BaseOpenAI):
     """model to use."""
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
     """Set to 'none' because llama.cpp is running locally"""
-    server: Server | None = Field(default=None, exclude=True)
+    server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:
         arbitrary_types_allowed = True
@@ -71,7 +72,7 @@ class AnacondaQuantizedModelChat(BaseChatOpenAI):
     """model to use."""
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
     """Set to 'none' because llama.cpp is running locally"""
-    server: Server | None = Field(default=None, exclude=True)
+    server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:
         arbitrary_types_allowed = True
@@ -104,7 +105,7 @@ class AnacondaQuantizedModelEmbeddings(OpenAIEmbeddings):
     check_embedding_ctx_length: bool = False
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
     """Set to 'none' because llama.cpp is running locally"""
-    server: Server | None = Field(default=None, exclude=True)
+    server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:
         arbitrary_types_allowed = True
