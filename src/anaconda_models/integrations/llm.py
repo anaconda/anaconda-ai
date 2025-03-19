@@ -5,6 +5,7 @@ from typing import Iterable
 from typing import Iterator
 from typing import List
 from typing import Optional
+from typing import Union
 
 import llm
 import openai
@@ -22,10 +23,10 @@ console = Console(stderr=True)
 
 class AnacondaModelMixin:
     model_id: str
-    anaconda_model: ModelQuantization | None = None
-    server: Server | None = None
+    anaconda_model: Optional[ModelQuantization] = None
+    server: Optional[Server] = None
 
-    def _create_and_start(self, embedding: bool | None) -> None:
+    def _create_and_start(self, embedding: Union[bool, None]) -> None:
         if self.server is None:
             model_name = self.model_id.split(":", maxsplit=1)[1]
             self.server = client.servers.create(
@@ -68,7 +69,7 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
     def __init__(self, model_id: str, dimensions: Optional[Any] = None) -> None:
         super().__init__(model_id, openai_model_id=model_id, dimensions=dimensions)
 
-    def embed_batch(self, items: Iterable[str | bytes]) -> Iterator[List[float]]:
+    def embed_batch(self, items: Iterable[Union[str, bytes]]) -> Iterator[List[float]]:
         self._create_and_start(embedding=True)
         kwargs = {
             "input": items,
