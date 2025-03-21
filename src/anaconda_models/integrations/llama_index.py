@@ -1,3 +1,4 @@
+import atexit
 from typing import Optional
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
@@ -5,7 +6,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.base.llms.types import LLMMetadata
 from pydantic import Field
 
-from anaconda_models.client import get_default_client, AINavigatorClient, KuratorClient
+from anaconda_models.clients import get_default_client
 
 
 class AnacondaModel(OpenAI):
@@ -23,19 +24,16 @@ class AnacondaModel(OpenAI):
         self,
         model: str,
         system_prompt: Optional[str] = None,
-        client: Optional[AINavigatorClient | KuratorClient] = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: Optional[int] = None,
     ) -> None:
-        if client is None:
-            client = get_default_client()
-
+        client = get_default_client()
         server = client.servers.create(model)
-        status = client.servers.start(server)
-        while status.status != "running":
-            status = client.servers.start(server)
+        server.start()
+        if not server._matched:
+            atexit.register(server.stop)
 
-        context_window = client.models.get(model).contextWindowSize
+        context_window = client.models.get(model).metadata.contextWindowSize
 
         super().__init__(
             model=model,

@@ -1,3 +1,4 @@
+import atexit
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator
 
 import litellm
@@ -7,16 +8,16 @@ from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
-from anaconda_models.client import get_default_client
+from anaconda_models.clients import get_default_client
 
 client = get_default_client()
 
 
 def create_and_start(model: str, timeout: Optional[Union[float, Timeout]] = None):
     server = client.servers.create(model)
-    status = client.servers.start(server)
-    while status.status != "running":
-        status = client.servers.start(server)
+    server.start()
+    if not server._matched:
+        atexit.register(server.stop)
 
     return server.openai_client(timeout=timeout)
 
@@ -25,9 +26,9 @@ async def async_create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None
 ):
     server = client.servers.create(model)
-    status = client.servers.start(server)
-    while status.status != "running":
-        status = client.servers.start(server)
+    server.start()
+    if not server._matched:
+        atexit.register(server.stop)
 
     return server.openai_async_client(timeout=timeout)
 

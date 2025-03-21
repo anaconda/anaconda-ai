@@ -16,7 +16,6 @@ Below you will find documentation for
 * [LlamaIndex](#llamaindex)
 * [LiteLLM](#litellm)
 * [DSPy](#dspy)
-* [PandasAI](#pandasai)
 * [Panel ChatInterface](#panel)
 
 ## Install
@@ -139,8 +138,8 @@ start new servers, and stop servers.
 |`.list`|`List[Server]`|List all running servers|
 |`.match`|Server|Find a running server that matches supplied configuration|
 |`.create`|Server|Create a new server configuration with supplied model file and API parameters|
-|`.start`|None|Start the API server|
-|`.status`|str|Return the status for a server id|
+|`.start('<server-id>')`|None|Start the API server|
+|`.status('<server-id>')`|str|Return the status for a server id|
 |`.stop('<server-id>')`|None|Stop a running server|
 |`.delete('<server-id>')`|None|Completely remove record of server configuration|
 
@@ -300,7 +299,7 @@ The LangChain integration provides Chat and Embedding classes that automatically
 
 ```python
 from langchain.prompts import ChatPromptTemplate
-from anaconda_models.langchain import AnacondaQuantizedModelChat AnacondaQuantizedModelEmbeddings
+from anaconda_models.integrations.langchain import AnacondaQuantizedModelChat, AnacondaQuantizedModelEmbeddings
 
 prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
 model = AnacondaQuantizedModelChat(model_name='meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf')
@@ -314,11 +313,10 @@ In addition to standard OpenAI parameters you can adjust llama.cpp server flags 
 
 ## LlamaIndex
 
-LlamaIndex is support through a namespace package installed with `anaconda-models`. You will need at
-least the `llama-index-llms-openai` package installed to use the integration.
+You will need at least the `llama-index-llms-openai` package installed to use the integration.
 
 ```python
-from anaconda_models.llama_index import AnacondaModel
+from anaconda_models.integrations.llama_index import AnacondaModel
 
 llm = AnacondaModel(
     model='OpenHermes-2.5-Mistral-7B_q4_k_m'
@@ -329,17 +327,18 @@ The `AnacondaModel` class supports the following arguments
 
 * `model`: Name of the model using the pattern defined above
 * `system_prompt`: Optional system prompt to apply to completions and chats
-* `client`: Optional `anaconda_models.client.AINavigator` or `anaconda_models.client.KuratorClient` object
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
 
 ## LiteLLM
 
-This provides a CustomLLM provider for use with `litellm`. But, since litellm does not currently support entrypoints to register the provider, the user must import the module first.
+This provides a CustomLLM provider for use with `litellm`.  But, since litellm does not currently support
+[entrypoints](https://github.com/BerriAI/litellm/issues/7733) to register the provider,
+the user must import the module first.
 
 ```python
 import litellm
-import anaconda_models.litellm
+import anaconda_models.integrations.litellm
 
 response = litellm.completion(
     'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
@@ -353,7 +352,6 @@ Supported usage:
 * acompletion (with and without stream=True)
 * Most OpenAI [inference parameters](https://docs.litellm.ai/docs/completion/input)
   * `n`: number of completions is not supported
-* llama.cpp server options are passed as a dictionary called `llama_cpp_kwargs` (see above)
 
 ## DSPy
 
@@ -364,55 +362,33 @@ like Predict or ChainofThought
 
 ```python
 import dspy
-import anaconda_models.litellm
+import anaconda_models.integrations.litellm
 
 lm = dspy.LM('anaconda/openhermes-2.5-mistral-7b/q4_k_m')
 dspy.configure(lm=lm)
 
-chai = dspy.ChainOfThought("question -> answer")
+chain = dspy.ChainOfThought("question -> answer")
 chain(question="Who are you?")
-```
-
-## PandasAI
-
-[PandasAI](https://github.com/Sinaptik-AI/pandas-ai): chat with data
-
-```python
-from anaconda_models.pandasai import AnacondaModel
-from pandasai import SmartDataframe
-
-llm = AnacondaModel(model_name='OpenHermes-2.5-Mistral-7B_q4_k_m.gguf', temperature=0.1)
-sdf = SmartDataframe(df, config={'llm': llm})
-sdf.chat('what is the average of this column where some condition is true?')
 ```
 
 ## Panel
 
 A callback is available to work with Panel's [ChatInterface](https://panel.holoviz.org/reference/chat/ChatInterface.html)
 
-To use it you will need to have panel, httpx, and openai installed.
-
-```text
-conda create -p ./pn -c anaconda-cloud/label/dev -c anaconda-cloud -c ai-staging anaconda-models panel httpx conda-forge::openai
-```
+To use it you will need to have panel, httpx, and numpy installed.
 
 Here's an example application that can be written in Python script or Jupyter Notebook
 
 ```python
 import panel as pn
-from anaconda_models.panel import AnacondaModelHandler
-from anaconda_cloud_auth.client import BaseClient
+from anaconda_models.integrations.panel import AnacondaModelHandler
 
 pn.extension('echarts', 'tabulator', 'terminal')
-
-aclient = BaseClient()
 
 llm = AnacondaModelHandler('TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf', display_throughput=True)
 
 chat = pn.chat.ChatInterface(
     callback=llm.callback,
-    user=aclient.name,
-    avatar=aclient.avatar,
     show_button_name=False)
 
 chat.send(
