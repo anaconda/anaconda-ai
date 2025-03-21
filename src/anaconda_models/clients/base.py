@@ -390,6 +390,9 @@ class BaseServers:
             inferParams=inferParams,  # type: ignore
         )
 
+        if server_config.loadParams.ctx_size is None:
+            server_config.loadParams.ctx_size = 0
+
         if model_summary.metadata.trainedFor == TrainedFor.sentence_similarity:
             server_config.loadParams.embedding = True
 
