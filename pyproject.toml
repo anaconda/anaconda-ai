@@ -135,16 +135,12 @@ requires =
 
 [gh-actions]
 python =
-    3.9: py39
+    3.9: py39, mypy
     3.10: py310, mypy
     3.11: py311, mypy
     3.12: py312
 
 [testenv]
-passenv =
-  ANACONDA_CLOUD_API_KEY
-  ANACONDA_CLOUD_DOMAIN
-  ANACONDA_MODELS_DOMAIN
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"
