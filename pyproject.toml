@@ -105,15 +105,7 @@ module = "llm.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
-module = "intake.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "pandasai.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "fsspec.*"
+module = "panel.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
