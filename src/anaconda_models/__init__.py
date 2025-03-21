@@ -3,6 +3,6 @@ try:
 except ImportError:  # pragma: nocover
     __version__ = "unknown"
 
-__all__ = [
-    "__version__",
-]
+from .clients import get_default_client
+
+__all__ = ["__version__", "get_default_client"]
