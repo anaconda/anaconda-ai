@@ -76,7 +76,7 @@ source = "vcs"
 
 [tool.mypy]
 disallow_untyped_defs = true
-explicit_package_bases = true
+exclude = ".tox"
 files = [
   "src/**/*.py",
   "tests/**/*.py"
