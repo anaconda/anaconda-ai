@@ -76,7 +76,6 @@ source = "vcs"
 
 [tool.mypy]
 disallow_untyped_defs = true
-exclude = ".tox"
 files = [
   "src/**/*.py",
   "tests/**/*.py"
@@ -102,10 +101,6 @@ module = "llama_index.llms.openai.*"
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = "llm.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "panel.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
