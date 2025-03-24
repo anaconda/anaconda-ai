@@ -7,7 +7,7 @@ import platformdirs
 from pydantic import BaseModel
 
 from anaconda_cli_base.config import AnacondaBaseSettings
-from anaconda_models.exceptions import APIKeyMissing
+from .exceptions import APIKeyMissing
 
 
 class AINavigatorConfig(BaseModel):

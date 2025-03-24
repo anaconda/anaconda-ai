@@ -9,7 +9,7 @@ from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
-from anaconda_models.clients import get_default_client
+from ..clients import get_default_client
 
 client = get_default_client()
 

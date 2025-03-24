@@ -14,8 +14,8 @@ from llm.default_plugins.openai_models import Chat
 from llm.default_plugins.openai_models import OpenAIEmbeddingModel
 from rich.console import Console
 
-from anaconda_models.clients import get_default_client
-from anaconda_models.clients.base import ModelQuantization, Server, LoadParams
+from ..clients import get_default_client
+from ..clients.base import ModelQuantization, Server, LoadParams
 
 client = get_default_client()
 console = Console(stderr=True)
