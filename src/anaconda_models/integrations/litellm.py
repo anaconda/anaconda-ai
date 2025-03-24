@@ -1,6 +1,7 @@
 import atexit
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator
 
+import openai
 import litellm
 from httpx import Timeout
 from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
@@ -13,7 +14,9 @@ from anaconda_models.clients import get_default_client
 client = get_default_client()
 
 
-def create_and_start(model: str, timeout: Optional[Union[float, Timeout]] = None):
+def create_and_start(
+    model: str, timeout: Optional[Union[float, Timeout]] = None
+) -> openai.OpenAI:
     server = client.servers.create(model)
     server.start()
     if not server._matched:
@@ -24,7 +27,7 @@ def create_and_start(model: str, timeout: Optional[Union[float, Timeout]] = None
 
 async def async_create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None
-):
+) -> openai.AsyncOpenAI:
     server = client.servers.create(model)
     server.start()
     if not server._matched:
