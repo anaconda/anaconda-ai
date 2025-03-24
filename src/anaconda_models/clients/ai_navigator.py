@@ -208,7 +208,7 @@ class AINavigatorClient(GenericClient):
     def request(
         self,
         method: Union[str, bytes],
-        url: str,
+        url: Union[str, bytes],
         *args: Any,
         **kwargs: Any,
     ) -> Response:
