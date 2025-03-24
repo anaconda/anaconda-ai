@@ -1,5 +1,5 @@
 from time import sleep
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
@@ -207,7 +207,7 @@ class AINavigatorClient(GenericClient):
 
     def request(
         self,
-        method: str,
+        method: Union[str, bytes],
         url: str,
         *args: Any,
         **kwargs: Any,

@@ -1,11 +1,13 @@
 import re
 from enum import Enum
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 from typing import List
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Type
 from typing import Union
 from typing_extensions import Self
 from urllib.parse import urljoin
@@ -120,7 +122,7 @@ class BaseModels:
         quantization: ModelQuantization,
         show_progress: bool = True,
         console: Optional[Console] = None,
-    ) -> Path:
+    ) -> None:
         raise NotImplementedError(
             "Downloading models is not available with this client"
         )
@@ -238,14 +240,19 @@ class Server(BaseModel):
     _matched: bool = False
 
     @property
-    def status(self):
+    def status(self) -> str:
         return self._client.servers.status(self.id)
 
     def __enter__(self) -> Self:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> bool:
         self.stop()
         return exc_type is None
 
@@ -268,7 +275,7 @@ class Server(BaseModel):
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
     @property
-    def is_running(self):
+    def is_running(self) -> bool:
         return self.status == "running"
 
     def stop(
@@ -286,12 +293,12 @@ class Server(BaseModel):
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
-    @computed_field
+    @computed_field  # type: ignore[misc]
     @property
     def url(self) -> str:
         return f"http://{self.serverConfig.apiParams.host}:{self.serverConfig.apiParams.port}"
 
-    @computed_field
+    @computed_field  # type: ignore[misc]
     @property
     def openai_url(self) -> str:
         return urljoin(self.url, "/v1")
@@ -428,13 +435,11 @@ class BaseServers:
 
     def stop(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
-        status = self._stop(server_id)
-        return status
+        self._stop(server_id)
 
     def _delete(self, server_id: str) -> None:
         raise NotImplementedError
 
     def delete(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
-        status = self._delete(server_id)
-        return status
+        self._delete(server_id)
