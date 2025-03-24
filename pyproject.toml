@@ -129,13 +129,10 @@ legacy_tox_ini = """
 [tox]
 envlist = py39,py310,py311,py312,mypy
 isolated_build = True
-requires =
-  tox-conda
-  tox-gh-actions
 
 [gh-actions]
 python =
-    3.9: py39, mypy
+    3.9: py39
     3.10: py310, mypy
     3.11: py311, mypy
     3.12: py312
@@ -147,7 +144,7 @@ commands = pytest -m "not integration"
 
 [testenv:mypy]
 deps = mypy
-extras = dev
+extras = dev,all
 commands = mypy
 
 [testenv:report]
