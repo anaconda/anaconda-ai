@@ -1,6 +1,13 @@
-class QuantizedFileNotFound(Exception):
-    pass
+class AnacondaAIException(Exception): ...
 
 
-class ModelNotFound(Exception):
-    pass
+class QuantizedFileNotFound(AnacondaAIException): ...
+
+
+class ModelNotFound(AnacondaAIException): ...
+
+
+class ModelNotDownloadedError(AnacondaAIException): ...
+
+
+class APIKeyMissing(AnacondaAIException): ...

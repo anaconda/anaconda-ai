@@ -6,13 +6,12 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 dependencies = [
   "anaconda-cloud-auth >=0.7.2",
   "anaconda-cli-base >=0.4.1",
-  "intake >=2.0.7",
   "rich",
   "pydantic >=2",
   "typer",
   "ruamel.yaml",
-  "requests-cache",
-  "openai"
+  "openai",
+  "platformdirs"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
@@ -22,10 +21,10 @@ readme = "README.md"
 requires-python = ">=3.9"
 
 [project.entry-points."anaconda_cli.subcommand"]
-models = "anaconda_models.cli.models:app"
+models = "anaconda_models.cli:app"
 
 [project.entry-points.llm]
-anaconda = "anaconda_models.llm"
+anaconda = "anaconda_models.integrations.llm"
 
 [project.optional-dependencies]
 all = [
@@ -42,10 +41,10 @@ dev = [
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
 llama-index = ["llama-index-llms-openai"]
-llm = ["llm", "click"]
-pandasai = ["pandasai>=2.4"]
+llm = ["llm>=0.22"]
 panel = [
   "panel>=1.5.4; python_version >= '3.10'",
+  "numpy",
   "httpx"
 ]
 publish = [
@@ -63,7 +62,6 @@ version-file = "src/anaconda_models/_version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/anaconda_models",
-  "/src/llama_index",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
@@ -71,14 +69,13 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/anaconda_models", "src/llama_index"]
+packages = ["src/anaconda_models"]
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.mypy]
 disallow_untyped_defs = true
-explicit_package_bases = true
 files = [
   "src/**/*.py",
   "tests/**/*.py"
@@ -107,18 +104,6 @@ module = "llm.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
-module = "intake.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "pandasai.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "fsspec.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
 module = "ruamel.*"
 
 [tool.pytest.ini_options]
@@ -144,9 +129,6 @@ legacy_tox_ini = """
 [tox]
 envlist = py39,py310,py311,py312,mypy
 isolated_build = True
-requires =
-  tox-conda
-  tox-gh-actions
 
 [gh-actions]
 python =
@@ -156,10 +138,6 @@ python =
     3.12: py312
 
 [testenv]
-passenv =
-  ANACONDA_CLOUD_API_KEY
-  ANACONDA_CLOUD_DOMAIN
-  ANACONDA_MODELS_DOMAIN
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"

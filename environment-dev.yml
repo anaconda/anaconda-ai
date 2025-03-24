@@ -1,15 +1,11 @@
 # Local dev conda dependencies
 channels:
 - defaults
-- ai-staging
 - conda-forge
 dependencies:
-- python=3.10
-- llama.cpp
+- python=3.9
 - tox=3
 - tox-conda
 - pip
-- numpy
-- pandas
 - pip:
     - "-e .[dev,all]"

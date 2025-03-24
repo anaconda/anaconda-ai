@@ -1,31 +1,46 @@
-import os
+import json
 from pathlib import Path
-from typing import Dict
+from typing import Any
 from typing import Literal
-from typing import Optional
-from typing import Union
 
+import platformdirs
 from pydantic import BaseModel
-from pydantic import field_validator
 
 from anaconda_cli_base.config import AnacondaBaseSettings
+from anaconda_models.exceptions import APIKeyMissing
 
 
-class AINavigator(BaseModel):
-    port: int = 9999
+class AINavigatorConfig(BaseModel):
+    app_name: str = "ai-navigator"
+    port: int = 8001
+
+    @property
+    def config_file(self) -> Path:
+        return Path(platformdirs.user_data_dir(self.app_name)) / "config.json"
+
+    def get_config(self, key: str) -> Any:
+        with self.config_file.open("r") as f:
+            try:
+                config = json.load(f)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "There was a problem reading the AINavigator application config file"
+                )
+        return config.get(key)
+
+    @property
+    def api_key(self) -> str:
+        key = self.get_config("aiNavApiKey")
+        if key is None:
+            raise APIKeyMissing("Error: The API Key was not found in the config file.")
+        return key
 
 
-class ModelsConfig(AnacondaBaseSettings, plugin_name="models"):
-    cache_path: Path = Path("~/.ai-navigator/models").expanduser()
-    domain: str = "kurator.anaconda.com"
-    ssl_verify: bool = True
-    extra_headers: Optional[Union[Dict[str, str], str]] = None
-    ai_navigator: AINavigator = AINavigator()
-    run_on: Literal["local", "ai-navigator"] = "local"
-
-    @field_validator("cache_path")
-    def expand_variables(cls, v: Union[Path, str]) -> Path:
-        return Path(os.path.expandvars(v)).expanduser()
+class Backends(BaseModel):
+    ai_navigator: AINavigatorConfig = AINavigatorConfig()
 
 
-config = ModelsConfig()
+class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
+    backends: Backends = Backends()
+    default_backend: Literal["ai-navigator"] = "ai-navigator"
+    stop_server_on_exit: bool = False

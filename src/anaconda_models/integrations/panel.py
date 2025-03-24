@@ -1,3 +1,4 @@
+import atexit
 import os
 import time
 from typing import Any
@@ -8,13 +9,10 @@ from urllib.parse import urljoin
 
 import httpx
 import numpy as np
-import openai
-import openai.resources
 import panel as pn
-from intake.readers.datatypes import LlamaCPPService
-from intake.readers.readers import LlamaServerReader
 
-from anaconda_models.core import AnacondaQuantizedModelCache
+from anaconda_models.clients import get_default_client
+from anaconda_models.clients.base import Server
 
 HERE = os.path.dirname(__file__)
 
@@ -22,8 +20,7 @@ DEFAULT_SYSTEM_MESSAGE = "You are a helpful assistant."
 
 
 class AnacondaModelHandler:
-    anaconda_model: Optional[AnacondaQuantizedModelCache] = None
-    llama_cpp_service: Optional[LlamaCPPService] = None
+    server: Optional[Server] = None
 
     def __init__(
         self,
@@ -31,8 +28,6 @@ class AnacondaModelHandler:
         display_throughput: bool = False,
         system_message: Optional[str] = None,
         client_options: Optional[dict] = None,
-        anaconda_client_options: Optional[dict] = None,
-        llama_cpp_options: Optional[dict] = None,
     ) -> None:
         self.display_throughput = display_throughput
 
@@ -41,45 +36,27 @@ class AnacondaModelHandler:
         else:
             self.system_message = system_message
 
+        self.client_options = {} if client_options is None else client_options
+
         self.messages = [{"content": self.system_message, "role": "system"}]
 
         self.model_id = model_id
-        self.client_options = {} if client_options is None else client_options
-        self.client_options["stream"] = True
 
-        self.anaconda_client_options = (
-            {} if anaconda_client_options is None else anaconda_client_options
-        )
-        self.llama_cpp_options = {} if llama_cpp_options is None else llama_cpp_options
-
-        self.anaconda_model = None
-        self.llama_cpp_service = None
+        self.server = None
         self._get_or_create_service()
 
         self.avatar = os.path.join(HERE, "Anaconda_Logo.png")
 
     def _get_or_create_service(self) -> None:
-        if self.anaconda_model is None:
-            self.anaconda_model = AnacondaQuantizedModelCache(
-                self.model_id, **self.anaconda_client_options
-            )
+        client = get_default_client()
+        if self.server is None:
+            self.server = client.servers.create(self.model_id)
 
-        if (self.llama_cpp_service is None) or (
-            self.llama_cpp_service.options["Process"].poll() is not None
-        ):
-            gguf = self.anaconda_model.download()
-            reader = LlamaServerReader(gguf)
+        self.server.start()
+        if not self.server._matched:
+            atexit.register(self.server.stop)
 
-            llama_cpp_kwargs = (
-                {} if self.llama_cpp_options is None else self.llama_cpp_options
-            )
-            # llama_cpp_kwargs["embedding"] = ""
-
-            self.llama_cpp_service = reader.read(**llama_cpp_kwargs)
-
-        assert self.llama_cpp_service
-        base_url = urljoin(self.llama_cpp_service.url, "/v1")
-        self.client = openai.AsyncClient(api_key="none", base_url=base_url)
+        self.client = self.server.openai_async_client()
 
     async def throughput(self, message: str, timedelta: float) -> float:
         url = urljoin(str(self.client.base_url), "/tokenize")
@@ -128,6 +105,7 @@ class AnacondaModelHandler:
         chunks = await self.client.chat.completions.create(
             messages=self.messages,  # type: ignore
             model=self.model_id,
+            stream=True,
             **self.client_options,  # type: ignore
         )
 

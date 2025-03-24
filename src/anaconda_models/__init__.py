@@ -3,15 +3,6 @@ try:
 except ImportError:  # pragma: nocover
     __version__ = "unknown"
 
-from anaconda_models.core import get_models
-from anaconda_models.core import model_info
-from anaconda_models.core import quantized_model_info
-from anaconda_models.core import AnacondaQuantizedModelCache
+from .clients import get_default_client
 
-__all__ = [
-    "get_models",
-    "model_info",
-    "quantized_model_info",
-    "AnacondaQuantizedModelCache",
-    "__version__",
-]
+__all__ = ["__version__", "get_default_client"]
