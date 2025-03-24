@@ -4,8 +4,8 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
-  "anaconda-cloud-auth >=0.7.2",
-  "anaconda-cli-base >=0.4.1",
+  "anaconda-auth >=0.8",
+  "anaconda-cli-base >=0.5",
   "rich",
   "pydantic >=2",
   "typer",
@@ -16,19 +16,19 @@ dependencies = [
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
 license = {text = "BSD-3-Clause"}
-name = "anaconda-models"
+name = "anaconda-ai"
 readme = "README.md"
 requires-python = ">=3.9"
 
 [project.entry-points."anaconda_cli.subcommand"]
-models = "anaconda_models.cli:app"
+ai = "anaconda_ai.cli:app"
 
 [project.entry-points.llm]
-anaconda = "anaconda_models.integrations.llm"
+anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-models[langchain,litellm,llm,llama-index,panel]"
+  "anaconda-ai[langchain,litellm,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
@@ -57,11 +57,11 @@ publish = [
 universal = true
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/anaconda_models/_version.py"
+version-file = "src/anaconda_ai/_version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/src/anaconda_models",
+  "/src/anaconda_ai",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
@@ -69,7 +69,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/anaconda_models"]
+packages = ["src/anaconda_ai"]
 
 [tool.hatch.version]
 source = "vcs"
@@ -108,7 +108,7 @@ module = "ruamel.*"
 
 [tool.pytest.ini_options]
 addopts = [
-  "--cov=anaconda_models",
+  "--cov=anaconda_ai",
   "--color=yes",
   "--cov-append",
   "--cov-branch",
@@ -156,10 +156,10 @@ commands =
 """
 
 [tool.vendoring]
-destination = "src/anaconda_models/_vendor/"
-namespace = "anaconda_models._vendor"
+destination = "src/anaconda_ai/_vendor/"
+namespace = "anaconda_ai._vendor"
 protected-files = ["__init__.py", "requirements.txt"]
-requirements = "src/anaconda_models/_vendor/requirements.txt"
+requirements = "src/anaconda_ai/_vendor/requirements.txt"
 
 [tool.vendoring.license.directories]
 setuptools = "pkg_resources"

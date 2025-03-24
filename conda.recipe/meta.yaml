@@ -37,7 +37,7 @@ test:
   imports:
     - anaconda_models
   commands:
-    - python -c "from anaconda_models import __version__; assert __version__ == \"{{ version }}\""
+    - python -c "from anaconda_ai import __version__; assert __version__ == \"{{ version }}\""
 about:
 #  home: {{ project['urls']['repository'] }}
   summary: {{ project['description'] }}
