@@ -35,7 +35,7 @@ requirements:
 
 test:
   imports:
-    - anaconda_models
+    - anaconda_ai
   commands:
     - python -c "from anaconda_ai import __version__; assert __version__ == \"{{ version }}\""
 about:

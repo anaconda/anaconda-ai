@@ -183,7 +183,7 @@ class AINavigatorAPIKey(AuthBase):
 
 
 class AINavigatorClient(GenericClient):
-    _user_agent = f"anaconda-models/{version}"
+    _user_agent = f"anaconda-ai/{version}"
     auth: AuthBase
 
     def __init__(self, port: Optional[int] = None, app_name: Optional[str] = None):
