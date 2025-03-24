@@ -1,4 +1,4 @@
-name: anaconda-models
+name: anaconda-ai
 
 channels:
   - defaults
@@ -10,5 +10,5 @@ channels:
 dependencies:
   - python=3.10
   - notebook
-  - anaconda-models
+  - anaconda-ai
   - langchain-openai
