@@ -147,7 +147,7 @@ commands = pytest -m "not integration"
 
 [testenv:mypy]
 deps = mypy
-extras = dev,all
+extras = dev
 commands = mypy
 
 [testenv:report]
