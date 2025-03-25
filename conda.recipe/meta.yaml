@@ -29,15 +29,14 @@ requirements:
     - {{ dep.lower() }}
     {% endfor %}
   run_constrained:
-    - llama.cpp >=0.0.4273
     - langchain-openai >=0.2.8
     - llm >=0.22
 
 test:
   imports:
-    - anaconda_models
+    - anaconda_ai
   commands:
-    - python -c "from anaconda_models import __version__; assert __version__ == \"{{ version }}\""
+    - python -c "from anaconda_ai import __version__; assert __version__ == \"{{ version }}\""
 about:
 #  home: {{ project['urls']['repository'] }}
   summary: {{ project['description'] }}

@@ -1,13 +1,12 @@
 channels:
   - defaults
   - anaconda-cloud
-  - ai-staging
   - conda-forge
 
 dependencies:
   - python=3.11
   - notebook
-  - anaconda-models
+  - anaconda-ai
   - langchain-openai
   - pandas
   - pip

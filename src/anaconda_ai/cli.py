@@ -8,8 +8,8 @@ from rich.table import Column
 from rich.table import Table
 
 from anaconda_cli_base import console
-from anaconda_models.clients import get_default_client
-from anaconda_models.clients.base import ModelSummary, GenericClient
+from .clients import get_default_client
+from .clients.base import ModelSummary, GenericClient
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 

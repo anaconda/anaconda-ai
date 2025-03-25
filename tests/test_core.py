@@ -1,6 +1,6 @@
 import pytest
 
-from anaconda_models.clients.base import MODEL_NAME
+from anaconda_ai.clients.base import MODEL_NAME
 
 
 @pytest.mark.parametrize(

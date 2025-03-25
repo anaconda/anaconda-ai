@@ -26,8 +26,8 @@ jobs:
     - name: Download the build artifacts
       uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
       with:
-        name: anaconda-models-conda-${{ github.sha }}
-        path: ~/anaconda-models-conda-bld
+        name: anaconda-ai-conda-${{ github.sha }}
+        path: ~/anaconda-ai-conda-bld
     - name: publish
       env:
         TOKEN: ${{ secrets.ANACONDA_ORG_UPLOAD_TOKEN }}
@@ -40,7 +40,7 @@ jobs:
           --user anaconda-cloud \
           $LABEL \
           --force \
-          ~/anaconda-models-conda-bld/noarch/anaconda-models-*
+          ~/anaconda-ai-conda-bld/noarch/anaconda-ai-*
 
   publish-wheel-to-anaconda-dot-org:
     name: Publish wheel to Anaconda.org
@@ -55,7 +55,7 @@ jobs:
     - name: Download the build artifacts
       uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
       with:
-        name: anaconda-models-wheel-${{ github.sha }}
+        name: anaconda-ai-wheel-${{ github.sha }}
         path: ~/dist
     - name: Create build environment
       run: |
@@ -91,7 +91,7 @@ jobs:
   #   - name: Download the build artifacts
   #     uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
   #     with:
-  #       name: anaconda-models-wheel-${{ github.sha }}
+  #       name: anaconda-ai-wheel-${{ github.sha }}
   #       path: ~/dist
   #   - name: Install build dependencies
   #     run: pip install twine

@@ -1,6 +1,5 @@
 import re
 from enum import Enum
-from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import List
@@ -20,13 +19,13 @@ from rich.status import Status
 from rich.console import Console
 
 from anaconda_cloud_auth.client import BaseClient
-from anaconda_models.config import AnacondaModelsConfig
-from anaconda_models.exceptions import (
+from ..config import AnacondaModelsConfig
+from ..exceptions import (
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
 )
-from anaconda_models.utils import find_free_port
+from ..utils import find_free_port
 
 MODEL_NAME = re.compile(
     r"^"
@@ -225,7 +224,7 @@ class InferParams(BaseModel, extra="forbid"):
 
 
 class ServerConfig(BaseModel):
-    modelFileName: Union[Path, str]
+    modelFileName: str
     apiParams: APIParams = APIParams()
     loadParams: LoadParams = LoadParams()
     inferParams: InferParams = InferParams()

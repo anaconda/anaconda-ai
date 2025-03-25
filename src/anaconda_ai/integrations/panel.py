@@ -11,8 +11,8 @@ import httpx
 import numpy as np
 import panel as pn
 
-from anaconda_models.clients import get_default_client
-from anaconda_models.clients.base import Server
+from ..clients import get_default_client
+from ..clients.base import Server
 
 HERE = os.path.dirname(__file__)
 

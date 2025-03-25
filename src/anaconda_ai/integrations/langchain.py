@@ -10,8 +10,8 @@ from pydantic import Field
 from pydantic import SecretStr
 from pydantic import model_validator
 
-from anaconda_models.clients import get_default_client
-from anaconda_models.clients.base import Server
+from ..clients import get_default_client
+from ..clients.base import Server
 
 
 def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> dict:

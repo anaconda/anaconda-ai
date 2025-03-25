@@ -6,7 +6,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.base.llms.types import LLMMetadata
 from pydantic import Field
 
-from anaconda_models.clients import get_default_client
+from ..clients import get_default_client
 
 
 class AnacondaModel(OpenAI):

@@ -1,4 +1,4 @@
-# anaconda-models
+# anaconda-ai
 
 Download, launch, and integrate AI models curated by Anaconda.
 
@@ -21,7 +21,7 @@ Below you will find documentation for
 ## Install
 
 ```text
-conda install -c anaconda-cloud anaconda-models
+conda install -c anaconda-cloud anaconda-ai
 ```
 
 ## Backend
@@ -299,7 +299,7 @@ The LangChain integration provides Chat and Embedding classes that automatically
 
 ```python
 from langchain.prompts import ChatPromptTemplate
-from anaconda_models.integrations.langchain import AnacondaQuantizedModelChat, AnacondaQuantizedModelEmbeddings
+from anaconda_ai.integrations.langchain import AnacondaQuantizedModelChat, AnacondaQuantizedModelEmbeddings
 
 prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
 model = AnacondaQuantizedModelChat(model_name='meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf')
@@ -316,7 +316,7 @@ In addition to standard OpenAI parameters you can adjust llama.cpp server flags 
 You will need at least the `llama-index-llms-openai` package installed to use the integration.
 
 ```python
-from anaconda_models.integrations.llama_index import AnacondaModel
+from anaconda_ai.integrations.llama_index import AnacondaModel
 
 llm = AnacondaModel(
     model='OpenHermes-2.5-Mistral-7B_q4_k_m'
@@ -338,7 +338,7 @@ the user must import the module first.
 
 ```python
 import litellm
-import anaconda_models.integrations.litellm
+import anaconda_ai.integrations.litellm
 
 response = litellm.completion(
     'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
@@ -362,7 +362,7 @@ like Predict or ChainofThought
 
 ```python
 import dspy
-import anaconda_models.integrations.litellm
+import anaconda_ai.integrations.litellm
 
 lm = dspy.LM('anaconda/openhermes-2.5-mistral-7b/q4_k_m')
 dspy.configure(lm=lm)
@@ -381,7 +381,7 @@ Here's an example application that can be written in Python script or Jupyter No
 
 ```python
 import panel as pn
-from anaconda_models.integrations.panel import AnacondaModelHandler
+from anaconda_ai.integrations.panel import AnacondaModelHandler
 
 pn.extension('echarts', 'tabulator', 'terminal')
 

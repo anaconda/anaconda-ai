@@ -47,7 +47,7 @@ jobs:
         - name: Upload the build artifact
           uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
           with:
-            name: anaconda-models-conda-${{ github.sha }}
+            name: anaconda-ai-conda-${{ github.sha }}
             path: ./conda-bld
             if-no-files-found: error
             retention-days: 7
@@ -71,7 +71,7 @@ jobs:
       - name: Upload the build artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         with:
-          name: anaconda-models-wheel-${{ github.sha }}
+          name: anaconda-ai-wheel-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 7

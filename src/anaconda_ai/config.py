@@ -7,7 +7,7 @@ import platformdirs
 from pydantic import BaseModel
 
 from anaconda_cli_base.config import AnacondaBaseSettings
-from anaconda_models.exceptions import APIKeyMissing
+from .exceptions import APIKeyMissing
 
 
 class AINavigatorConfig(BaseModel):
@@ -40,7 +40,7 @@ class Backends(BaseModel):
     ai_navigator: AINavigatorConfig = AINavigatorConfig()
 
 
-class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="models"):
+class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Backends()
     default_backend: Literal["ai-navigator"] = "ai-navigator"
     stop_server_on_exit: bool = False

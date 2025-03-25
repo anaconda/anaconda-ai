@@ -31,5 +31,5 @@ def invoke_cli(tmp_path: Path, monkeypatch: MonkeyPatch) -> CLIInvoker:
 
 @pytest.mark.parametrize("action", SUBCOMMANDS)
 def test_feature_action(invoke_cli: CLIInvoker, action: str) -> None:
-    result = invoke_cli("models", action, "--help")
+    result = invoke_cli("ai", action, "--help")
     assert result.exit_code == 0
