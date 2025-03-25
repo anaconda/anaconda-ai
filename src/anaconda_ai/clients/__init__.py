@@ -1,12 +1,12 @@
 from typing import Any
 
-from ..config import AnacondaModelsConfig
+from ..config import AnacondaAIConfig
 from .ai_navigator import AINavigatorClient
 from .base import GenericClient
 
 
 def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
-    config = AnacondaModelsConfig()
+    config = AnacondaAIConfig()
     if config.default_backend == "ai-navigator":
         return AINavigatorClient(*args, **kwargs)
     else:
