@@ -6,6 +6,8 @@ dependencies:
 - python=3.9
 - tox=3
 - tox-conda
+- notebook
+- ipywidgets
 - pip
 - pip:
     - "-e .[dev,all]"
