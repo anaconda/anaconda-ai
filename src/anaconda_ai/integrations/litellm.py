@@ -1,4 +1,3 @@
-import atexit
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator
 
 import openai
@@ -19,9 +18,6 @@ def create_and_start(
 ) -> openai.OpenAI:
     server = client.servers.create(model)
     server.start()
-    if not server._matched:
-        atexit.register(server.stop)
-
     return server.openai_client(timeout=timeout)
 
 
@@ -30,9 +26,6 @@ async def async_create_and_start(
 ) -> openai.AsyncOpenAI:
     server = client.servers.create(model)
     server.start()
-    if not server._matched:
-        atexit.register(server.stop)
-
     return server.openai_async_client(timeout=timeout)
 
 

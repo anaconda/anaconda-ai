@@ -1,4 +1,3 @@
-import atexit
 from typing import Any
 from typing import Callable
 from typing import Iterable
@@ -33,11 +32,6 @@ class AnacondaModelMixin:
                 model_name, load_params=LoadParams(embedding=embedding)
             )
             self.server.start(console=console)
-            if not self.server._matched:
-                atexit.register(
-                    self.server.stop,
-                    console=console,
-                )
 
         self.api_base = self.server.openai_url
 

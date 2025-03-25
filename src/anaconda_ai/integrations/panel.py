@@ -1,4 +1,3 @@
-import atexit
 import os
 import time
 from typing import Any
@@ -53,9 +52,6 @@ class AnacondaModelHandler:
             self.server = client.servers.create(self.model_id)
 
         self.server.start()
-        if not self.server._matched:
-            atexit.register(self.server.stop)
-
         self.client = self.server.openai_async_client()
 
     async def throughput(self, message: str, timedelta: float) -> float:

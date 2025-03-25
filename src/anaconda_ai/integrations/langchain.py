@@ -1,4 +1,3 @@
-import atexit
 from typing import Optional
 from typing import Any
 from typing import Dict
@@ -18,8 +17,6 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
     client = get_default_client()
     server = client.servers.create(model_name)
     server.start()
-    if not server._matched:
-        atexit.register(server.stop)
 
     values["server"] = server
     values["openai_api_base"] = server.openai_url
