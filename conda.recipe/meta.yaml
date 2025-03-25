@@ -29,7 +29,6 @@ requirements:
     - {{ dep.lower() }}
     {% endfor %}
   run_constrained:
-    - llama.cpp >=0.0.4273
     - langchain-openai >=0.2.8
     - llm >=0.22
 
