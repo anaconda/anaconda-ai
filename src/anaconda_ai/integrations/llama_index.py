@@ -1,4 +1,3 @@
-import atexit
 from typing import Optional
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
@@ -30,9 +29,6 @@ class AnacondaModel(OpenAI):
         client = get_default_client()
         server = client.servers.create(model)
         server.start()
-        if not server._matched:
-            atexit.register(server.stop)
-
         context_window = client.models.get(model).metadata.contextWindowSize
 
         super().__init__(

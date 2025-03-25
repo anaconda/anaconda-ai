@@ -40,7 +40,7 @@ class Backends(BaseModel):
     ai_navigator: AINavigatorConfig = AINavigatorConfig()
 
 
-class AnacondaModelsConfig(AnacondaBaseSettings, plugin_name="ai"):
+class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Backends()
     default_backend: Literal["ai-navigator"] = "ai-navigator"
-    stop_server_on_exit: bool = False
+    stop_server_on_exit: bool = True

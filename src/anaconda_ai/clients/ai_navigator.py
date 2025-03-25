@@ -9,7 +9,7 @@ import rich.progress
 from urllib.parse import quote
 
 from .. import __version__ as version
-from ..config import AnacondaModelsConfig
+from ..config import AnacondaAIConfig
 from .base import (
     GenericClient,
     ModelSummary,
@@ -172,7 +172,7 @@ class AINavigatorServers(BaseServers):
 
 
 class AINavigatorAPIKey(AuthBase):
-    def __init__(self, config: AnacondaModelsConfig) -> None:
+    def __init__(self, config: AnacondaAIConfig) -> None:
         self.config = config
         super().__init__()
 
@@ -193,7 +193,7 @@ class AINavigatorClient(GenericClient):
         if app_name is not None:
             kwargs["backends"]["ai_navigator"]["app_name"] = app_name
 
-        self._config = AnacondaModelsConfig(**kwargs)
+        self._config = AnacondaAIConfig(**kwargs)
 
         domain = f"localhost:{self._config.backends.ai_navigator.port}"
 

@@ -1,3 +1,4 @@
+import atexit
 import re
 from enum import Enum
 from types import TracebackType
@@ -19,7 +20,7 @@ from rich.status import Status
 from rich.console import Console
 
 from anaconda_cloud_auth.client import BaseClient
-from ..config import AnacondaModelsConfig
+from ..config import AnacondaAIConfig
 from ..exceptions import (
     ModelNotFound,
     QuantizedFileNotFound,
@@ -85,7 +86,7 @@ class ModelSummary(BaseModel):
 class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
-    _config: AnacondaModelsConfig
+    _config: AnacondaAIConfig
 
 
 class BaseModels:
@@ -256,7 +257,10 @@ class Server(BaseModel):
         return exc_type is None
 
     def start(
-        self, show_progress: bool = True, console: Optional[Console] = None
+        self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None,
+        console: Optional[Console] = None,
     ) -> None:
         text = f"{self.serverConfig.modelFileName} (creating)"
         console = Console() if console is None else console
@@ -272,6 +276,15 @@ class Server(BaseModel):
                 text = f"{self.serverConfig.modelFileName} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
+
+        if not self._matched:
+            kwargs = {}
+            if leave_running is not None:
+                kwargs["stop_server_on_exit"] = leave_running
+
+            config = AnacondaAIConfig(**kwargs)  # type: ignore
+            if config.stop_server_on_exit:
+                atexit.register(self.stop, console=console)
 
     @property
     def is_running(self) -> bool:

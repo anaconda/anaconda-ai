@@ -30,6 +30,15 @@ The backend for anaconda-ai is [Anaconda AI Navigator](https://www.anaconda.com/
 package utilizes the backend API to list and download models and manage running servers. All activities performed
 by the CLI, SDK, and integrations here are visible within Anaconda AI Navigator.
 
+## Configuration
+
+Anaconda AI supports configuration management in the `~/.anaconda/config.toml` file. The following parameters are supported under the table `[plugin.ai]` or by setting
+`ANACONDA_AI_<parameter>=<value>` environment variables.
+
+|Parameter|Environment variable|Description|Default value|
+|---------|--------------------|-----------|-------------|
+|`stop_server_on_exit`|`ANACONDA_AI_STOP_SERVER_ON_EXIT`|For any server started during a Python interpreter session stop the server when the interpreter stops. Does not affect servers that were previously running|`true`|
+
 ## Declaring model quantization files
 
 In the CLI, SDK, and integrations below individual model quantizations are are referenced according the
