@@ -1,7 +1,6 @@
 channels:
   - defaults
   - anaconda-cloud
-  - ai-staging
   - conda-forge
 
 dependencies:
