@@ -1,0 +1,23 @@
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python Version Selection
+  - defaults:python>=3.12.0
+
+  # Documentation and Build Dependencies
+  - linkify-it-py=2.0.0
+  - myst-parser=2.0.0
+  - defaults:sphinx=7.3.7
+  - conda-forge:pydata-sphinx-theme=0.15.4
+  - defaults:sphinx-design>=0.5.0
+  - conda-forge:sphinx-copybutton>=0.5.2
+  - conda-forge:sphinx-reredirects>=0.1.5
+  - conda-forge:sphinx-sitemap=2.2.1
+  - conda-forge:sphinx-notfound-page>=1.0.2
+  - pip>=24.0
+  - pip:
+      - sphinxcontrib-images>=0.9.4
+      - sphinx-autobuild==2024.10.3
+      - setuptools>=75.3.0
