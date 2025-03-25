@@ -1,6 +1,5 @@
 import re
 from enum import Enum
-from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import List
@@ -225,7 +224,7 @@ class InferParams(BaseModel, extra="forbid"):
 
 
 class ServerConfig(BaseModel):
-    modelFileName: Union[Path, str]
+    modelFileName: str
     apiParams: APIParams = APIParams()
     loadParams: LoadParams = LoadParams()
     inferParams: InferParams = InferParams()
