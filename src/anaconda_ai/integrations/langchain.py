@@ -41,9 +41,9 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
 class AnacondaQuantizedLLM(BaseOpenAI):
     model: str = Field(..., alias="model_name")
     """Anaconda quantized model to use."""
-    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)
-    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)
-    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)
+    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)  # type: ignore
+    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)  # type: ignore
+    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)  # type: ignore
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
     server: Optional[Server] = Field(default=None, exclude=True)
 
@@ -84,9 +84,9 @@ class AnacondaQuantizedLLM(BaseOpenAI):
 class AnacondaQuantizedModelChat(BaseChatOpenAI):
     model: str = Field(..., alias="model_name")
     """Anaconda quantized model to use."""
-    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)
-    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)
-    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)
+    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)  # type: ignore
+    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)  # type: ignore
+    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)  # type: ignore
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
     server: Optional[Server] = Field(default=None, exclude=True)
 
