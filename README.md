@@ -389,6 +389,8 @@ chain = dspy.ChainOfThought("question -> answer")
 chain(question="Who are you?")
 ```
 
+`dspy.LM` supports `optional_params=` keyword argument as explained in the previous section.
+
 ## Panel
 
 A callback is available to work with Panel's [ChatInterface](https://panel.holoviz.org/reference/chat/ChatInterface.html)

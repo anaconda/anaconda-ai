@@ -35,14 +35,14 @@ class AnacondaLLM(CustomLLM):
         _ = inference_kwargs.pop("stream", None)
         _ = inference_kwargs.pop("stream_options", None)
         _ = inference_kwargs.pop("max_retries", None)
-        _ = optional_params.pop("optional_params", None)
+        _ = inference_kwargs.pop("optional_params", None)
         return inference_kwargs
 
     def _prepare_server_kwargs(self, optional_params: dict) -> dict:
-        optional = optional_params.pop("optional_params", {})
-        api_params = optional.pop("api_params", None)
-        load_params = optional.pop("load_params", None)
-        infer_params = optional.pop("infer_params", None)
+        optional = optional_params.get("optional_params", {})
+        api_params = optional.get("api_params", None)
+        load_params = optional.get("load_params", None)
+        infer_params = optional.get("infer_params", None)
         return {
             "api_params": api_params,
             "load_params": load_params,
