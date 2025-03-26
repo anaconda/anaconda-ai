@@ -416,6 +416,15 @@ chat.send(
 chat.servable()
 ```
 
+the AnacondaModelHandler supports the following keyword arguments
+
+* `display_throughput`: Show a speed dial next to the response. Default is False
+* `system_message`: Default system message applied to all responses
+* `client_options`: Optional dict passed as kwargs to chat.completions.create
+* `api_params`: Optional dict or APIParams object
+* `load_params`: Optional dict or LoadParams object
+* `infer_params`: Optional dict or InferParams object
+
 ## Setup for development
 
 Ensure you have `conda` installed.
