@@ -342,6 +342,9 @@ The `AnacondaModel` class supports the following arguments
 * `system_prompt`: Optional system prompt to apply to completions and chats
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
+* `api_params`: Optional dict or APIParams object
+* `load_params`: Optional dict or LoadParams object
+* `infer_params`: Optional dict or InferParams object
 
 ## LiteLLM
 
