@@ -289,10 +289,16 @@ To use the llm integration you will need to also install `llm` package
 conda install -c conda-forge llm
 ```
 
-then you can list downloaded model quantizations with
+then you can list downloaded model quantizations
 
 ```text
-llm anaconda models
+llm models
+```
+
+or to show only the Anaconda AI models
+
+```text
+llm models list -q anaconda
 ```
 
 When utilizing a model it will first ensure that the model has been downloaded and start the server though the backend.
@@ -300,6 +306,12 @@ Standard OpenAI parameters are supported.
 
 ```text
 llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 'what is pi?'
+```
+
+Standard OpenAI and the above server options are available for Anaconda AI models, to see the parameter names run
+
+```text
+llm models list -q anaconda --options
 ```
 
 ## Langchain
