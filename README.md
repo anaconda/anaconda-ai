@@ -318,7 +318,11 @@ chain = prompt | model
 message = chain.invoke({'topic': 'python'})
 ```
 
-In addition to standard OpenAI parameters you can adjust llama.cpp server flags with `llama_cpp_options={...}`.
+The following keyword arguments are supported:
+
+* `api_params`: Dict or APIParams class above
+* `load_params`: Dict or LoadParams class above
+* `infer_params`: Dict or InferParams class above (excluding AnacondaQuantizedEmbedding)
 
 ## LlamaIndex
 
