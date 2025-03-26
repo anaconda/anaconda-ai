@@ -365,6 +365,8 @@ Supported usage:
 * acompletion (with and without stream=True)
 * Most OpenAI [inference parameters](https://docs.litellm.ai/docs/completion/input)
   * `n`: number of completions is not supported
+* Server parameters (api_params, load_params, infer_params) can be passed as dictionaries to the `optional_params` keyword argument
+  * `optional_params={"load_params": {"ctx_size": 512}}`
 
 ## DSPy
 
