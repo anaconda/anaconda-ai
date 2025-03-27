@@ -207,7 +207,7 @@ class LoadParams(BaseModel, extra="forbid"):
     rope_freq_base: Optional[int] = None
     rope_freq_scale: Optional[int] = None
     seed: Optional[int] = None
-    tensor_split: Optional[List[int]] = None
+    tensor_split: Optional[List[Union[int, float]]] = None
     use_mmap: Optional[bool] = None
     embedding: Optional[bool] = None
 
