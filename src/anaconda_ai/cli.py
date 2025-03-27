@@ -1,5 +1,4 @@
 from typing import Annotated
-from typing import List
 from typing import Optional
 
 import typer
@@ -156,7 +155,7 @@ def launch(
     rope_freq_base: Optional[int] = None,
     rope_freq_scale: Optional[int] = None,
     seed: Optional[int] = None,
-    tensor_split: Optional[List[int]] = None,
+    tensor_split: Optional[str] = None,
     use_mmap: Optional[bool] = None,
     embedding: Optional[bool] = None,
     threads: Optional[int] = None,
@@ -184,6 +183,14 @@ def launch(
         "metrics": metrics,
     }
 
+    if tensor_split:
+        try:
+            split_tensors = [float(i) for i in tensor_split.split(",")]
+        except ValueError:
+            raise ValueError("--split-tensors must be a comma separated lit of floats")
+    else:
+        split_tensors = None
+
     load_params = {
         "batch_size": batch_size,
         "cont_batching": cont_batching,
@@ -195,7 +202,7 @@ def launch(
         "rope_freq_base": rope_freq_base,
         "rope_freq_scale": rope_freq_scale,
         "seed": seed,
-        "tensor_split": tensor_split,
+        "tensor_split": split_tensors,
         "use_mmap": use_mmap,
         "embedding": embedding,
     }
