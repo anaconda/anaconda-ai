@@ -289,10 +289,16 @@ To use the llm integration you will need to also install `llm` package
 conda install -c conda-forge llm
 ```
 
-then you can list downloaded model quantizations with
+then you can list downloaded model quantizations
 
 ```text
-llm anaconda models
+llm models
+```
+
+or to show only the Anaconda AI models
+
+```text
+llm models list -q anaconda
 ```
 
 When utilizing a model it will first ensure that the model has been downloaded and start the server though the backend.
@@ -300,6 +306,12 @@ Standard OpenAI parameters are supported.
 
 ```text
 llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 'what is pi?'
+```
+
+Standard OpenAI and the above server options are available for Anaconda AI models, to see the parameter names run
+
+```text
+llm models list -q anaconda --options
 ```
 
 ## Langchain
@@ -318,7 +330,11 @@ chain = prompt | model
 message = chain.invoke({'topic': 'python'})
 ```
 
-In addition to standard OpenAI parameters you can adjust llama.cpp server flags with `llama_cpp_options={...}`.
+The following keyword arguments are supported:
+
+* `api_params`: Dict or APIParams class above
+* `load_params`: Dict or LoadParams class above
+* `infer_params`: Dict or InferParams class above (excluding AnacondaQuantizedEmbedding)
 
 ## LlamaIndex
 
@@ -338,6 +354,9 @@ The `AnacondaModel` class supports the following arguments
 * `system_prompt`: Optional system prompt to apply to completions and chats
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
+* `api_params`: Optional dict or APIParams object
+* `load_params`: Optional dict or LoadParams object
+* `infer_params`: Optional dict or InferParams object
 
 ## LiteLLM
 
@@ -361,6 +380,8 @@ Supported usage:
 * acompletion (with and without stream=True)
 * Most OpenAI [inference parameters](https://docs.litellm.ai/docs/completion/input)
   * `n`: number of completions is not supported
+* Server parameters (api_params, load_params, infer_params) can be passed as dictionaries to the `optional_params` keyword argument
+  * `optional_params={"load_params": {"ctx_size": 512}}`
 
 ## DSPy
 
@@ -379,6 +400,8 @@ dspy.configure(lm=lm)
 chain = dspy.ChainOfThought("question -> answer")
 chain(question="Who are you?")
 ```
+
+`dspy.LM` supports `optional_params=` keyword argument as explained in the previous section.
 
 ## Panel
 
@@ -406,6 +429,15 @@ chat.send(
 )
 chat.servable()
 ```
+
+the AnacondaModelHandler supports the following keyword arguments
+
+* `display_throughput`: Show a speed dial next to the response. Default is False
+* `system_message`: Default system message applied to all responses
+* `client_options`: Optional dict passed as kwargs to chat.completions.create
+* `api_params`: Optional dict or APIParams object
+* `load_params`: Optional dict or LoadParams object
+* `infer_params`: Optional dict or InferParams object
 
 ## Setup for development
 

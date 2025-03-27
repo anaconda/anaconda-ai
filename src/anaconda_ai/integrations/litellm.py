@@ -14,17 +14,17 @@ client = get_default_client()
 
 
 def create_and_start(
-    model: str, timeout: Optional[Union[float, Timeout]] = None
+    model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
 ) -> openai.OpenAI:
-    server = client.servers.create(model)
+    server = client.servers.create(model, **kwargs)
     server.start()
     return server.openai_client(timeout=timeout)
 
 
 async def async_create_and_start(
-    model: str, timeout: Optional[Union[float, Timeout]] = None
+    model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
 ) -> openai.AsyncOpenAI:
-    server = client.servers.create(model)
+    server = client.servers.create(model, **kwargs)
     server.start()
     return server.openai_async_client(timeout=timeout)
 
@@ -35,7 +35,19 @@ class AnacondaLLM(CustomLLM):
         _ = inference_kwargs.pop("stream", None)
         _ = inference_kwargs.pop("stream_options", None)
         _ = inference_kwargs.pop("max_retries", None)
+        _ = inference_kwargs.pop("optional_params", None)
         return inference_kwargs
+
+    def _prepare_server_kwargs(self, optional_params: dict) -> dict:
+        optional = optional_params.get("optional_params", {})
+        api_params = optional.get("api_params", None)
+        load_params = optional.get("load_params", None)
+        infer_params = optional.get("infer_params", None)
+        return {
+            "api_params": api_params,
+            "load_params": load_params,
+            "infer_params": infer_params,
+        }
 
     def completion(
         self,
@@ -57,7 +69,8 @@ class AnacondaLLM(CustomLLM):
         client: Optional[HTTPHandler] = None,
     ) -> ModelResponse:
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
-        _client = create_and_start(model=model, timeout=timeout)
+        server_kwargs = self._prepare_server_kwargs(optional_params)
+        _client = create_and_start(model=model, timeout=timeout, **server_kwargs)
         response = _client.chat.completions.create(
             messages=messages, model=model, **inference_kwargs
         )
@@ -83,7 +96,8 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[HTTPHandler] = None,
     ) -> Iterator[GenericStreamingChunk]:
-        _client = create_and_start(model=model, timeout=timeout)
+        server_kwargs = self._prepare_server_kwargs(optional_params)
+        _client = create_and_start(model=model, timeout=timeout, **server_kwargs)
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = _client.chat.completions.create(
             messages=messages, model=model, stream=True, **inference_kwargs
@@ -121,7 +135,10 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
-        _client = await async_create_and_start(model=model, timeout=timeout)
+        server_kwargs = self._prepare_server_kwargs(optional_params)
+        _client = await async_create_and_start(
+            model=model, timeout=timeout, **server_kwargs
+        )
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
             messages=messages, model=model, **inference_kwargs
@@ -148,7 +165,10 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
-        _client = await async_create_and_start(model=model, timeout=timeout)
+        server_kwargs = self._prepare_server_kwargs(optional_params)
+        _client = await async_create_and_start(
+            model=model, timeout=timeout, **server_kwargs
+        )
 
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(

@@ -1,6 +1,7 @@
-from typing import Optional
 from typing import Any
 from typing import Dict
+from typing import Optional
+from typing import Union
 
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langchain_openai.embeddings.base import OpenAIEmbeddings
@@ -10,12 +11,26 @@ from pydantic import SecretStr
 from pydantic import model_validator
 
 from ..clients import get_default_client
-from ..clients.base import Server
+from ..clients.base import Server, APIParams, LoadParams, InferParams
 
 
 def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> dict:
+    api_params = values.get("api_params", {})
+    load_params = values.get("load_params", {})
+    infer_params = values.get("infer_params", {})
+
+    if isinstance(load_params, LoadParams):
+        load_params.embedding = embedding
+    else:
+        load_params["embedding"] = embedding
+
     client = get_default_client()
-    server = client.servers.create(model_name)
+    server = client.servers.create(
+        model=model_name,
+        api_params=api_params,
+        load_params=load_params,
+        infer_params=infer_params,
+    )
     server.start()
 
     values["server"] = server
@@ -25,9 +40,11 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
 
 class AnacondaQuantizedLLM(BaseOpenAI):
     model: str = Field(..., alias="model_name")
-    """model to use."""
+    """Anaconda quantized model to use."""
+    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)  # type: ignore
+    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)  # type: ignore
+    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)  # type: ignore
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
-    """Set to 'none' because llama.cpp is running locally"""
     server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:
@@ -66,9 +83,11 @@ class AnacondaQuantizedLLM(BaseOpenAI):
 
 class AnacondaQuantizedModelChat(BaseChatOpenAI):
     model: str = Field(..., alias="model_name")
-    """model to use."""
+    """Anaconda quantized model to use."""
+    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)  # type: ignore
+    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)  # type: ignore
+    infer_params: Union[Dict[str, Any], InferParams] = Field(default_factory=dict)  # type: ignore
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
-    """Set to 'none' because llama.cpp is running locally"""
     server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:
@@ -98,10 +117,11 @@ class AnacondaQuantizedModelChat(BaseChatOpenAI):
 
 class AnacondaQuantizedModelEmbeddings(OpenAIEmbeddings):
     model_name: str = Field(..., alias="model")
-    """model to use."""
+    """Anaconda quantized model to use."""
+    api_params: Union[Dict[str, Any], APIParams] = Field(default_factory=dict)  # type: ignore
+    load_params: Union[Dict[str, Any], LoadParams] = Field(default_factory=dict)  # type: ignore
     check_embedding_ctx_length: bool = False
     openai_api_key: SecretStr = Field(default=SecretStr("none"), alias="api_key")
-    """Set to 'none' because llama.cpp is running locally"""
     server: Optional[Server] = Field(default=None, exclude=True)
 
     class Config:

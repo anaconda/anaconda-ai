@@ -1,6 +1,7 @@
 import os
 import time
 from typing import Any
+from typing import Dict
 from typing import AsyncGenerator
 from typing import Optional
 from typing import Union
@@ -11,7 +12,7 @@ import numpy as np
 import panel as pn
 
 from ..clients import get_default_client
-from ..clients.base import Server
+from ..clients.base import Server, APIParams, LoadParams, InferParams
 
 HERE = os.path.dirname(__file__)
 
@@ -27,6 +28,9 @@ class AnacondaModelHandler:
         display_throughput: bool = False,
         system_message: Optional[str] = None,
         client_options: Optional[dict] = None,
+        api_params: Optional[Union[Dict[str, Any], APIParams]] = None,
+        load_params: Optional[Union[Dict[str, Any], LoadParams]] = None,
+        infer_params: Optional[Union[Dict[str, Any], InferParams]] = None,
     ) -> None:
         self.display_throughput = display_throughput
 
@@ -36,6 +40,9 @@ class AnacondaModelHandler:
             self.system_message = system_message
 
         self.client_options = {} if client_options is None else client_options
+        self.api_params = api_params
+        self.load_params = load_params
+        self.infer_params = infer_params
 
         self.messages = [{"content": self.system_message, "role": "system"}]
 
@@ -49,7 +56,12 @@ class AnacondaModelHandler:
     def _get_or_create_service(self) -> None:
         client = get_default_client()
         if self.server is None:
-            self.server = client.servers.create(self.model_id)
+            self.server = client.servers.create(
+                model=self.model_id,
+                api_params=self.api_params,
+                load_params=self.load_params,
+                infer_params=self.infer_params,
+            )
 
         self.server.start()
         self.client = self.server.openai_async_client()
