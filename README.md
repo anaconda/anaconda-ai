@@ -316,7 +316,8 @@ llm models list -q anaconda --options
 
 ## Langchain
 
-The LangChain integration provides Chat and Embedding classes that automatically download and start the llama.cpp server
+The LangChain integration provides Chat and Embedding classes that automatically manage downloading and starting servers.
+You will need the `langchain-openai` package.
 
 ```python
 from langchain.prompts import ChatPromptTemplate
