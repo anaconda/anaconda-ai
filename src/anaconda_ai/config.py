@@ -1,10 +1,11 @@
 import json
+from os.path import expandvars
 from pathlib import Path
 from typing import Any
 from typing import Literal
 
 import platformdirs
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from anaconda_cli_base.config import AnacondaBaseSettings
 from .exceptions import APIKeyMissing
@@ -36,11 +37,21 @@ class AINavigatorConfig(BaseModel):
         return key
 
 
+class OllamaConfig(BaseModel):
+    models_path: Path = Path("~/.ai-navigator/models").expanduser()
+    domain: str = "kurator.anaconda.com"
+
+    @field_validator("models_path")
+    def expand_vars_model_path(cls, v) -> Path:
+        return Path(expandvars(v)).expanduser()
+
+
 class Backends(BaseModel):
     ai_navigator: AINavigatorConfig = AINavigatorConfig()
+    ollama: OllamaConfig = OllamaConfig()
 
 
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Backends()
-    default_backend: Literal["ai-navigator"] = "ai-navigator"
+    default_backend: Literal["ai-navigator", "ollama"] = "ai-navigator"
     stop_server_on_exit: bool = True

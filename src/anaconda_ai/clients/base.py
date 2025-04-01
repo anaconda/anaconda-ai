@@ -1,6 +1,7 @@
 import atexit
 import re
 from enum import Enum
+from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import List
@@ -45,7 +46,7 @@ class ModelQuantization(BaseModel):
     sizeBytes: int
     maxRamUsage: int
     isDownloaded: bool = False
-    localPath: Optional[str] = None
+    localPath: Optional[Path] = None
 
 
 class TrainedFor(str, Enum):
