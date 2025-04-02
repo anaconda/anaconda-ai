@@ -14,7 +14,9 @@ from ..clients import get_default_client
 from ..clients.base import Server, APIParams, LoadParams, InferParams
 
 
-def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> dict:
+def _prepare_model(
+    model_name: str, values: dict, embedding: Optional[bool] = None
+) -> dict:
     api_params = values.get("api_params", {})
     load_params = values.get("load_params", {})
     infer_params = values.get("infer_params", {})
