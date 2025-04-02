@@ -33,6 +33,10 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
     )
     server.start()
 
+    if "model_name" in values:
+        values["model_name"] = f"anaconda/{values['model_name']}"
+    elif "model" in values:
+        values["model"] = f"anaconda/{values['model']}"
     values["server"] = server
     values["openai_api_base"] = server.openai_url
     return values
