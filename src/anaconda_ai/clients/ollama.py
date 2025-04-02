@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Union, List
 from uuid import uuid4
 
 import requests
+from urllib.parse import urljoin
 import rich.progress
 from rich.console import Console
 
@@ -17,7 +18,10 @@ from .base import (
     BaseServers,
     Server,
     ServerConfig,
+    MODEL_NAME,
 )
+
+OLLAMA_URL = "http://localhost:11434"
 
 
 class KuratorModels(BaseModels):
@@ -108,29 +112,82 @@ class KuratorModels(BaseModels):
                     s.update(task, advance=len(chunk))
 
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
-        assert quantization.localPath
-        os.remove(quantization.localPath)
+        model = f"anaconda:{quantization.modelFileName}"
+        res = requests.delete(urljoin(OLLAMA_URL, "api/delete"), json={"model": model})
+        res.raise_for_status()
 
 
-class OllamaServer(BaseServers):
-    def ollama_running(self) -> bool:
-        response = requests.get("http://localhost:11434")
-        return response.ok
+class OllamaServers(BaseServers):
+    def list(self) -> List[Server]:
+        res = requests.get(urljoin(OLLAMA_URL, "api/tags"))
+        res.raise_for_status()
+        data = res.json()["models"]
+
+        servers = []
+        for server in data:
+            model = server["name"].rsplit(":", maxsplit=1)[0]
+            if not model.startswith("anaconda/"):
+                continue
+
+            server = Server(  # type: ignore
+                id=uuid4(),
+                serverConfig=ServerConfig(
+                    modelFileName=model,
+                    apiParams={"host": "localhost", "port": "11434"},  # type: ignore
+                ),
+            )
+            server._client = self._client
+            servers.append(server)
+        return servers
 
     def _create(self, server_config: ServerConfig) -> Server:
         uuid = uuid4()
+        match = MODEL_NAME.match(server_config.modelFileName)
+        if match is None:
+            raise ValueError(
+                f"{server_config.modelFileName} is not a valid model quantization"
+            )
+
+        _, model, quantization, _ = match.groups()
+        quant = self._client.models.get(model).get_quantization(quantization)
+
+        body = {
+            "model": f"anaconda/{server_config.modelFileName}",
+            "files": {server_config.modelFileName: f"sha256:{quant.id}"},
+        }
+        url = urljoin(OLLAMA_URL, "api/create")
+        res = requests.post(url, json=body)
+        res.raise_for_status()
+
         server_entry = dict(
             id=uuid,
-            serverConfig=server_config,
+            serverConfig=dict(
+                modelFileName=f"anaconda/{server_config.modelFileName}",
+                apiParams={"host": "localhost", "port": "11434"},  # type: ignore
+            ),
         )
-        server_file = self._client._config.backends.ollama.servers_path / f"{uuid}.json"
-        server_file.parent.mkdir(parents=True, exist_ok=True)
+        return Server(**server_entry)  # type: ignore
 
-        server = Server(**server_entry)  # type: ignore
-        with server_file.open("w") as f:
-            f.write(server.model_dump_json(indent=2))
+    def match(self, server_config: ServerConfig) -> Union[Server, None]:
+        servers = self.list()
+        for server in servers:
+            if (
+                server.serverConfig.modelFileName
+                == f"anaconda/{server_config.modelFileName}"
+            ):
+                return server
 
-        return server
+    def _status(self, _: str) -> str:
+        return "running"
+
+    def _start(self, _: str) -> None:
+        return None
+
+    def _stop(self, _: str) -> None:
+        return None
+
+    def _delete(self, server_id: str) -> None:
+        return None
 
 
 class OllamaClient(GenericClient):
@@ -150,7 +207,7 @@ class OllamaClient(GenericClient):
             kwargs["ollama"]["domain"] = domain
 
         kwargs_top = {"backends": {"ollama": kwargs}}
-        self._config = AnacondaAIConfig(**kwargs_top)
+        self._config = AnacondaAIConfig(**kwargs_top)  # type: ignore
 
         super().__init__(
             user_agent=user_agent,
@@ -162,3 +219,4 @@ class OllamaClient(GenericClient):
         self._base_uri = f"https://{self._config.backends.ollama.domain}"
 
         self.models = KuratorModels(self)
+        self.servers = OllamaServers(self)
