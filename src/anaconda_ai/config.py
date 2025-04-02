@@ -39,7 +39,7 @@ class AINavigatorConfig(BaseModel):
 
 class OllamaConfig(BaseModel):
     models_path: Path = Path("~/.ollama/models/blobs").expanduser()
-    servers_path: Path = Path("~/.ai-navigator/servers").expanduser()
+    servers_path: Path = Path("~/.ollama/servers").expanduser()
     domain: str = "kurator.anaconda.com"
 
     @field_validator("models_path")

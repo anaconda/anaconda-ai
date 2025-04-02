@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any, Dict, Optional, Union, List
 from uuid import uuid4
@@ -119,6 +120,15 @@ class KuratorModels(BaseModels):
 
 class OllamaServers(BaseServers):
     def list(self) -> List[Server]:
+        config = AnacondaAIConfig()
+
+        saved_server_configs: Dict[str, Server] = {}
+        for fn in config.backends.ollama.servers_path.glob("*.json"):
+            with fn.open() as f:
+                server = Server(**json.load(f))
+                server._client = self._client
+                saved_server_configs[server.serverConfig.modelFileName] = server
+
         res = requests.get(urljoin(OLLAMA_URL, "api/tags"))
         res.raise_for_status()
         data = res.json()["models"]
@@ -126,22 +136,17 @@ class OllamaServers(BaseServers):
         servers = []
         for server in data:
             model = server["name"].rsplit(":", maxsplit=1)[0]
-            if not model.startswith("anaconda/"):
+            if model not in saved_server_configs:
                 continue
 
-            server = Server(  # type: ignore
-                id=uuid4(),
-                serverConfig=ServerConfig(
-                    modelFileName=model,
-                    apiParams={"host": "localhost", "port": "11434"},  # type: ignore
-                ),
+            matched = saved_server_configs[model]
+            matched.serverConfig.modelFileName = (
+                matched.serverConfig.modelFileName.replace("anaconda/", "")
             )
-            server._client = self._client
-            servers.append(server)
+            servers.append(saved_server_configs[model])
         return servers
 
     def _create(self, server_config: ServerConfig) -> Server:
-        uuid = uuid4()
         match = MODEL_NAME.match(server_config.modelFileName)
         if match is None:
             raise ValueError(
@@ -159,23 +164,17 @@ class OllamaServers(BaseServers):
         res = requests.post(url, json=body)
         res.raise_for_status()
 
-        server_entry = dict(
-            id=uuid,
-            serverConfig=dict(
-                modelFileName=f"anaconda/{server_config.modelFileName}",
-                apiParams={"host": "localhost", "port": "11434"},  # type: ignore
-            ),
-        )
-        return Server(**server_entry)  # type: ignore
+        uuid = uuid4()
+        server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
+        server_config.apiParams.host = "localhost"
+        server_config.apiParams.port = 11434
+        server_entry = Server(id=uuid, serverConfig=server_config, _client=self._client)
+        config = AnacondaAIConfig()
+        config.backends.ollama.servers_path.mkdir(parents=True, exist_ok=True)
+        with open(config.backends.ollama.servers_path / f"{uuid}.json", "w") as f:
+            f.write(server_entry.model_dump_json(indent=2))
 
-    def match(self, server_config: ServerConfig) -> Union[Server, None]:
-        servers = self.list()
-        for server in servers:
-            if (
-                server.serverConfig.modelFileName
-                == f"anaconda/{server_config.modelFileName}"
-            ):
-                return server
+        return server_entry
 
     def _status(self, _: str) -> str:
         return "running"
