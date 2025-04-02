@@ -1,13 +1,23 @@
 import os
 from typing import Any, Dict, Optional, Union, List
+from uuid import uuid4
 
+import requests
 import rich.progress
 from rich.console import Console
 
 from .. import __version__ as version
 from ..exceptions import QuantizedFileNotFound
 from ..config import AnacondaAIConfig
-from .base import GenericClient, BaseModels, ModelSummary, ModelQuantization
+from .base import (
+    GenericClient,
+    BaseModels,
+    ModelSummary,
+    ModelQuantization,
+    BaseServers,
+    Server,
+    ServerConfig,
+)
 
 
 class KuratorModels(BaseModels):
@@ -35,7 +45,7 @@ class KuratorModels(BaseModels):
                 filename = (
                     f"{model['name']}_{quant['quantMethod']}.{quant['format'].lower()}"
                 )
-                path = models_path / model["id"] / filename
+                path = models_path / f"sha256-{quant['sha256']}"
                 file = dict(
                     sha256checksum=quant["sha256"],
                     name=filename,
@@ -100,6 +110,27 @@ class KuratorModels(BaseModels):
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
         assert quantization.localPath
         os.remove(quantization.localPath)
+
+
+class OllamaServer(BaseServers):
+    def ollama_running(self) -> bool:
+        response = requests.get("http://localhost:11434")
+        return response.ok
+
+    def _create(self, server_config: ServerConfig) -> Server:
+        uuid = uuid4()
+        server_entry = dict(
+            id=uuid,
+            serverConfig=server_config,
+        )
+        server_file = self._client._config.backends.ollama.servers_path / f"{uuid}.json"
+        server_file.parent.mkdir(parents=True, exist_ok=True)
+
+        server = Server(**server_entry)  # type: ignore
+        with server_file.open("w") as f:
+            f.write(server.model_dump_json(indent=2))
+
+        return server
 
 
 class OllamaClient(GenericClient):
