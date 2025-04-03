@@ -40,7 +40,8 @@ class AINavigatorConfig(BaseModel):
 class OllamaConfig(BaseModel):
     models_path: Path = Path("~/.ollama/models/blobs").expanduser()
     servers_path: Path = Path("~/.ollama/servers").expanduser()
-    domain: str = "kurator.anaconda.com"
+    kurator_domain: str = "kurator.anaconda.com"
+    ollama_base_url: str = "http://localhost:11434"
 
     @field_validator("models_path")
     def expand_vars_models_path(cls, v: str) -> Path:

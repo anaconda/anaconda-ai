@@ -7,7 +7,7 @@ import requests
 import rich.progress
 from requests.exceptions import ConnectionError, HTTPError
 from rich.console import Console
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
 from anaconda_cli_base.exceptions import register_error_handler
@@ -27,10 +27,13 @@ from .base import (
     MODEL_NAME,
 )
 
-OLLAMA_URL = "http://localhost:11434"
-
 
 class OllamaSession(requests.Session):
+    def __init__(self) -> None:
+        super().__init__()
+        config = AnacondaAIConfig()
+        self.base_url = config.backends.ollama.ollama_base_url
+
     def request(
         self,
         method: Union[str, bytes],
@@ -140,7 +143,7 @@ class KuratorModels(BaseModels):
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
         model = f"anaconda/{quantization.modelFileName}"
         res = self._ollama_session.delete(
-            urljoin(OLLAMA_URL, "api/delete"), json={"model": model}
+            urljoin(self._ollama_session.base_url, "api/delete"), json={"model": model}
         )
         if res.status_code == 404 and quantization.localPath:
             os.remove(quantization.localPath)
@@ -163,7 +166,9 @@ class OllamaServers(BaseServers):
                 server._client = self._client
                 saved_server_configs[server.serverConfig.modelFileName] = server
 
-        res = self._ollama_session.get(urljoin(OLLAMA_URL, "api/tags"))
+        res = self._ollama_session.get(
+            urljoin(self._ollama_session.base_url, "api/tags")
+        )
         res.raise_for_status()
         data: List[Dict[str, str]] = res.json()["models"]
 
@@ -191,14 +196,15 @@ class OllamaServers(BaseServers):
             "model": f"anaconda/{server_config.modelFileName}",
             "files": {server_config.modelFileName: f"sha256:{quant.id}"},
         }
-        url = urljoin(OLLAMA_URL, "api/create")
+        url = urljoin(self._ollama_session.base_url, "api/create")
         res = self._ollama_session.post(url, json=body)
         res.raise_for_status()
 
         uuid = uuid4()
         server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
-        server_config.apiParams.host = "localhost"
-        server_config.apiParams.port = 11434
+        parsed = urlparse(self._ollama_session.base_url)
+        server_config.apiParams.host = parsed.hostname or "localhost"
+        server_config.apiParams.port = parsed.port or 11434
         server_config.loadParams.ctx_size = None
         server_entry = Server(id=uuid, serverConfig=server_config, _client=self._client)
         config = AnacondaAIConfig()
@@ -207,6 +213,11 @@ class OllamaServers(BaseServers):
             f.write(server_entry.model_dump_json(indent=2))
 
         return server_entry
+
+    def match(self, server_config: ServerConfig) -> Union[Server, None]:
+        if not server_config.modelFileName.startswith("anaconda/"):
+            server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
+        return super().match(server_config)
 
     def _status(self, server_id: str) -> str:
         config = AnacondaAIConfig()
@@ -228,7 +239,9 @@ class OllamaServers(BaseServers):
             server = Server(**json.loads(server_config.read_text()))
 
         body = {"model": server.serverConfig.modelFileName, "keep_alive": 0}
-        res = self._ollama_session.post(urljoin(OLLAMA_URL, "api/generate"), json=body)
+        res = self._ollama_session.post(
+            urljoin(self._ollama_session.base_url, "api/generate"), json=body
+        )
         res.raise_for_status()
         os.remove(server_config)
 
@@ -284,7 +297,7 @@ class OllamaClient(GenericClient):
 
     def __init__(
         self,
-        domain: Optional[str] = None,
+        kurator_domain: Optional[str] = None,
         auth_domain: Optional[str] = None,
         api_key: Optional[str] = None,
         user_agent: Optional[str] = None,
@@ -292,8 +305,8 @@ class OllamaClient(GenericClient):
         extra_headers: Optional[Union[str, dict]] = None,
     ):
         kwargs: Dict[str, Any] = {}
-        if domain is not None:
-            kwargs["ollama"]["domain"] = domain
+        if kurator_domain is not None:
+            kwargs["ollama"]["kurator_domain"] = kurator_domain
 
         kwargs_top = {"backends": {"ollama": kwargs}}
         self._config = AnacondaAIConfig(**kwargs_top)  # type: ignore
@@ -305,7 +318,7 @@ class OllamaClient(GenericClient):
             ssl_verify=ssl_verify,
             extra_headers=extra_headers,
         )
-        self._base_uri = f"https://{self._config.backends.ollama.domain}"
+        self._base_uri = f"https://{self._config.backends.ollama.kurator_domain}"
 
         self.models = KuratorModels(self)
         self.servers = OllamaServers(self)
