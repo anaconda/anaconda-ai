@@ -220,6 +220,14 @@ class OllamaServers(BaseServers):
     def _stop(self, server_id: str) -> None:
         config = AnacondaAIConfig()
         server_config = config.backends.ollama.servers_path / f"{server_id}.json"
+        if not server_config.exists():
+            return
+        else:
+            server = Server(**json.loads(server_config.read_text()))
+
+        body = {"model": server.serverConfig.modelFileName, "keep_alive": 0}
+        res = self._ollama_session.post(urljoin(OLLAMA_URL, "api/generate"), json=body)
+        res.raise_for_status()
         os.remove(server_config)
 
     def _delete(self, server_id: str) -> None:
