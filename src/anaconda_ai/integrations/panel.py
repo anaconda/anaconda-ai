@@ -64,6 +64,7 @@ class AnacondaModelHandler:
             )
 
         self.server.start()
+        self.model_name = self.server.serverConfig.modelFileName
         self.client = self.server.openai_async_client()
 
     async def throughput(self, message: str, timedelta: float) -> float:
@@ -112,7 +113,7 @@ class AnacondaModelHandler:
         t0 = time.time()
         chunks = await self.client.chat.completions.create(
             messages=self.messages,  # type: ignore
-            model=self.model_id,
+            model=self.model_name,
             stream=True,
             **self.client_options,  # type: ignore
         )
