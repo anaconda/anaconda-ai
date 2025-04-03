@@ -59,5 +59,5 @@ class Backends(BaseModel):
 
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Backends()
-    default_backend: Literal["ai-navigator", "ollama"] = "ai-navigator"
+    backend: Literal["ai-navigator", "ollama"] = "ai-navigator"
     stop_server_on_exit: bool = True

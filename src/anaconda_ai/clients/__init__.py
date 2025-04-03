@@ -8,12 +8,12 @@ from .base import GenericClient
 
 def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
     config = AnacondaAIConfig()
-    if config.default_backend == "ai-navigator":
+    if config.backend == "ai-navigator":
         return AINavigatorClient(*args, **kwargs)
-    elif config.default_backend == "ollama":
+    elif config.backend == "ollama":
         return OllamaClient(*args, **kwargs)
     else:
-        raise ValueError(f"{config.default_backend} is not supported")
+        raise ValueError(f"{config.backend} is not supported")
 
 
 __all__ = ["AINavigatorClient", "OllamaClient", "get_default_client"]
