@@ -199,6 +199,7 @@ class OllamaServers(BaseServers):
         server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
         server_config.apiParams.host = "localhost"
         server_config.apiParams.port = 11434
+        server_config.loadParams.ctx_size = None
         server_entry = Server(id=uuid, serverConfig=server_config, _client=self._client)
         config = AnacondaAIConfig()
         config.backends.ollama.servers_path.mkdir(parents=True, exist_ok=True)
