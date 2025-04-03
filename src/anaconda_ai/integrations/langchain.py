@@ -36,9 +36,9 @@ def _prepare_model(
     server.start()
 
     if "model_name" in values:
-        values["model_name"] = f"anaconda/{values['model_name']}"
+        values["model_name"] = server.serverConfig.modelFileName
     elif "model" in values:
-        values["model"] = f"anaconda/{values['model']}"
+        values["model"] = server.serverConfig.modelFileName
     values["server"] = server
     values["openai_api_base"] = server.openai_url
     return values

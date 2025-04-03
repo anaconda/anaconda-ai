@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, Optional, Union, List, cast
 from uuid import uuid4
 
 import requests
@@ -165,15 +165,12 @@ class OllamaServers(BaseServers):
 
         servers: List[Server] = []
         for server in data:
-            model = server["name"].rsplit(":", maxsplit=1)[0]
+            model = cast(str, server["name"].rsplit(":", maxsplit=1)[0])
             if model not in saved_server_configs:
                 continue
 
             matched = saved_server_configs[model]
-            matched.serverConfig.modelFileName = (
-                matched.serverConfig.modelFileName.replace("anaconda/", "")
-            )
-            servers.append(saved_server_configs[model])
+            servers.append(matched)
         return servers
 
     def _create(self, server_config: ServerConfig) -> Server:
