@@ -4,9 +4,10 @@ from typing import Any, Dict, Optional, Union, List
 from uuid import uuid4
 
 import requests
-from urllib.parse import urljoin
 import rich.progress
+from requests.exceptions import ConnectionError
 from rich.console import Console
+from urllib.parse import urljoin
 
 from .. import __version__ as version
 from ..exceptions import QuantizedFileNotFound
@@ -25,7 +26,27 @@ from .base import (
 OLLAMA_URL = "http://localhost:11434"
 
 
+class OllamaSession(requests.Session):
+    def request(
+        self,
+        method: Union[str, bytes],
+        url: Union[str, bytes],
+        *args: Any,
+        **kwargs: Any,
+    ) -> requests.Response:
+        try:
+            response = super().request(method, url, *args, **kwargs)
+        except ConnectionError:
+            raise RuntimeError("Could not connect to Ollama. It may not be running.")
+
+        return response
+
+
 class KuratorModels(BaseModels):
+    def __init__(self, client: GenericClient):
+        super().__init__(client)
+        self._ollama_session = OllamaSession()
+
     def list(self) -> List[ModelSummary]:
         response = self._client.get("/api/models")
         response.raise_for_status()
@@ -114,11 +135,17 @@ class KuratorModels(BaseModels):
 
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
         model = f"anaconda:{quantization.modelFileName}"
-        res = requests.delete(urljoin(OLLAMA_URL, "api/delete"), json={"model": model})
+        res = self._ollama_session.delete(
+            urljoin(OLLAMA_URL, "api/delete"), json={"model": model}
+        )
         res.raise_for_status()
 
 
 class OllamaServers(BaseServers):
+    def __init__(self, client: GenericClient):
+        super().__init__(client)
+        self._ollama_session = OllamaSession()
+
     def list(self) -> List[Server]:
         config = AnacondaAIConfig()
 
@@ -129,7 +156,7 @@ class OllamaServers(BaseServers):
                 server._client = self._client
                 saved_server_configs[server.serverConfig.modelFileName] = server
 
-        res = requests.get(urljoin(OLLAMA_URL, "api/tags"))
+        res = self._ollama_session.get(urljoin(OLLAMA_URL, "api/tags"))
         res.raise_for_status()
         data = res.json()["models"]
 
@@ -161,7 +188,7 @@ class OllamaServers(BaseServers):
             "files": {server_config.modelFileName: f"sha256:{quant.id}"},
         }
         url = urljoin(OLLAMA_URL, "api/create")
-        res = requests.post(url, json=body)
+        res = self._ollama_session.post(url, json=body)
         res.raise_for_status()
 
         uuid = uuid4()
@@ -185,7 +212,7 @@ class OllamaServers(BaseServers):
     def _stop(self, _: str) -> None:
         return None
 
-    def _delete(self, server_id: str) -> None:
+    def _delete(self, _: str) -> None:
         return None
 
 
