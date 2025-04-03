@@ -141,9 +141,9 @@ class KuratorModels(BaseModels):
                     s.update(task, advance=len(chunk))
 
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
-        model = f"anaconda/{quantization.modelFileName}"
         res = self._ollama_session.delete(
-            urljoin(self._ollama_session.base_url, "api/delete"), json={"model": model}
+            urljoin(self._ollama_session.base_url, "api/delete"),
+            json={"model": quantization.modelFileName},
         )
         if res.status_code == 404 and quantization.localPath:
             os.remove(quantization.localPath)
@@ -193,7 +193,7 @@ class OllamaServers(BaseServers):
         quant = self._client.models.get(model).get_quantization(quantization)
 
         body = {
-            "model": f"anaconda/{server_config.modelFileName}",
+            "model": server_config.modelFileName,
             "files": {server_config.modelFileName: f"sha256:{quant.id}"},
         }
         url = urljoin(self._ollama_session.base_url, "api/create")
@@ -201,7 +201,6 @@ class OllamaServers(BaseServers):
         res.raise_for_status()
 
         uuid = uuid4()
-        server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
         parsed = urlparse(self._ollama_session.base_url)
         server_config.apiParams.host = parsed.hostname or "localhost"
         server_config.apiParams.port = parsed.port or 11434
@@ -213,11 +212,6 @@ class OllamaServers(BaseServers):
             f.write(server_entry.model_dump_json(indent=2))
 
         return server_entry
-
-    def match(self, server_config: ServerConfig) -> Union[Server, None]:
-        if not server_config.modelFileName.startswith("anaconda/"):
-            server_config.modelFileName = f"anaconda/{server_config.modelFileName}"
-        return super().match(server_config)
 
     def _status(self, server_id: str) -> str:
         config = AnacondaAIConfig()

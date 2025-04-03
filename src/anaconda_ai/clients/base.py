@@ -409,7 +409,6 @@ class BaseServers:
             inferParams=inferParams,  # type: ignore
         )
 
-        print(server_config.modelFileName)
         matched = self.match(server_config)
         if matched is None:
             server = self._create(server_config=server_config)
