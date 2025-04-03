@@ -9,24 +9,23 @@ from rich.table import Table
 
 from anaconda_cli_base import console
 from .clients import get_default_client
-from .clients.base import ModelSummary, GenericClient
+from .clients.base import GenericClient, ModelQuantization, Server
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
+CHECK_MARK = "[bold green]✔︎[/bold green]"
 
-def get_running_servers(client: GenericClient, model: ModelSummary) -> str:
+
+def get_running_servers(
+    client: GenericClient, quantization: ModelQuantization
+) -> list[Server]:
     servers = [
         s
         for s in client.servers.list()
-        if str(s.serverConfig.modelFileName).startswith(model.name)
+        if s.serverConfig.modelFileName.endswith(quantization.modelFileName)
         and s.status == "running"
     ]
-    if servers:
-        urls = "\n".join([s.url for s in servers])
-    else:
-        urls = ""
-
-    return urls
+    return servers
 
 
 def _list_models(client: GenericClient) -> RenderableType:
@@ -34,26 +33,26 @@ def _list_models(client: GenericClient) -> RenderableType:
     table = Table(
         Column("Model", no_wrap=True),
         "Params (B)",
-        "Quantizations\n(downloaded in bold)",
+        "Quantizations\ndownloaded in bold\ngreen when running",
         "Trained for",
-        "Servers",
         header_style="bold green",
     )
     for model in sorted(models, key=lambda m: m.id):
         quantizations = []
         for quant in model.metadata.files:
             if quant.isDownloaded:
-                method = f"[bold green]{quant.method}[/bold green]"
+                servers = get_running_servers(client, quant)
+                color = "green" if servers else ""
+                method = f"[bold {color}]{quant.method}[/bold {color}]"
             else:
-                method = quant.method
+                method = f"[dim]{quant.method}[/dim]"
 
             quantizations.append(method)
 
         quants = ", ".join(quantizations)
-        urls = get_running_servers(client, model)
 
         parameters = f"{model.metadata.numParameters/1e9:8.2f}"
-        table.add_row(model.id, parameters, quants, model.metadata.trainedFor, urls)
+        table.add_row(model.id, parameters, quants, model.metadata.trainedFor)
     return table
 
 
@@ -75,17 +74,18 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         "Downloaded",
         "Max Ram (GB)",
         "Size (GB)",
-        "Servers",
+        "Running",
         header_style="bold green",
     )
     for quant in info.metadata.files:
         method = quant.method
-        downloaded = "[bold green]✔︎[/bold green]" if quant.isDownloaded else ""
+        downloaded = CHECK_MARK if quant.isDownloaded else ""
+        servers = get_running_servers(client, quant)
+        running = CHECK_MARK if servers else ""
 
         ram = f"{quant.maxRamUsage / 1024 / 1024 / 1024:.2f}"
         size = f"{quant.sizeBytes / 1024 / 1024 / 1024:.2f}"
-        urls = get_running_servers(client, info)
-        quantized.add_row(quant.modelFileName, method, downloaded, ram, size, urls)
+        quantized.add_row(quant.modelFileName, method, downloaded, ram, size, running)
 
     table.add_row("Quantized Files", quantized)
     return table
@@ -96,9 +96,6 @@ def models(
     model_id: Annotated[
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
-    ] = None,
-    delete: Annotated[
-        Optional[bool], typer.Option(help="Remove a downloaded model", is_flag=False)
     ] = None,
 ) -> None:
     """Model model information"""
@@ -281,7 +278,7 @@ def servers() -> None:
 
     table = Table(
         Column("ID", no_wrap=True),
-        "ModelFile",
+        "Model",
         "URL",
         "Params",
         header_style="bold green",
@@ -293,12 +290,15 @@ def servers() -> None:
 
         params = server.serverConfig.model_dump_json(
             indent=2,
-            exclude={"modelFileName", "logsDir"},
+            exclude={"modelFileName", "logsDir", "apiParams"},
             exclude_none=True,
             exclude_defaults=True,
         )
         table.add_row(
-            str(server.id), str(server.serverConfig.modelFileName), server.url, params
+            str(server.id),
+            str(server.serverConfig.modelFileName),
+            server.openai_url,
+            params,
         )
 
     console.print(table)
