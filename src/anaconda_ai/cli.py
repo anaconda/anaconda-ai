@@ -2,6 +2,7 @@ from typing import Annotated
 from typing import Optional
 
 import typer
+from rich.console import RenderableType
 from rich.status import Status
 from rich.table import Column
 from rich.table import Table
@@ -28,7 +29,7 @@ def get_running_servers(client: GenericClient, model: ModelSummary) -> str:
     return urls
 
 
-def _list_models(client: GenericClient) -> Table:
+def _list_models(client: GenericClient) -> RenderableType:
     models = client.models.list()
     table = Table(
         Column("Model", no_wrap=True),
@@ -56,7 +57,7 @@ def _list_models(client: GenericClient) -> Table:
     return table
 
 
-def _model_info(client: GenericClient, model_id: str) -> Table:
+def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     info = client.models.get(model_id)
 
     table = Table.grid(padding=1, pad_edge=True)
@@ -96,14 +97,17 @@ def models(
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
+    delete: Annotated[
+        Optional[bool], typer.Option(help="Remove a downloaded model", is_flag=False)
+    ] = None,
 ) -> None:
     """Model model information"""
     client = get_default_client()
     if model_id is None:
-        table = _list_models(client)
+        renderable = _list_models(client)
     else:
-        table = _model_info(client, model_id)
-    console.print(table)
+        renderable = _model_info(client, model_id)
+    console.print(renderable)
 
 
 @app.command(name="download")
@@ -116,6 +120,16 @@ def download(
     """Download a model"""
     client = get_default_client()
     client.models.download(model, show_progress=True, force=force, console=console)
+
+
+@app.command(name="remove")
+def remove(
+    model: str = typer.Argument(help="Model name with quantization"),
+) -> None:
+    """Remove a downloaded a model"""
+    client = get_default_client()
+    client.models.delete(model)
+    console.print("[green]Success[/green]")
 
 
 @app.command(
