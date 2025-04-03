@@ -70,7 +70,9 @@ class AnacondaModelHandler:
     async def throughput(self, message: str, timedelta: float) -> float:
         url = urljoin(str(self.client.base_url), "/tokenize")
         res = httpx.post(url, json={"content": message})
-        res.raise_for_status()
+        if not res.is_success:
+            return len(message.split()) / timedelta
+
         tokens = len(res.json()["tokens"])
         return tokens / timedelta
 
