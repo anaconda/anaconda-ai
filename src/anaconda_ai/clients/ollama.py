@@ -5,9 +5,13 @@ from uuid import uuid4
 
 import requests
 import rich.progress
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, HTTPError
 from rich.console import Console
 from urllib.parse import urljoin
+
+from anaconda_auth.cli import _login_required_message, _continue_with_login
+from anaconda_cli_base.exceptions import register_error_handler
+from anaconda_cli_base.console import console
 
 from .. import __version__ as version
 from ..exceptions import QuantizedFileNotFound
@@ -231,6 +235,49 @@ class OllamaServers(BaseServers):
         self._stop(server_id)
 
 
+def kurator_login_required(
+    response: requests.Response, *args: Any, **kwargs: Any
+) -> requests.Response:
+    has_auth_header = response.request.headers.get("Authorization", False)
+
+    if response.status_code in [401, 403]:
+        try:
+            error_code = response.json().get("type", "")
+        except requests.JSONDecodeError:
+            error_code = ""
+
+        if error_code == "unauthorized":
+            if has_auth_header:
+                response.reason = "Your API key or login token is invalid."
+            else:
+                response.reason = (
+                    "You must login before using this API endpoint"
+                    " or provide an api_key to your client."
+                )
+
+    return response
+
+
+@register_error_handler(HTTPError)
+def http_error(e: HTTPError) -> int:
+    try:
+        error_code = e.response.json().get("type", "")
+    except json.JSONDecodeError:
+        error_code = ""
+
+    if error_code == "unauthorized":
+        if "Authorization" in e.request.headers:
+            console.print(
+                "[bold][red]InvalidAuthentication:[/red][/bold] Your provided API Key or login token is invalid"
+            )
+        else:
+            _login_required_message("AuthenticationMissingError")
+        return _continue_with_login()
+    else:
+        console.print(f"[bold][red]{e.__class__.__name__}:[/red][/bold] {e}")
+        return 1
+
+
 class OllamaClient(GenericClient):
     _user_agent = f"anaconda-ai/{version}"
 
@@ -261,3 +308,4 @@ class OllamaClient(GenericClient):
 
         self.models = KuratorModels(self)
         self.servers = OllamaServers(self)
+        self.hooks["response"].insert(0, kurator_login_required)
