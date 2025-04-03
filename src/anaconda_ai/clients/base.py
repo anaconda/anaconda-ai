@@ -27,7 +27,6 @@ from ..exceptions import (
     QuantizedFileNotFound,
     ModelNotDownloadedError,
 )
-from ..utils import find_free_port
 
 MODEL_NAME = re.compile(
     r"^"
@@ -185,8 +184,8 @@ class BaseModels:
 
 
 class APIParams(BaseModel, extra="forbid"):
-    host: str = "127.0.0.1"
-    port: int = 0
+    host: Optional[str] = None
+    port: Optional[int] = None
     api_key: Optional[str] = None
     log_disable: Optional[bool] = None
     mmproj: Optional[str] = None
@@ -409,16 +408,6 @@ class BaseServers:
             loadParams=loadParams,  # type: ignore
             inferParams=inferParams,  # type: ignore
         )
-
-        if server_config.loadParams.ctx_size is None:
-            server_config.loadParams.ctx_size = 0
-
-        if model_summary.metadata.trainedFor == TrainedFor.sentence_similarity:
-            server_config.loadParams.embedding = True
-
-        if server_config.apiParams.port == 0:
-            port = find_free_port()
-            server_config.apiParams.port = port
 
         matched = self.match(server_config)
         if matched is None:

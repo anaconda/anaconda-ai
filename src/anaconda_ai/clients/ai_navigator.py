@@ -19,6 +19,7 @@ from .base import (
     ServerConfig,
     Server,
 )
+from ..utils import find_free_port
 
 
 class AINavigatorModels(BaseModels):
@@ -136,6 +137,13 @@ class AINavigatorServers(BaseServers):
         self,
         server_config: ServerConfig,
     ) -> Server:
+        if not server_config.apiParams.port or server_config.apiParams.port == 0:
+            port = find_free_port()
+            server_config.apiParams.port = port
+
+        if not server_config.apiParams.host:
+            server_config.apiParams.host = "127.0.0.1"
+
         body = {
             "serverConfig": server_config.model_dump(exclude={"id"}),
         }
