@@ -3,10 +3,9 @@ from os.path import expandvars
 from pathlib import Path
 from typing import Any
 from typing import Literal
-from typing_extensions import Self
 
 import platformdirs
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 
 from anaconda_cli_base.config import AnacondaBaseSettings
 from .exceptions import APIKeyMissing
@@ -61,9 +60,3 @@ class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Backends()
     default_backend: Literal["ai-navigator", "ollama"] = "ai-navigator"
     stop_server_on_exit: bool = True
-
-    @model_validator(mode="after")
-    def has_implemented_stop(self) -> Self:
-        if self.default_backend == "ollama":
-            self.stop_server_on_exit = False
-        return self
