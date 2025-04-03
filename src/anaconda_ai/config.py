@@ -44,11 +44,11 @@ class OllamaConfig(BaseModel):
     domain: str = "kurator.anaconda.com"
 
     @field_validator("models_path")
-    def expand_vars_models_path(cls, v) -> Path:
+    def expand_vars_models_path(cls, v: str) -> Path:
         return Path(expandvars(v)).expanduser()
 
     @field_validator("servers_path")
-    def expand_vars_servers_path(cls, v) -> Path:
+    def expand_vars_servers_path(cls, v: str) -> Path:
         return Path(expandvars(v)).expanduser()
 
 

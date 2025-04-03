@@ -161,9 +161,9 @@ class OllamaServers(BaseServers):
 
         res = self._ollama_session.get(urljoin(OLLAMA_URL, "api/tags"))
         res.raise_for_status()
-        data = res.json()["models"]
+        data: List[Dict[str, Any]] = res.json()["models"]
 
-        servers = []
+        servers: List[Server] = []
         for server in data:
             model = server["name"].rsplit(":", maxsplit=1)[0]
             if model not in saved_server_configs:
