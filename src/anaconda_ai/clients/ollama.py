@@ -207,13 +207,15 @@ class OllamaServers(BaseServers):
         return "running"
 
     def _start(self, _: str) -> None:
-        return None
+        pass
 
-    def _stop(self, _: str) -> None:
-        return None
+    def _stop(self, server_id: str) -> None:
+        config = AnacondaAIConfig()
+        server_config = config.backends.ollama.servers_path / f"{server_id}.json"
+        os.remove(server_config)
 
     def _delete(self, _: str) -> None:
-        return None
+        pass
 
 
 class OllamaClient(GenericClient):
