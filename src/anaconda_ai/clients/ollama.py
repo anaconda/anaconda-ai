@@ -134,10 +134,13 @@ class KuratorModels(BaseModels):
                     s.update(task, advance=len(chunk))
 
     def _delete(self, _: ModelSummary, quantization: ModelQuantization) -> None:
-        model = f"anaconda:{quantization.modelFileName}"
+        model = f"anaconda/{quantization.modelFileName}"
         res = self._ollama_session.delete(
             urljoin(OLLAMA_URL, "api/delete"), json={"model": model}
         )
+        if res.status_code == 404 and quantization.localPath:
+            os.remove(quantization.localPath)
+            return
         res.raise_for_status()
 
 
