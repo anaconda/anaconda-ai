@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Optional, Union, List, cast
+from typing import Any, Dict, Optional, Union, List
 from uuid import uuid4
 
 import requests
@@ -161,11 +161,11 @@ class OllamaServers(BaseServers):
 
         res = self._ollama_session.get(urljoin(OLLAMA_URL, "api/tags"))
         res.raise_for_status()
-        data: List[Dict[str, Any]] = res.json()["models"]
+        data: List[Dict[str, str]] = res.json()["models"]
 
         servers: List[Server] = []
-        for server in data:
-            model = cast(str, server["name"].rsplit(":", maxsplit=1)[0])
+        for server_entry in data:
+            model = server_entry["name"].rsplit(":", maxsplit=1)[0]
             if model not in saved_server_configs:
                 continue
 
