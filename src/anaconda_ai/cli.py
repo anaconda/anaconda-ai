@@ -117,6 +117,7 @@ def download(
     """Download a model"""
     client = get_default_client()
     client.models.download(model, show_progress=True, force=force, console=console)
+    console.print("[green]Success[/green]")
 
 
 @app.command(name="remove")
