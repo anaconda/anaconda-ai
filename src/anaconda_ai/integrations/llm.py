@@ -130,9 +130,7 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
 
     def __init__(self, model_id: str):
         super().__init__(
-            model_id,
-            key="none",
-            model_name=model_id,
+            model_id, key="none", model_name=model_id.replace("anaconda:", "")
         )
 
     def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore

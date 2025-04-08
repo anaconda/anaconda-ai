@@ -14,7 +14,9 @@ from ..clients import get_default_client
 from ..clients.base import Server, APIParams, LoadParams, InferParams
 
 
-def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> dict:
+def _prepare_model(
+    model_name: str, values: dict, embedding: Optional[bool] = None
+) -> dict:
     api_params = values.get("api_params", {})
     load_params = values.get("load_params", {})
     infer_params = values.get("infer_params", {})
@@ -33,6 +35,10 @@ def _prepare_model(model_name: str, values: dict, embedding: bool = False) -> di
     )
     server.start()
 
+    if "model_name" in values:
+        values["model_name"] = server.serverConfig.modelFileName
+    elif "model" in values:
+        values["model"] = server.serverConfig.modelFileName
     values["server"] = server
     values["openai_api_base"] = server.openai_url
     return values
