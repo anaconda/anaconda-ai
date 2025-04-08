@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator
+from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator, Tuple
 
 import openai
 import litellm
@@ -15,18 +15,20 @@ client = get_default_client()
 
 def create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
-) -> openai.OpenAI:
+) -> Tuple[openai.OpenAI, str]:
     server = client.servers.create(model, **kwargs)
     server.start()
-    return server.openai_client(timeout=timeout)
+    return server.openai_client(timeout=timeout), server.serverConfig.modelFileName
 
 
 async def async_create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
-) -> openai.AsyncOpenAI:
+) -> Tuple[openai.AsyncOpenAI, str]:
     server = client.servers.create(model, **kwargs)
     server.start()
-    return server.openai_async_client(timeout=timeout)
+    return server.openai_async_client(
+        timeout=timeout
+    ), server.serverConfig.modelFileName
 
 
 class AnacondaLLM(CustomLLM):
@@ -70,9 +72,11 @@ class AnacondaLLM(CustomLLM):
     ) -> ModelResponse:
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         server_kwargs = self._prepare_server_kwargs(optional_params)
-        _client = create_and_start(model=model, timeout=timeout, **server_kwargs)
+        _client, model_name = create_and_start(
+            model=model, timeout=timeout, **server_kwargs
+        )
         response = _client.chat.completions.create(
-            messages=messages, model=model, **inference_kwargs
+            messages=messages, model=model_name, **inference_kwargs
         )
         mresponse = ModelResponse(**response.model_dump())
         return mresponse
@@ -97,10 +101,12 @@ class AnacondaLLM(CustomLLM):
         client: Optional[HTTPHandler] = None,
     ) -> Iterator[GenericStreamingChunk]:
         server_kwargs = self._prepare_server_kwargs(optional_params)
-        _client = create_and_start(model=model, timeout=timeout, **server_kwargs)
+        _client, model_name = create_and_start(
+            model=model, timeout=timeout, **server_kwargs
+        )
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = _client.chat.completions.create(
-            messages=messages, model=model, stream=True, **inference_kwargs
+            messages=messages, model=model_name, stream=True, **inference_kwargs
         )
         wrapped = CustomStreamWrapper(
             custom_llm_provider="openai",
@@ -136,12 +142,12 @@ class AnacondaLLM(CustomLLM):
         client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
         server_kwargs = self._prepare_server_kwargs(optional_params)
-        _client = await async_create_and_start(
+        _client, model_name = await async_create_and_start(
             model=model, timeout=timeout, **server_kwargs
         )
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
-            messages=messages, model=model, **inference_kwargs
+            messages=messages, model=model_name, **inference_kwargs
         )
         mresponse = ModelResponse(**response.model_dump())
         return mresponse
@@ -166,13 +172,13 @@ class AnacondaLLM(CustomLLM):
         client: Optional[AsyncHTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
         server_kwargs = self._prepare_server_kwargs(optional_params)
-        _client = await async_create_and_start(
+        _client, model_name = await async_create_and_start(
             model=model, timeout=timeout, **server_kwargs
         )
 
         inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
-            messages=messages, model=model, stream=True, **inference_kwargs
+            messages=messages, model=model_name, stream=True, **inference_kwargs
         )
         wrapped = CustomStreamWrapper(
             custom_llm_provider="openai",

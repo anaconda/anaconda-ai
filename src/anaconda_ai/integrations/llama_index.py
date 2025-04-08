@@ -49,7 +49,7 @@ class AnacondaModel(OpenAI):
         context_window = client.models.get(model).metadata.contextWindowSize
 
         super().__init__(
-            model=model,
+            model=server.serverConfig.modelFileName,
             api_key=server.api_key,
             api_base=server.openai_url,
             is_chat_model=True,
