@@ -1,4 +1,4 @@
-from time import sleep
+from time import sleep, time
 from typing import Optional, Any, Union
 
 from requests import PreparedRequest, Response
@@ -20,6 +20,8 @@ from .base import (
     Server,
 )
 from ..utils import find_free_port
+
+DOWNLOAD_START_DELAY = 8
 
 
 class AINavigatorModels(BaseModels):
@@ -84,15 +86,18 @@ class AINavigatorModels(BaseModels):
             )
 
         with stream_progress as progress_bar:
+            t0 = time()
             res = self._client.get(url)
             res.raise_for_status()
             status = res.json()["data"]
             # Must wait until the download officially
             # starts then we can poll for progress
-            while "downloadStatus" not in status:
+            elapsed = time() - t0
+            while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
                 res = self._client.get(url)
                 res.raise_for_status()
                 status = res.json()["data"]
+                elapsed = time() - t0
 
             while True:
                 res = self._client.get(url)
