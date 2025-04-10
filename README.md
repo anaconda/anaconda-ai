@@ -117,6 +117,7 @@ Each `ModelQuantization` object provides
 
 |Attribute/Method|Return|Description|
 |---------|-------|--------|
+|`.download()`|None|Direct call to download the quantization file|
 |`id`|str|The sha256 checksum of the model file|
 |`modelFileName`|str|The file name as it will appear on disk|
 |`method`|str|The quantization method|
@@ -127,11 +128,12 @@ Each `ModelQuantization` object provides
 
 #### Downloading models
 
-The `.models.download('quantized-file-name')` method accepts two types of
-input
+There are two methods to download a quantization file:
 
-* String name of the model with quantization, see above.
-* a `ModelQuantization` object
+1. Calling `.download()` from a `ModelQuantization` object
+    * For example: `client.models.get('<model>').get_quantization('<method>').download()`
+1. `client.models.download('quantized-file-name')`
+    * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `ModelQuantization` object
 
 If the model file has already been downloaded this function returns
 immediately. Otherwise a progress bar is shown showing the download

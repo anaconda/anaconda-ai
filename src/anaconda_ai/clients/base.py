@@ -38,6 +38,12 @@ MODEL_NAME = re.compile(
 )
 
 
+class GenericClient(BaseClient):
+    models: "BaseModels"
+    servers: "BaseServers"
+    _config: AnacondaAIConfig
+
+
 class ModelQuantization(BaseModel):
     id: str = Field(alias="sha256checksum")
     modelFileName: str = Field(alias="name")
@@ -46,6 +52,15 @@ class ModelQuantization(BaseModel):
     maxRamUsage: int
     isDownloaded: bool = False
     localPath: Optional[Path] = None
+    _client: GenericClient
+
+    def download(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
+        self._client.models.download(self, show_progress=show_progress, console=console)
+
+    def delete(self) -> None:
+        self._client.models.delete(self)
 
 
 class TrainedFor(str, Enum):
@@ -72,21 +87,17 @@ class ModelSummary(BaseModel):
     id: str
     name: str
     metadata: ModelMetadata
+    _client: GenericClient
 
     def get_quantization(self, method: str) -> ModelQuantization:
         for quant in self.metadata.files:
             if quant.method.lower() == method.lower():
+                quant._client = self._client
                 return quant
         else:
             raise QuantizedFileNotFound(
                 f"Quantization {method} not found for {self.name}."
             )
-
-
-class GenericClient(BaseClient):
-    models: "BaseModels"
-    servers: "BaseServers"
-    _config: AnacondaAIConfig
 
 
 class BaseModels:
@@ -114,6 +125,7 @@ class BaseModels:
         else:
             raise ModelNotFound(f"{model} was not found")
 
+        model_info._client = self._client
         return model_info
 
     def _download(
