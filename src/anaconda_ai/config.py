@@ -7,12 +7,14 @@ import platformdirs
 from pydantic import BaseModel
 
 from anaconda_cli_base.config import AnacondaBaseSettings
-from .exceptions import APIKeyMissing
+from .exceptions import AnacondaAIException
+
+
+class AINavigatorConfigError(AnacondaAIException): ...
 
 
 class AINavigatorConfig(BaseModel):
     app_name: str = "ai-navigator"
-    port: int = 8001
 
     @property
     def config_file(self) -> Path:
@@ -29,10 +31,21 @@ class AINavigatorConfig(BaseModel):
         return config.get(key)
 
     @property
+    def port(self) -> int:
+        port = self.get_config("aiNavApiServerPort")
+        if port is None:
+            raise AINavigatorConfigError(
+                "The API Port was not found in the config file."
+            )
+        return port
+
+    @property
     def api_key(self) -> str:
         key = self.get_config("aiNavApiKey")
         if key is None:
-            raise APIKeyMissing("Error: The API Key was not found in the config file.")
+            raise AINavigatorConfigError(
+                "The API Key was not found in the config file."
+            )
         return key
 
 
