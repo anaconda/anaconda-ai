@@ -4,30 +4,31 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
-  "anaconda-cloud-auth >=0.7.2",
-  "anaconda-cli-base >=0.4.1",
-  "intake >=2.0.7",
+  "anaconda-auth >=0.8",
+  "anaconda-cli-base >=0.5",
   "rich",
   "pydantic >=2",
   "typer",
-  "ruamel.yaml"
+  "ruamel.yaml",
+  "openai",
+  "platformdirs"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
 license = {text = "BSD-3-Clause"}
-name = "anaconda-models"
+name = "anaconda-ai"
 readme = "README.md"
 requires-python = ">=3.9"
 
 [project.entry-points."anaconda_cli.subcommand"]
-models = "anaconda_models.cli.models:app"
+ai = "anaconda_ai.cli:app"
 
 [project.entry-points.llm]
-anaconda = "anaconda_models.llm"
+anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-models[langchain,llm,pandasai,panel]"
+  "anaconda-ai[langchain,litellm,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
@@ -38,11 +39,12 @@ dev = [
   "types-requests"
 ]
 langchain = ["langchain-openai>=0.2.8"]
-llm = ["llm", "click"]
-pandasai = ["pandasai>=2.4"]
+litellm = ["litellm"]
+llama-index = ["llama-index-llms-openai"]
+llm = ["llm>=0.22"]
 panel = [
   "panel>=1.5.4; python_version >= '3.10'",
-  "openai",
+  "numpy",
   "httpx"
 ]
 publish = [
@@ -55,16 +57,19 @@ publish = [
 universal = true
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/anaconda_models/_version.py"
+version-file = "src/anaconda_ai/_version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/src/anaconda_models",
+  "/src/anaconda_ai",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
   "/environment-dev.yml"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anaconda_ai"]
 
 [tool.hatch.version]
 source = "vcs"
@@ -87,19 +92,15 @@ module = "rich_click.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
+module = "llama_index.core.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "llama_index.llms.openai.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
 module = "llm.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "intake.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "pandasai.*"
-
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = "fsspec.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
@@ -107,7 +108,7 @@ module = "ruamel.*"
 
 [tool.pytest.ini_options]
 addopts = [
-  "--cov=anaconda_models",
+  "--cov=anaconda_ai",
   "--color=yes",
   "--cov-append",
   "--cov-branch",
@@ -128,9 +129,6 @@ legacy_tox_ini = """
 [tox]
 envlist = py39,py310,py311,py312,mypy
 isolated_build = True
-requires =
-  tox-conda
-  tox-gh-actions
 
 [gh-actions]
 python =
@@ -140,10 +138,6 @@ python =
     3.12: py312
 
 [testenv]
-passenv =
-  ANACONDA_CLOUD_API_KEY
-  ANACONDA_CLOUD_DOMAIN
-  ANACONDA_MODELS_DOMAIN
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"
@@ -162,10 +156,10 @@ commands =
 """
 
 [tool.vendoring]
-destination = "src/anaconda_models/_vendor/"
-namespace = "anaconda_models._vendor"
+destination = "src/anaconda_ai/_vendor/"
+namespace = "anaconda_ai._vendor"
 protected-files = ["__init__.py", "requirements.txt"]
-requirements = "src/anaconda_models/_vendor/requirements.txt"
+requirements = "src/anaconda_ai/_vendor/requirements.txt"
 
 [tool.vendoring.license.directories]
 setuptools = "pkg_resources"

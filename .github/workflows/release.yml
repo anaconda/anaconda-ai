@@ -1,0 +1,102 @@
+name: "release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish-conda-pkg-to-anaconda-dot-org:
+    name: Publish conda package to Anaconda.org
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'  # Only run on push to main branch
+    needs: [test]
+    steps:
+    - name: Retrieve the source code
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
+      with:
+        fetch-depth: 0
+    - name: Create build environment
+      run: |
+        source $CONDA/bin/activate
+        conda create -n build --file ./etc/build.linux-64.lock
+    - name: Download the build artifacts
+      uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
+      with:
+        name: anaconda-ai-conda-${{ github.sha }}
+        path: ~/anaconda-ai-conda-bld
+    - name: publish
+      env:
+        TOKEN: ${{ secrets.ANACONDA_ORG_UPLOAD_TOKEN }}
+      run: |
+        source $CONDA/bin/activate && conda activate build
+        [[ "$GITHUB_REF" =~ ^refs/tags/v ]] || export LABEL="--label dev"
+        anaconda --verbose \
+          --token $TOKEN \
+          upload \
+          --user anaconda-cloud \
+          $LABEL \
+          --force \
+          ~/anaconda-ai-conda-bld/noarch/anaconda-ai-*
+
+  publish-wheel-to-anaconda-dot-org:
+    name: Publish wheel to Anaconda.org
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'  # Only run on push to main branch
+    needs: [test]
+    steps:
+    - name: Retrieve the source code
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
+      with:
+        fetch-depth: 0
+    - name: Download the build artifacts
+      uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
+      with:
+        name: anaconda-ai-wheel-${{ github.sha }}
+        path: ~/dist
+    - name: Create build environment
+      run: |
+        source $CONDA/bin/activate
+        conda create -n build --file ./etc/build.linux-64.lock
+    - name: Upload to anaconda.org
+      env:
+        TOKEN: ${{ secrets.ANACONDA_ORG_UPLOAD_TOKEN }}
+        GITHUB_REF: ${{ github.ref }}
+      run: |
+        source $CONDA/bin/activate && conda activate build
+        [[ "$GITHUB_REF" =~ ^refs/tags/v ]] || export LABEL="--label dev"
+        anaconda --verbose \
+          --token $TOKEN \
+          upload \
+          --user anaconda-cloud \
+          ~/dist/*.whl \
+          --summary \
+          "Download, launch, and integrate AI models curated by Anaconda" \
+          $LABEL \
+          --force \
+
+  # publish-to-pypi:
+  #   name: Build & publish to PyPI
+  #   if: startsWith(github.event.ref, 'refs/tags/v')
+  #   runs-on: ubuntu-latest
+  #   needs: [test]
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
+  #   - name: Setup Python
+  #     uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5
+  #   - name: Download the build artifacts
+  #     uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
+  #     with:
+  #       name: anaconda-ai-wheel-${{ github.sha }}
+  #       path: ~/dist
+  #   - name: Install build dependencies
+  #     run: pip install twine
+  #   - name: Upload to PyPI with twine
+  #     run: python -m twine upload ~/dist/*
+  #     env:
+  #       TWINE_USERNAME: __token__
+  #       TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}

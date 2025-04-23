@@ -1,0 +1,13 @@
+name: anaconda-ai
+
+channels:
+  - defaults
+  - anaconda-cloud
+  - conda-forge
+
+
+dependencies:
+  - python=3.10
+  - notebook
+  - anaconda-ai
+  - langchain-openai
