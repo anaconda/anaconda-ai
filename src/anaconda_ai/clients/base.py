@@ -465,4 +465,4 @@ class BaseVectorDb:
         pass
 
     def create(self) -> dict:
-        pass
+        raise NotImplementedError()
