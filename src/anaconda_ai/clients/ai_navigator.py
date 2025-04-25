@@ -11,6 +11,7 @@ from urllib.parse import quote
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
+    BaseVectorDb,
     GenericClient,
     ModelSummary,
     ModelQuantization,
@@ -191,8 +192,8 @@ class AINavigatorServers(BaseServers):
         res.raise_for_status()
 
 
-class AINavigatorVectorDbServer:
-    def __init__(self, client: GenericClient):
+class AINavigatorVectorDbServer(BaseVectorDb):
+    def __init__(self, client: GenericClient) -> None:
         self._client = client
 
     def create(self) -> dict:

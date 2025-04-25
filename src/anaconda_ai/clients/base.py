@@ -461,8 +461,8 @@ class BaseServers:
 
 
 class BaseVectorDb:
-    def __init__(self, client):
-        self.client = client;
+    def __init__(self) -> None:
+        pass
 
     def create(self) -> dict:
         pass
