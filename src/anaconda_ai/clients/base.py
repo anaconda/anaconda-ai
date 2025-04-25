@@ -41,6 +41,7 @@ MODEL_NAME = re.compile(
 class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
+    vector_db: "BaseVectorDb"
     _config: AnacondaAIConfig
 
 
@@ -457,3 +458,11 @@ class BaseServers:
     def delete(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._delete(server_id)
+
+
+class BaseVectorDb:
+    def __init__(self, client):
+        self.client = client;
+
+    def create(self) -> dict:
+        pass
