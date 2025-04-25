@@ -19,9 +19,13 @@ from .base import (
     ServerConfig,
     Server,
 )
+from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
+
+
+class ModelDownloadCancelledError(AnacondaAIException): ...
 
 
 class AINavigatorModels(BaseModels):
@@ -103,8 +107,6 @@ class AINavigatorModels(BaseModels):
                 res = self._client.get(url)
                 res.raise_for_status()
                 status = res.json()["data"]
-                if status["isDownloaded"]:
-                    break
 
                 download_status = status.get("downloadStatus", {})
                 if download_status.get("status", "") == "in_progress":
@@ -114,7 +116,12 @@ class AINavigatorModels(BaseModels):
                     progress_bar.update(task, completed=downloaded)
                     sleep(0.1)
                 else:
-                    break
+                    if not status["isDownloaded"]:
+                        raise ModelDownloadCancelledError(
+                            "The download process stopped."
+                        )
+                    else:
+                        break
 
     def _delete(
         self, model_summary: ModelSummary, quantization: ModelQuantization
