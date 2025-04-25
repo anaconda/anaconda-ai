@@ -184,6 +184,23 @@ class AINavigatorServers(BaseServers):
         res.raise_for_status()
 
 
+class AINavigatorVectorDbServer:
+    def __init__(self, client: GenericClient):
+        self._client = client
+
+    def create(self) -> dict:
+        """Create a vector database service.
+        
+        Returns:
+            dict: The vector database service information.
+        """
+        res = self._client.post("api/vector-db")
+        res.raise_for_status()
+        return res.json()["data"]
+
+
+    # TODO: Implement other methods
+
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
         self.config = config
@@ -216,6 +233,7 @@ class AINavigatorClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
+        self.vector_db = AINavigatorVectorDbServer(self)
         self.auth = AINavigatorAPIKey(self._config)
 
     def request(

@@ -311,3 +311,14 @@ def stop(
 ) -> None:
     client = get_default_client()
     client.servers.stop(server)
+
+
+@app.command("launch-vectordb")
+def launch_vector_db(
+) -> None:
+    """
+    Starts a vector db
+    """
+    client = get_default_client()
+    result = client.vector_db.create()
+    console.print(result)
