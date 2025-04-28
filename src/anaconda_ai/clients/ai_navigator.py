@@ -12,6 +12,7 @@ from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
     BaseVectorDb,
+    CreateVectorDbResponse,
     GenericClient,
     ModelSummary,
     ModelQuantization,
@@ -191,10 +192,9 @@ class AINavigatorServers(BaseServers):
         res = self._client.delete(f"api/servers/{server_id}")
         res.raise_for_status()
 
-
 class AINavigatorVectorDbServer(BaseVectorDb):
 
-    def create(self) -> dict:
+    def create(self) -> CreateVectorDbResponse:
         """Create a vector database service.
         
         Returns:
@@ -202,7 +202,7 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         """
         res = self._client.post("api/vector-db")
         res.raise_for_status()
-        return res.json()["data"]
+        return CreateVectorDbResponse(**res.json()["data"])
 
 
     # TODO: Implement other methods
