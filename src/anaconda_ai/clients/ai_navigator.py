@@ -193,8 +193,6 @@ class AINavigatorServers(BaseServers):
 
 
 class AINavigatorVectorDbServer(BaseVectorDb):
-    def __init__(self, client: GenericClient) -> None:
-        self._client = client
 
     def create(self) -> dict:
         """Create a vector database service.

@@ -461,8 +461,8 @@ class BaseServers:
 
 
 class BaseVectorDb:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, client: GenericClient) -> None:
+        self._client = client
 
     def create(self) -> dict:
         raise NotImplementedError()
