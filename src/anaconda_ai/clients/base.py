@@ -207,6 +207,7 @@ class APIParams(BaseModel, extra="forbid"):
     n_gpu_layers: Optional[int] = None
     main_gpu: Optional[int] = None
     metrics: Optional[bool] = None
+    jinja: Optional[bool] = None
 
 
 class LoadParams(BaseModel, extra="forbid"):
@@ -459,6 +460,7 @@ class BaseServers:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 
+
 class CreateVectorDbResponse(BaseModel):
     running: bool
     host: str
@@ -466,6 +468,7 @@ class CreateVectorDbResponse(BaseModel):
     database: str
     user: str
     password: str
+
 
 class BaseVectorDb:
     def __init__(self, client: GenericClient) -> None:
