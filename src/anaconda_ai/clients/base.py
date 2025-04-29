@@ -41,6 +41,7 @@ MODEL_NAME = re.compile(
 class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
+    vector_db: "BaseVectorDb"
     _config: AnacondaAIConfig
 
 
@@ -457,3 +458,18 @@ class BaseServers:
     def delete(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._delete(server_id)
+
+class CreateVectorDbResponse(BaseModel):
+    running: bool
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+
+class BaseVectorDb:
+    def __init__(self, client: GenericClient) -> None:
+        self._client = client
+
+    def create(self) -> CreateVectorDbResponse:
+        raise NotImplementedError()

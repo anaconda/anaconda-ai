@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from anaconda_cli_base.cli import app
 
-SUBCOMMANDS = ["models", "download", "launch", "servers", "stop"]
+SUBCOMMANDS = ["models", "download", "launch", "servers", "stop", "launch-vectordb"]
 
 
 class CLIInvoker(Protocol):

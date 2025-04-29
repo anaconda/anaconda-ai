@@ -11,6 +11,8 @@ from urllib.parse import quote
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
+    BaseVectorDb,
+    CreateVectorDbResponse,
     GenericClient,
     ModelSummary,
     ModelQuantization,
@@ -190,6 +192,20 @@ class AINavigatorServers(BaseServers):
         res = self._client.delete(f"api/servers/{server_id}")
         res.raise_for_status()
 
+class AINavigatorVectorDbServer(BaseVectorDb):
+
+    def create(self) -> CreateVectorDbResponse:
+        """Create a vector database service.
+        
+        Returns:
+            dict: The vector database service information.
+        """
+        res = self._client.post("api/vector-db")
+        res.raise_for_status()
+        return CreateVectorDbResponse(**res.json()["data"])
+
+
+    # TODO: Implement other methods
 
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
@@ -223,6 +239,7 @@ class AINavigatorClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
+        self.vector_db = AINavigatorVectorDbServer(self)
         self.auth = AINavigatorAPIKey(self._config)
 
     def request(
