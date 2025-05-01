@@ -322,3 +322,13 @@ def launch_vector_db(
     client = get_default_client()
     result = client.vector_db.create()
     console.print(result)
+
+@app.command("stop-vectordb")
+def stop_vector_db(
+) -> None:
+    """
+    Stops the vector db
+    """
+    client = get_default_client()
+    result = client.vector_db.stop()
+    console.print(result)
