@@ -459,7 +459,7 @@ class BaseServers:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 
-class CreateVectorDbResponse(BaseModel):
+class VectorDbServerResponse(BaseModel):
     running: bool
     host: str
     port: int
@@ -471,5 +471,12 @@ class BaseVectorDb:
     def __init__(self, client: GenericClient) -> None:
         self._client = client
 
-    def create(self) -> CreateVectorDbResponse:
+    def create(self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None,
+        console: Optional[Console] = None,
+    ) -> VectorDbServerResponse:
         raise NotImplementedError()
+    
+    def stop(self) -> VectorDbServerResponse:
+        raise NotImplementedError

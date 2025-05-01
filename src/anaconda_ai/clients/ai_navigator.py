@@ -6,13 +6,14 @@ from requests.auth import AuthBase
 from requests.exceptions import ConnectionError
 from rich.console import Console
 import rich.progress
+from rich.status import Status
 from urllib.parse import quote
 
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
     BaseVectorDb,
-    CreateVectorDbResponse,
+    VectorDbServerResponse,
     GenericClient,
     ModelSummary,
     ModelQuantization,
@@ -194,18 +195,34 @@ class AINavigatorServers(BaseServers):
 
 class AINavigatorVectorDbServer(BaseVectorDb):
 
-    def create(self) -> CreateVectorDbResponse:
+    def create(self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None, # TODO: Implement this
+        console: Optional[Console] = None,
+        ) -> VectorDbServerResponse:
         """Create a vector database service.
         
         Returns:
             dict: The vector database service information.
         """
-        res = self._client.post("api/vector-db")
+        
+        text = f"Starting pg vector database"
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        with Status(text, console=console) as display:
+            res = self._client.post("api/vector-db")
+            res.raise_for_status()
+            text = "pg vector database started"
+            display.update(text)
+
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+
+        return VectorDbServerResponse(**res.json()["data"])
+
+    def stop(self) -> VectorDbServerResponse:
+        res = self._client.patch("api/vector-db", json={"running": False})
         res.raise_for_status()
-        return CreateVectorDbResponse(**res.json()["data"])
-
-
-    # TODO: Implement other methods
+        return VectorDbServerResponse(**res.json()["data"])
 
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
