@@ -17,7 +17,7 @@ jobs:
   publish-conda-pkg-to-anaconda-dot-org:
     name: Publish conda package to Anaconda.org
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'  # Only run on push to main branch
+    #if: github.event_name == 'push'  # Only run on push to main branch
     needs: [test]
     steps:
     - name: Retrieve the source code
