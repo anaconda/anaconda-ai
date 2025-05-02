@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 from typing import Union
+from requests import Response
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
@@ -23,6 +24,7 @@ from rich.console import Console
 from anaconda_cloud_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
+    AnacondaAIException,
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
@@ -467,6 +469,19 @@ class VectorDbServerResponse(BaseModel):
     user: str
     password: str
 
+class VectorDbTableColumn(BaseModel):
+    name: str
+    type: str
+    constraints: Optional[List[str]] = None
+
+class VectorDbTableSchema(BaseModel):
+    columns: List[VectorDbTableColumn]
+
+class TableInfo(BaseModel):
+    name: str
+    table_schema: VectorDbTableSchema = Field(alias="schema")
+    numRows: int
+
 class BaseVectorDb:
     def __init__(self, client: GenericClient) -> None:
         self._client = client
@@ -480,3 +495,25 @@ class BaseVectorDb:
     
     def stop(self) -> VectorDbServerResponse:
         raise NotImplementedError
+    
+    def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        raise NotImplementedError
+    
+    def get_tables(self) -> List[TableInfo]:
+        raise NotImplementedError
+
+    def drop_table(self, table: str) -> None:
+        raise NotImplementedError
+    
+    def raise_for_status(self, res: Response) -> None:
+        if res.ok:
+            return
+        
+        error = None
+        try:
+            error = res.json()['error']
+        except:
+            res.raise_for_status()
+        
+        raise AnacondaAIException(error)
+    
