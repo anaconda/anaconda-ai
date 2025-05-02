@@ -505,15 +505,3 @@ class BaseVectorDb:
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
     
-    def raise_for_status(self, res: Response) -> None:
-        if res.ok:
-            return
-        
-        error = None
-        try:
-            error = res.json()['error']
-        except:
-            res.raise_for_status()
-        
-        raise AnacondaAIException(error)
-    

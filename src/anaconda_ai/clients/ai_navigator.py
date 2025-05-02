@@ -213,7 +213,6 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         console.quiet = not show_progress
         with Status(text, console=console) as display:
             res = self._client.post("api/vector-db")
-            res.raise_for_status()
             text = "pg vector database started"
             display.update(text)
 
@@ -223,24 +222,22 @@ class AINavigatorVectorDbServer(BaseVectorDb):
 
     def stop(self) -> VectorDbServerResponse:
         res = self._client.patch("api/vector-db", json={"running": False})
-        res.raise_for_status()
         return VectorDbServerResponse(**res.json()["data"])
 
     def get_tables(self) -> list[TableInfo]:
         res = self._client.get("api/vector-db/tables")
-        self.raise_for_status(res)
         return [TableInfo(**t) for t in res.json()["data"]]
     
     def drop_table(self, table: str) -> None:
-        res = self._client.delete(f"api/vector-db/tables/{table}")
-        self.raise_for_status(res)
+        self._client.delete(f"api/vector-db/tables/{table}")
+
     
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
         res = self._client.post(f"api/vector-db/tables", json={
             "schema": schema.model_dump(),
             "name": table
         })
-        self.raise_for_status(res)
+     
 
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
@@ -286,9 +283,23 @@ class AINavigatorClient(GenericClient):
     ) -> Response:
         try:
             response = super().request(method, url, *args, **kwargs)
+            self.raise_for_status(response)
+
         except ConnectionError:
             raise RuntimeError(
                 "Could not connect to AI Navigator. It may not be running."
             )
 
         return response
+
+    def raise_for_status(self, response: Response) -> None:
+        if response.ok:
+            return
+        
+        error = None
+        try:
+            error = response.json()['error']
+        except:
+            response.raise_for_status()
+        
+        raise AnacondaAIException(error)
