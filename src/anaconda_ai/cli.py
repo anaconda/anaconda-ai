@@ -9,7 +9,7 @@ from rich.table import Table
 
 from anaconda_cli_base import console
 from .clients import get_default_client
-from .clients.base import GenericClient, ModelQuantization, Server
+from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
@@ -332,3 +332,37 @@ def stop_vector_db(
     client = get_default_client()
     result = client.vector_db.stop()
     console.print(result)
+
+@app.command("list-tables")
+def list_tables(
+) -> None:
+    """
+    Lists all tables in the vector db
+    """
+    client = get_default_client()
+    tables = client.vector_db.get_tables()
+    console.print(tables)
+
+@app.command("drop-table")
+def drop_table(
+    table: str = typer.Argument(help="Name of the table to drop"),
+) -> None:
+    """
+    Drops a table from the vector db
+    """
+    client = get_default_client()
+    client.vector_db.drop_table(table)
+    console.print(f"Table {table} dropped")
+
+@app.command("create-table")
+def create_table(
+    table: str = typer.Argument(help="Name of the table to create"),
+    schema: str = typer.Argument(help="Schema of the table to create"),
+) -> None:
+    """
+    Creates a table in the vector db
+    """
+    client = get_default_client()
+    validated_schema = VectorDbTableSchema.model_validate_json(schema)
+    client.vector_db.create_table(table, validated_schema)
+    console.print(f"Table {table} created")
