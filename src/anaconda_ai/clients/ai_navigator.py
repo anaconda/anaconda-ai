@@ -293,9 +293,12 @@ class AINavigatorClient(GenericClient):
 
         return response
     
-    def get_version(self) -> str:
+    def get_ai_navigator_version(self) -> AiNavigatorVersion:
         res = self.get("api")
-        ai_navigator_versions = AiNavigatorVersion(**res.json()["data"])
+        return AiNavigatorVersion(**res.json()["data"])
+    
+    def get_version(self) -> str:
+        ai_navigator_versions = self.get_ai_navigator_version()
         return f"AI Navigator: {ai_navigator_versions.version}\n"\
                 f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
                 f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}"
