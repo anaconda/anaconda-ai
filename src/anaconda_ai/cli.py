@@ -98,7 +98,7 @@ def version() -> None:
     try:
         client = get_default_client()
         version = client.get_version()
-        console.print(f"AI Navigator: {version}")
+        console.print(version)
     except Exception as e:
         console.print("AI Navigator not found. Is it running?")
 
