@@ -8,7 +8,6 @@ dependencies:
 - tox-conda
 - notebook
 - ipywidgets
-- packaging
 - pip
 - pip:
     - "-e .[dev,all]"
