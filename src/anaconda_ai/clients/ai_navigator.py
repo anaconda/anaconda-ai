@@ -30,7 +30,7 @@ from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
-MIN_AI_NAV_VERSION = "1.15.0"
+MIN_AI_NAV_VERSION = "1.14.0"
 
 class ModelDownloadCancelledError(AnacondaAIException): ...
 
