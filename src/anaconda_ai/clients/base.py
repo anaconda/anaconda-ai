@@ -513,3 +513,6 @@ class BaseVectorDb:
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
     
+
+class IncompatibleVersionError(Exception):
+    pass

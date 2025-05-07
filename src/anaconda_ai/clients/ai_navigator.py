@@ -1,6 +1,6 @@
 from time import sleep, time
 from typing import Optional, Any, Union
-
+from packaging.version import parse
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
 from requests.exceptions import ConnectionError
@@ -14,6 +14,7 @@ from ..config import AnacondaAIConfig
 from .base import (
     AiNavigatorVersion,
     BaseVectorDb,
+    IncompatibleVersionError,
     VectorDbServerResponse,
     TableInfo,
     GenericClient,
@@ -29,7 +30,7 @@ from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
-
+MIN_AI_NAV_VERSION = "1.15.0"
 
 class ModelDownloadCancelledError(AnacondaAIException): ...
 
@@ -283,16 +284,25 @@ class AINavigatorClient(GenericClient):
         **kwargs: Any,
     ) -> Response:
         try:
+            # to avoid recursive calls to the version check
+            if url != "api":
+                self.version_check()
+
             response = super().request(method, url, *args, **kwargs)
             self.raise_for_status(response)
 
         except ConnectionError:
             raise RuntimeError(
-                "Could not connect to AI Navigator. It may not be running."
+                f"Could not connect to AI Navigator. It may not be running. Please ensure you have at least version {MIN_AI_NAV_VERSION} installed."
             )
 
         return response
     
+    def version_check(self) -> None:
+        ai_navigator_versions = self.get_ai_navigator_version()
+        if parse(ai_navigator_versions.version) <= parse(MIN_AI_NAV_VERSION):
+            raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
+
     def get_ai_navigator_version(self) -> AiNavigatorVersion:
         res = self.get("api")
         return AiNavigatorVersion(**res.json()["data"])
