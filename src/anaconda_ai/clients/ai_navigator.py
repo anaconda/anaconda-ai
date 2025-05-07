@@ -309,9 +309,18 @@ class AINavigatorClient(GenericClient):
     
     def get_version(self) -> str:
         ai_navigator_versions = self.get_ai_navigator_version()
-        return f"AI Navigator: {ai_navigator_versions.version}\n"\
+
+        warning = ""
+        try:
+            self.version_check()
+        except IncompatibleVersionError as e:
+            warning = f"Warning: {e}"
+
+        version_str = f"AI Navigator: {ai_navigator_versions.version}\n"\
                 f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
-                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}"
+                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"\
+                f"{warning}"
+        return version_str
 
     def raise_for_status(self, response: Response) -> None:
         if response.ok:
