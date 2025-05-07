@@ -300,7 +300,7 @@ class AINavigatorClient(GenericClient):
     
     def version_check(self) -> None:
         ai_navigator_versions = self.get_ai_navigator_version()
-        if parse(ai_navigator_versions.version) <= parse(MIN_AI_NAV_VERSION):
+        if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
             raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
 
     def get_ai_navigator_version(self) -> AiNavigatorVersion:
