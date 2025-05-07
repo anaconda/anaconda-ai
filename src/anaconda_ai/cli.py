@@ -109,7 +109,7 @@ def models(
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
 ) -> None:
-    """Model model information"""
+    """Model information"""
     client = get_default_client()
     if model_id is None:
         renderable = _list_models(client)
