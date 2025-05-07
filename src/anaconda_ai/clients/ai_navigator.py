@@ -12,6 +12,7 @@ from urllib.parse import quote
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
+    AiNavigatorVersion,
     BaseVectorDb,
     VectorDbServerResponse,
     TableInfo,
@@ -291,6 +292,13 @@ class AINavigatorClient(GenericClient):
             )
 
         return response
+    
+    def get_version(self) -> str:
+        res = self.get("api")
+        ai_navigator_versions = AiNavigatorVersion(**res.json()["data"])
+        return f"AI Navigator: {ai_navigator_versions.version}\n"\
+                f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
+                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}"
 
     def raise_for_status(self, response: Response) -> None:
         if response.ok:

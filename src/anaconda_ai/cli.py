@@ -10,7 +10,7 @@ from rich.table import Table
 from anaconda_cli_base import console
 from .clients import get_default_client
 from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
-
+from ._version import __version__
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
@@ -90,6 +90,17 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     table.add_row("Quantized Files", quantized)
     return table
 
+@app.command(name="version")
+def version() -> None:
+    """Version information of SDK and AI Navigator"""
+    console.print(f"SDK: {__version__}")
+
+    try:
+        client = get_default_client()
+        version = client.get_version()
+        console.print(f"AI Navigator: {version}")
+    except Exception as e:
+        console.print("AI Navigator not found. Is it running?")
 
 @app.command(name="models")
 def models(
