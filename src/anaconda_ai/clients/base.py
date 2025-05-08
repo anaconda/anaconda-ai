@@ -39,12 +39,20 @@ MODEL_NAME = re.compile(
     flags=re.IGNORECASE,
 )
 
+class AiNavigatorVersion(BaseModel):
+    name: str
+    version: str
+    mambaVersion: str
+    llamaCppVersion: str
 
 class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
     _config: AnacondaAIConfig
+
+    def get_version(self) -> str:
+        raise NotImplementedError
 
 
 class ModelQuantization(BaseModel):
@@ -505,3 +513,6 @@ class BaseVectorDb:
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
     
+
+class IncompatibleVersionError(Exception):
+    pass

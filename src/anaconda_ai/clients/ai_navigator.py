@@ -1,6 +1,7 @@
 from time import sleep, time
 from typing import Optional, Any, Union
-
+from anaconda_cli_base import console
+from packaging.version import parse
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
 from requests.exceptions import ConnectionError
@@ -12,7 +13,9 @@ from urllib.parse import quote
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
+    AiNavigatorVersion,
     BaseVectorDb,
+    IncompatibleVersionError,
     VectorDbServerResponse,
     TableInfo,
     GenericClient,
@@ -28,7 +31,7 @@ from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
-
+MIN_AI_NAV_VERSION = "1.14.2"
 
 class ModelDownloadCancelledError(AnacondaAIException): ...
 
@@ -282,15 +285,47 @@ class AINavigatorClient(GenericClient):
         **kwargs: Any,
     ) -> Response:
         try:
+            # to avoid recursive calls to the version check
+            if url != "api":
+                self.version_check()
+
             response = super().request(method, url, *args, **kwargs)
             self.raise_for_status(response)
 
         except ConnectionError:
             raise RuntimeError(
-                "Could not connect to AI Navigator. It may not be running."
+                f"Could not connect to AI Navigator. It may not be running. Please ensure you have at least version {MIN_AI_NAV_VERSION} installed."
             )
 
         return response
+    
+    def version_check(self) -> None:
+        # ignore version check for ai-navigator-alpha
+        if self._config.backends.ai_navigator.app_name == "ai-navigator-alpha":
+            return
+        
+        ai_navigator_versions = self.get_ai_navigator_version()
+        if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
+            raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
+
+    def get_ai_navigator_version(self) -> AiNavigatorVersion:
+        res = self.get("api")
+        return AiNavigatorVersion(**res.json()["data"])
+    
+    def get_version(self) -> str:
+        ai_navigator_versions = self.get_ai_navigator_version()
+
+        warning = ""
+        try:
+            self.version_check()
+        except IncompatibleVersionError as e:
+            warning = f"Warning: {e}"
+
+        version_str = f"AI Navigator: {ai_navigator_versions.version}\n"\
+                f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
+                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"\
+                f"{warning}"
+        return version_str
 
     def raise_for_status(self, response: Response) -> None:
         if response.ok:
