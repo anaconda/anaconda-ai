@@ -1,5 +1,6 @@
 from time import sleep, time
 from typing import Optional, Any, Union
+from anaconda_cli_base import console
 from packaging.version import parse
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
@@ -299,6 +300,10 @@ class AINavigatorClient(GenericClient):
         return response
     
     def version_check(self) -> None:
+        # ignore version check for ai-navigator-alpha
+        if self._config.backends.ai_navigator.app_name == "ai-navigator-alpha":
+            return
+        
         ai_navigator_versions = self.get_ai_navigator_version()
         if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
             raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
