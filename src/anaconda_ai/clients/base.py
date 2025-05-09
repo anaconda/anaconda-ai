@@ -501,6 +501,9 @@ class BaseVectorDb:
     ) -> VectorDbServerResponse:
         raise NotImplementedError()
     
+    def delete(self) -> None:
+        raise NotImplementedError
+    
     def stop(self) -> VectorDbServerResponse:
         raise NotImplementedError
     

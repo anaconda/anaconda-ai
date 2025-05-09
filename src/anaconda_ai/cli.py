@@ -334,6 +334,16 @@ def launch_vector_db(
     result = client.vector_db.create()
     console.print(result)
 
+@app.command("delete-vectordb")
+def delete_vector_db(
+) -> None:
+    """
+    Deletes the vector db
+    """
+    client = get_default_client()
+    client.vector_db.delete()
+    console.print("Vector db deleted")
+
 @app.command("stop-vectordb")
 def stop_vector_db(
 ) -> None:
