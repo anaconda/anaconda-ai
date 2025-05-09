@@ -222,6 +222,9 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
         return VectorDbServerResponse(**res.json()["data"])
+    
+    def delete(self) -> None:
+        self._client.delete("api/vector-db")
 
     def stop(self) -> VectorDbServerResponse:
         res = self._client.patch("api/vector-db", json={"running": False})

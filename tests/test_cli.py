@@ -17,6 +17,7 @@ SUBCOMMANDS = [
     "servers",
     "stop", 
     "launch-vectordb", 
+    "delete-vectordb",
     "stop-vectordb", 
     "create-table", 
     "drop-table", 
