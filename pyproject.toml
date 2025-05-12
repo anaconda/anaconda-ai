@@ -12,7 +12,8 @@ dependencies = [
   "ruamel.yaml",
   "openai",
   "platformdirs",
-  "packaging"
+  "packaging",
+  "click <8.2"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
