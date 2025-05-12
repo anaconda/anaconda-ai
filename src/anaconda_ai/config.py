@@ -18,7 +18,10 @@ class AINavigatorConfig(BaseModel):
 
     @property
     def config_file(self) -> Path:
-        return Path(platformdirs.user_data_dir(self.app_name)) / "config.json"
+        # For Windows, use the roaming app data directory and do not include "author" in the path
+        base_dir = Path(platformdirs.user_data_dir(self.app_name, False, roaming=True))
+
+        return base_dir / "config.json"
 
     def get_config(self, key: str) -> Any:
         with self.config_file.open("r") as f:
