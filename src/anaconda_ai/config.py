@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 from typing import Literal
 
+import platform
 import platformdirs
 from pydantic import BaseModel
 
@@ -18,8 +19,13 @@ class AINavigatorConfig(BaseModel):
 
     @property
     def config_file(self) -> Path:
-        # For Windows, use the roaming app data directory and do not include "author" in the path
-        return Path(platformdirs.user_data_dir(self.app_name, False, roaming=True)) / "config.json"
+        if platform.system() == "Windows":
+            # For Windows, use the roaming app data directory and do not include "author" in the path
+            base_dir = Path(platformdirs.user_data_dir(self.app_name, False, roaming=True))
+        else:
+            base_dir = Path(platformdirs.user_data_dir(self.app_name))
+
+        return base_dir / "config.json"
 
     def get_config(self, key: str) -> Any:
         with self.config_file.open("r") as f:
