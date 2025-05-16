@@ -80,25 +80,25 @@ jobs:
           $LABEL \
           --force \
 
-  # publish-to-pypi:
-  #   name: Build & publish to PyPI
-  #   if: startsWith(github.event.ref, 'refs/tags/v')
-  #   runs-on: ubuntu-latest
-  #   needs: [test]
-  #   steps:
-  #   - name: Checkout
-  #     uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
-  #   - name: Setup Python
-  #     uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5
-  #   - name: Download the build artifacts
-  #     uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
-  #     with:
-  #       name: anaconda-ai-wheel-${{ github.sha }}
-  #       path: ~/dist
-  #   - name: Install build dependencies
-  #     run: pip install twine
-  #   - name: Upload to PyPI with twine
-  #     run: python -m twine upload ~/dist/*
-  #     env:
-  #       TWINE_USERNAME: __token__
-  #       TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+  publish-to-pypi:
+    name: Build & publish to PyPI
+    if: startsWith(github.event.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
+    - name: Setup Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5
+    - name: Download the build artifacts
+      uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
+      with:
+        name: anaconda-ai-wheel-${{ github.sha }}
+        path: ./dist
+    - name: Install build dependencies
+      run: pip install hatch
+    - name: Upload to PyPI with twine
+      run: hatch publish
+      env:
+        HATCH_INDEX_USER: __token__
+        HATCH_INDEX_AUTH: ${{ secrets.PYPI_TOKEN }}
