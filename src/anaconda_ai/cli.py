@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 from typing import Optional
 
@@ -8,9 +9,11 @@ from rich.table import Column
 from rich.table import Table
 
 from anaconda_cli_base import console
+from .spec import AISpec, DEFAULT_TOML_PATH
 from .clients import get_default_client
 from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
 from ._version import __version__
+
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
@@ -90,6 +93,7 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     table.add_row("Quantized Files", quantized)
     return table
 
+
 @app.command(name="version")
 def version() -> None:
     """Version information of SDK and AI Navigator"""
@@ -99,8 +103,9 @@ def version() -> None:
         client = get_default_client()
         version = client.get_version()
         console.print(version)
-    except Exception as e:
+    except Exception:
         console.print("AI Navigator not found. Is it running?")
+
 
 @app.command(name="models")
 def models(
@@ -325,8 +330,7 @@ def stop(
 
 
 @app.command("launch-vectordb")
-def launch_vector_db(
-) -> None:
+def launch_vector_db() -> None:
     """
     Starts a vector db
     """
@@ -334,9 +338,9 @@ def launch_vector_db(
     result = client.vector_db.create()
     console.print(result)
 
+
 @app.command("delete-vectordb")
-def delete_vector_db(
-) -> None:
+def delete_vector_db() -> None:
     """
     Deletes the vector db
     """
@@ -344,9 +348,9 @@ def delete_vector_db(
     client.vector_db.delete()
     console.print("Vector db deleted")
 
+
 @app.command("stop-vectordb")
-def stop_vector_db(
-) -> None:
+def stop_vector_db() -> None:
     """
     Stops the vector db
     """
@@ -354,15 +358,16 @@ def stop_vector_db(
     result = client.vector_db.stop()
     console.print(result)
 
+
 @app.command("list-tables")
-def list_tables(
-) -> None:
+def list_tables() -> None:
     """
     Lists all tables in the vector db
     """
     client = get_default_client()
     tables = client.vector_db.get_tables()
     console.print(tables)
+
 
 @app.command("drop-table")
 def drop_table(
@@ -374,6 +379,7 @@ def drop_table(
     client = get_default_client()
     client.vector_db.drop_table(table)
     console.print(f"Table {table} dropped")
+
 
 @app.command("create-table")
 def create_table(
@@ -387,3 +393,15 @@ def create_table(
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
     console.print(f"Table {table} created")
+
+
+@app.command("up")
+def spec_up(path: Path = typer.Option(default=DEFAULT_TOML_PATH)) -> None:
+    spec = AISpec.load(path)
+    spec.up()
+
+
+@app.command("down")
+def spec_down(path: Path = typer.Option(default=DEFAULT_TOML_PATH)) -> None:
+    spec = AISpec.load(path)
+    spec.down()
