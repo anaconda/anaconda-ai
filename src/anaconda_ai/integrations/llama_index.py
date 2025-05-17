@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Union
+from typing_extensions import Self
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
 from llama_index.llms.openai import OpenAI
@@ -9,7 +11,14 @@ from llama_index.core.base.llms.types import LLMMetadata
 from pydantic import Field
 
 from ..clients import get_default_client
-from ..clients.base import APIParams, LoadParams, InferParams, ServerConfig
+from ..clients.base import (
+    GenericClient,
+    APIParams,
+    LoadParams,
+    InferParams,
+    ServerConfig,
+)
+from ..spec import AISpec, DEFAULT_SPEC_PATH
 
 
 class AnacondaLLMMetadata(LLMMetadata):
@@ -37,8 +46,11 @@ class AnacondaModel(OpenAI):
         api_params: Optional[Union[Dict[str, Any], APIParams]] = None,
         load_params: Optional[Union[Dict[str, Any], LoadParams]] = None,
         infer_params: Optional[Union[Dict[str, Any], InferParams]] = None,
+        client: Optional[GenericClient] = None,
     ) -> None:
-        client = get_default_client()
+        if client is None:
+            client = get_default_client()
+
         server = client.servers.create(
             model,
             api_params=api_params,
@@ -62,6 +74,29 @@ class AnacondaModel(OpenAI):
         )
 
         self._server_config = server.serverConfig
+
+    @classmethod
+    def load_from_spec(cls, key: str, path: Path = DEFAULT_SPEC_PATH) -> Self:
+        spec = AISpec.load(path)
+        if key not in spec.inference:
+            raise ValueError(f"The key {key} is not defined as an inference in {path}")
+
+        server_config = spec.inference[key]
+
+        system_prompt = getattr(server_config, "system_prompt", None)
+        temperature = getattr(server_config, "temperature", DEFAULT_TEMPERATURE)
+        max_tokens = getattr(server_config, "max_tokens", None)
+
+        llm = cls(
+            model=server_config.model,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_params=server_config.api_params,
+            load_params=server_config.load_params,
+            infer_params=server_config.infer_params,
+        )
+        return llm
 
     @classmethod
     def class_name(cls) -> str:
