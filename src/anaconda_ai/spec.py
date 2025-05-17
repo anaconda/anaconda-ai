@@ -23,9 +23,14 @@ class Inference(BaseModel, extra="allow"):
     infer_params: Optional[InferParams] = None
 
 
+class VectorDBTable(BaseModel, extra="forbid"):
+    name: str
+    table_schema: VectorDbTableSchema
+
+
 class VectorDB(BaseModel):
-    table: str
-    schema: VectorDbTableSchema
+    database: str
+    table: Optional[VectorDBTable] = None
 
 
 class AISpec(BaseSettings, extra="ignore"):
@@ -62,9 +67,9 @@ class AISpec(BaseSettings, extra="ignore"):
 
         if self.vector_db:
             vector_db = client.vector_db.create(show_progress=True, leave_running=True)
-            if vector_db.running:
+            if vector_db.running and self.vector_db.table:
                 client.vector_db.create_table(
-                    self.vector_db.table, self.vector_db.schema
+                    self.vector_db.table.name, self.vector_db.table.table_schema
                 )
 
     def down(self) -> None:
@@ -81,5 +86,6 @@ class AISpec(BaseSettings, extra="ignore"):
                 server.stop()
 
         if self.vector_db:
-            client.vector_db.drop_table(self.vector_db.table)
+            if self.vector_db.table:
+                client.vector_db.drop_table(self.vector_db.table.name)
             client.vector_db.stop()
