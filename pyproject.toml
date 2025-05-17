@@ -13,7 +13,8 @@ dependencies = [
   "openai",
   "platformdirs",
   "packaging",
-  "click <8.2"
+  "click <8.2",
+  "pydantic-settings"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
