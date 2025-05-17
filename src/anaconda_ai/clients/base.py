@@ -10,7 +10,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 from typing import Union
-from requests import Response
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
@@ -24,7 +23,6 @@ from rich.console import Console
 from anaconda_cloud_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
-    AnacondaAIException,
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
@@ -39,11 +37,13 @@ MODEL_NAME = re.compile(
     flags=re.IGNORECASE,
 )
 
+
 class AiNavigatorVersion(BaseModel):
     name: str
     version: str
     mambaVersion: str
     llamaCppVersion: str
+
 
 class GenericClient(BaseClient):
     models: "BaseModels"
@@ -288,22 +288,23 @@ class Server(BaseModel):
         text = f"{self.serverConfig.modelFileName} (creating)"
         console = Console() if console is None else console
         console.quiet = not show_progress
-        with Status(text, console=console) as display:
-            self._client.servers.start(self)
-            status = "starting"
-            text = f"{self.serverConfig.modelFileName} ({status})"
-            display.update(text)
-
-            while status != "running":
-                status = self._client.servers.status(self)
-                text = f"{self.serverConfig.modelFileName} ({status})"
-                display.update(text)
-        console.print(f"[bold green]✓[/] {text}", highlight=False)
 
         if not self._matched:
+            with Status(text, console=console) as display:
+                self._client.servers.start(self)
+                status = "starting"
+                text = f"{self.serverConfig.modelFileName} ({status})"
+                display.update(text)
+
+                while status != "running":
+                    status = self._client.servers.status(self)
+                    text = f"{self.serverConfig.modelFileName} ({status})"
+                    display.update(text)
+            console.print(f"[bold green]✓[/] {text}", highlight=False)
+
             kwargs = {}
             if leave_running is not None:
-                kwargs["stop_server_on_exit"] = leave_running
+                kwargs["stop_server_on_exit"] = not leave_running
 
             config = AnacondaAIConfig(**kwargs)  # type: ignore
             if config.stop_server_on_exit:
@@ -469,6 +470,7 @@ class BaseServers:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 
+
 class VectorDbServerResponse(BaseModel):
     running: bool
     host: str
@@ -477,45 +479,50 @@ class VectorDbServerResponse(BaseModel):
     user: str
     password: str
 
+
 class VectorDbTableColumn(BaseModel):
     name: str
     type: str
     constraints: Optional[List[str]] = None
 
+
 class VectorDbTableSchema(BaseModel):
     columns: List[VectorDbTableColumn]
+
 
 class TableInfo(BaseModel):
     name: str
     table_schema: VectorDbTableSchema = Field(alias="schema")
     numRows: int
 
+
 class BaseVectorDb:
     def __init__(self, client: GenericClient) -> None:
         self._client = client
 
-    def create(self,
+    def create(
+        self,
         show_progress: bool = True,
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> VectorDbServerResponse:
         raise NotImplementedError()
-    
+
     def delete(self) -> None:
         raise NotImplementedError
-    
+
     def stop(self) -> VectorDbServerResponse:
         raise NotImplementedError
-    
+
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
         raise NotImplementedError
-    
+
     def get_tables(self) -> List[TableInfo]:
         raise NotImplementedError
 
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
-    
+
 
 class IncompatibleVersionError(Exception):
     pass
