@@ -9,7 +9,7 @@ from rich.table import Column
 from rich.table import Table
 
 from anaconda_cli_base import console
-from .spec import AISpec, DEFAULT_TOML_PATH
+from .spec import AISpec, DEFAULT_SPEC_PATH
 from .clients import get_default_client
 from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
 from ._version import __version__
@@ -396,12 +396,12 @@ def create_table(
 
 
 @app.command("up")
-def spec_up(path: Path = typer.Option(default=DEFAULT_TOML_PATH)) -> None:
+def spec_up(path: Path = typer.Option(default=DEFAULT_SPEC_PATH)) -> None:
     spec = AISpec.load(path)
     spec.up()
 
 
 @app.command("down")
-def spec_down(path: Path = typer.Option(default=DEFAULT_TOML_PATH)) -> None:
+def spec_down(path: Path = typer.Option(default=DEFAULT_SPEC_PATH)) -> None:
     spec = AISpec.load(path)
     spec.down()

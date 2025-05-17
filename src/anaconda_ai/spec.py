@@ -13,10 +13,10 @@ from .clients import get_default_client
 from .clients.base import APIParams, LoadParams, InferParams
 from .clients.base import VectorDbTableSchema
 
-DEFAULT_TOML_PATH = Path("anaconda-ai.toml")
+DEFAULT_SPEC_PATH = Path("anaconda-ai.toml")
 
 
-class Inference(BaseModel):
+class Inference(BaseModel, extra="allow"):
     model: str
     api_params: Optional[APIParams] = None
     load_params: Optional[LoadParams] = None
@@ -44,15 +44,20 @@ class AISpec(BaseSettings, extra="ignore"):
         return (init_settings,)
 
     @classmethod
-    def load(cls, path: Path = DEFAULT_TOML_PATH) -> Self:
+    def load(cls, path: Path = DEFAULT_SPEC_PATH) -> Self:
         source = TomlConfigSettingsSource(cls, path)
         return cls(**source())
 
     def up(self) -> None:
         client = get_default_client()
 
-        for name, config in self.inference.items():
-            server = client.servers.create(**config.model_dump())
+        for name, server_config in self.inference.items():
+            server = client.servers.create(
+                model=server_config.model,
+                api_params=server_config.api_params,
+                infer_params=server_config.infer_params,
+                load_params=server_config.load_params,
+            )
             server.start(show_progress=True, leave_running=True)
 
         if self.vector_db:
@@ -66,7 +71,12 @@ class AISpec(BaseSettings, extra="ignore"):
         client = get_default_client()
 
         for server_config in self.inference.values():
-            server = client.servers.create(**server_config.model_dump())
+            server = client.servers.create(
+                model=server_config.model,
+                api_params=server_config.api_params,
+                infer_params=server_config.infer_params,
+                load_params=server_config.load_params,
+            )
             if server._matched:
                 server.stop()
 
