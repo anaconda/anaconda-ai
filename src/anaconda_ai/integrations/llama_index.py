@@ -65,8 +65,6 @@ class AnacondaModel(OpenAI):
         server.start()
         context_window = client.models.get(model).metadata.contextWindowSize
 
-        self._server_config = server.serverConfig
-
         super().__init__(
             model=server.serverConfig.modelFileName,
             api_key=server.api_key,
@@ -79,6 +77,8 @@ class AnacondaModel(OpenAI):
             is_function_calling_model=False,
             temperature=temperature,
         )
+
+        self._server_config = server.serverConfig
 
     @classmethod
     def load_from_spec(cls, key: str, path: Path = DEFAULT_SPEC_PATH) -> Self:
@@ -160,8 +160,6 @@ class AnacondaEmbedding(OpenAILikeEmbedding):
         )
         server.start()
 
-        self._server_config = server.serverConfig
-
         super().__init__(
             model_name=server.serverConfig.modelFileName,
             embed_batch_size=embed_batch_size,
@@ -176,9 +174,34 @@ class AnacondaEmbedding(OpenAILikeEmbedding):
             additional_kwargs=additional_kwargs,
         )
 
+        self._server_config = server.serverConfig
+
     @classmethod
     def class_name(cls) -> str:
         return "AnacondaEmbedding"
+
+    @classmethod
+    def load_from_spec(cls, key: str, path: Path = DEFAULT_SPEC_PATH) -> Self:
+        spec = AISpec.load(path)
+        if key not in spec.inference:
+            raise ValueError(f"The key {key} is not defined as an inference in {path}")
+
+        server_config = spec.inference[key]
+
+        embed_batch_size = getattr(server_config, "embed_batch_size", 10)
+        dimensions = getattr(server_config, "dimensions", 1024)
+        max_retries = getattr(server_config, "max_retries", 10)
+        timeout = getattr(server_config, "timeout", 60.0)
+
+        embed = cls(
+            model_name=server_config.model,
+            embed_batch_size=embed_batch_size,
+            dimensions=dimensions,
+            max_retries=max_retries,
+            timeout=timeout,
+        )
+
+        return embed
 
 
 class AnacondaVectorStore(PGVectorStore):
@@ -218,6 +241,9 @@ class AnacondaVectorStore(PGVectorStore):
             f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
         )
 
+        if table_name and "-" in table_name:
+            raise ValueError(f"Table name {table_name}, dashes are not allowed")
+
         super().__init__(
             connection_string=connection_string,
             async_connection_string=async_connection_string,
@@ -240,3 +266,41 @@ class AnacondaVectorStore(PGVectorStore):
     @classmethod
     def class_name(cls) -> str:
         return "AnacondaVectorStore"
+
+    @classmethod
+    def load_from_spec(cls, path: Path = DEFAULT_SPEC_PATH) -> Self:
+        spec = AISpec.load(path)
+
+        vector_db_config = spec.vector_db
+        if vector_db_config is None:
+            raise ValueError(f"No vector_db defined in {path}")
+
+        table_name = getattr(vector_db_config, "table_name", None)
+        schema_name = getattr(vector_db_config, "schema_name", None)
+        hybrid_search = getattr(vector_db_config, "hybrid_search", False)
+        text_search_config = getattr(vector_db_config, "text_search_config", "english")
+        embed_dim = getattr(vector_db_config, "embed_dim", 1024)
+        cache_ok = getattr(vector_db_config, "cache_ok", False)
+        perform_setup = getattr(vector_db_config, "perform_setup", True)
+        debug = getattr(vector_db_config, "debug", False)
+        use_jsonb = getattr(vector_db_config, "use_jsonb", False)
+        hnsw_kwargs = getattr(vector_db_config, "hnsw_kwargs", None)
+        use_halfvec = getattr(vector_db_config, "use_halfvec", False)
+        indexed_metadata_keys = getattr(vector_db_config, "indexed_metadata_keys", None)
+
+        vector_store = cls(
+            table_name=table_name,
+            schema_name=schema_name,
+            hybrid_search=hybrid_search,
+            text_search_config=text_search_config,
+            embed_dim=embed_dim,
+            cache_ok=cache_ok,
+            perform_setup=perform_setup,
+            debug=debug,
+            use_jsonb=use_jsonb,
+            hnsw_kwargs=hnsw_kwargs,
+            use_halfvec=use_halfvec,
+            indexed_metadata_keys=indexed_metadata_keys,
+        )
+
+        return vector_store
