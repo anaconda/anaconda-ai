@@ -1,0 +1,13 @@
+[inference.chat]
+model = "Mistral-7B-Instruct-v0.2/Q4_K_M"
+temperature = 0.1
+
+[inference.embed]
+load_params = {embedding = true, batch_size = 2048, ubatch_size = 1024, ctx_size = 4096}
+model = "Nomic-Embed-Text-v1.5/Q8_0"
+
+[vector_db]
+embed_dim = 768
+hybrid_search = true
+table_name = "my_agent_embedding_docs"
+use_jsonb = true

@@ -13,7 +13,8 @@ dependencies = [
   "openai",
   "platformdirs",
   "packaging",
-  "click <8.2"
+  "click <8.2",
+  "pydantic-settings"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
@@ -42,7 +43,12 @@ dev = [
 ]
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
-llama-index = ["llama-index-llms-openai"]
+llama-index = [
+  "llama-index-llms-openai",
+  "llama-index-embeddings-openai-like",
+  "llama-index-vector-stores-postgres",
+  "psycopg2"
+]
 llm = ["llm>=0.22"]
 panel = [
   "panel>=1.5.4; python_version >= '3.10'",
