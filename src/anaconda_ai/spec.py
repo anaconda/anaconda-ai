@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Type, Tuple, Optional, Dict
+from typing import Type, Tuple, Optional, Dict, List
 from typing_extensions import Self
 
 from pydantic import BaseModel
@@ -28,9 +28,8 @@ class VectorDBTable(BaseModel, extra="forbid"):
     table_schema: VectorDbTableSchema
 
 
-class VectorDB(BaseModel):
-    database: str
-    table: Optional[VectorDBTable] = None
+class VectorDB(BaseModel, extra="allow"):
+    create_tables: List[VectorDBTable] = []
 
 
 class AISpec(BaseSettings, extra="ignore"):
@@ -65,14 +64,15 @@ class AISpec(BaseSettings, extra="ignore"):
             )
             server.start(show_progress=True, leave_running=True)
 
-        if self.vector_db:
+        if self.vector_db is not None:
             vector_db = client.vector_db.create(show_progress=True, leave_running=True)
-            if vector_db.running and self.vector_db.table:
-                client.vector_db.create_table(
-                    self.vector_db.table.name, self.vector_db.table.table_schema
-                )
+            if not vector_db.running:
+                raise RuntimeError("Vector DB did not launch")
 
-    def down(self) -> None:
+            for table in self.vector_db.create_tables:
+                client.vector_db.create_table(table.name, table.table_schema)
+
+    def down(self, purge: bool = False) -> None:
         client = get_default_client()
 
         for server_config in self.inference.values():
@@ -85,7 +85,9 @@ class AISpec(BaseSettings, extra="ignore"):
             if server._matched:
                 server.stop()
 
-        if self.vector_db:
-            if self.vector_db.table:
-                client.vector_db.drop_table(self.vector_db.table.name)
+        if self.vector_db is not None:
             client.vector_db.stop()
+
+            if purge:
+                for table in self.vector_db.create_tables:
+                    client.vector_db.drop_table(table.name)
