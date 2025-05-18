@@ -199,6 +199,8 @@ class AnacondaEmbedding(OpenAILikeEmbedding):
             dimensions=dimensions,
             max_retries=max_retries,
             timeout=timeout,
+            api_params=server_config.api_params,
+            load_params=server_config.load_params,
         )
 
         return embed
