@@ -1,3 +1,5 @@
+import sys
+
 import requests
 from anaconda_ai.integrations.llama_index import (
     AnacondaModel,
@@ -34,7 +36,6 @@ index = VectorStoreIndex.from_documents(
 )
 query_engine = index.as_query_engine()
 
-response = query_engine.query(
-    "Load a model from Anaconda using langchain and set the temperature to 0.1"
-)
+query = sys.argv[1]
+response = query_engine.query(query)
 print(response.response)
