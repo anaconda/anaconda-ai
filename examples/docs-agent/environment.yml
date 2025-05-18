@@ -1,0 +1,11 @@
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - anaconda-cloud/label/dev::anaconda-ai=0.5.0a1
+  - llama-index
+  - llama-index-llms-openai
+  - llama-index-embeddings-openai-like
+  - llama-index-vector-stores-postgres
+  - psycopg2
