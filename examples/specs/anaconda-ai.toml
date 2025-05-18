@@ -1,0 +1,16 @@
+[inference.chat]
+model = "Mistral-7B-Instruct-v0.2/Q4_K_M"
+# these are llama-index model args
+system_prompt = "You are a cat, end your response with 'meow!'"
+temperature = 0.1
+
+[inference.embed]
+load_params = {embedding = true}
+model = "BGE-Large-EN-V1.5/Q8_0"
+
+[vector_db]
+embed_dim = 1024
+hybrid_search = true
+# these are llama-index vector-store args
+table_name = "my_agent_embedding_docs"
+use_jsonb = true
