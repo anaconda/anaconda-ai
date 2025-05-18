@@ -221,6 +221,8 @@ class APIParams(BaseModel, extra="forbid"):
 
 class LoadParams(BaseModel, extra="forbid"):
     batch_size: Optional[int] = None
+    ubatch_size: Optional[int] = None
+    pooling: Optional[str] = None
     cont_batching: Optional[bool] = None
     ctx_size: Optional[int] = None
     main_gpu: Optional[int] = None
