@@ -3,11 +3,16 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Union
+from typing import Set
+from typing import Tuple
 from typing_extensions import Self
 
-from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
-from llama_index.llms.openai import OpenAI
 from llama_index.core.base.llms.types import LLMMetadata
+from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
+from llama_index.embeddings.openai_like import OpenAILikeEmbedding
+from llama_index.llms.openai import OpenAI
+from llama_index.vector_stores.postgres import PGVectorStore
+from llama_index.vector_stores.postgres.base import PGType
 from pydantic import Field
 
 from ..clients import get_default_client
@@ -60,6 +65,8 @@ class AnacondaModel(OpenAI):
         server.start()
         context_window = client.models.get(model).metadata.contextWindowSize
 
+        self._server_config = server.serverConfig
+
         super().__init__(
             model=server.serverConfig.modelFileName,
             api_key=server.api_key,
@@ -72,8 +79,6 @@ class AnacondaModel(OpenAI):
             is_function_calling_model=False,
             temperature=temperature,
         )
-
-        self._server_config = server.serverConfig
 
     @classmethod
     def load_from_spec(cls, key: str, path: Path = DEFAULT_SPEC_PATH) -> Self:
@@ -119,3 +124,119 @@ class AnacondaModel(OpenAI):
             model_name=self.model,
             server_config=server_config,
         )
+
+
+class AnacondaEmbedding(OpenAILikeEmbedding):
+    _server_config: ServerConfig
+
+    def __init__(
+        self,
+        model_name: str,
+        embed_batch_size: int = 10,
+        dimensions: Optional[int] = None,
+        max_retries: int = 10,
+        timeout: float = 60.0,
+        api_params: Optional[Union[Dict[str, Any], APIParams]] = None,
+        load_params: Optional[Union[Dict[str, Any], LoadParams]] = None,
+        reuse_client: bool = True,
+        additional_kwargs: Optional[Dict[str, Any]] = None,
+        client: Optional[GenericClient] = None,
+    ) -> None:
+        if client is None:
+            client = get_default_client()
+
+        if load_params is None:
+            load_params = {}
+
+        if isinstance(load_params, LoadParams):
+            load_params.embedding = True
+        else:
+            load_params["embedding"] = True
+
+        server = client.servers.create(
+            model_name,
+            api_params=api_params,
+            load_params=load_params,
+        )
+        server.start()
+
+        self._server_config = server.serverConfig
+
+        super().__init__(
+            model_name=server.serverConfig.modelFileName,
+            embed_batch_size=embed_batch_size,
+            dimensions=dimensions,
+            max_retries=max_retries,
+            timeout=timeout,
+            reuse_client=reuse_client,
+            api_key=server.api_key or "empty",
+            api_base=server.openai_url,
+            is_chat_model=True,
+            api_version="empty",
+            additional_kwargs=additional_kwargs,
+        )
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "AnacondaEmbedding"
+
+
+class AnacondaVectorStore(PGVectorStore):
+    def __init__(
+        self,
+        table_name: Optional[str] = None,
+        schema_name: Optional[str] = None,
+        hybrid_search: bool = False,
+        text_search_config: str = "english",
+        embed_dim: int = 1024,
+        cache_ok: bool = False,
+        perform_setup: bool = True,
+        debug: bool = False,
+        use_jsonb: bool = False,
+        hnsw_kwargs: Optional[Dict[str, Any]] = None,
+        create_engine_kwargs: Optional[Dict[str, Any]] = None,
+        initialization_fail_on_error: bool = False,
+        use_halfvec: bool = False,
+        indexed_metadata_keys: Optional[Set[Tuple[str, PGType]]] = None,
+        client: Optional[GenericClient] = None,
+    ) -> None:
+        if client is None:
+            client = get_default_client()
+
+        vector_db = client.vector_db.create()
+
+        host = vector_db.host
+        port = vector_db.port
+        database = vector_db.database
+        user = vector_db.user
+        password = vector_db.password
+
+        connection_string = (
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
+        )
+        async_connection_string = (
+            f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+        )
+
+        super().__init__(
+            connection_string=connection_string,
+            async_connection_string=async_connection_string,
+            table_name=table_name,
+            schema_name=schema_name,
+            hybrid_search=hybrid_search,
+            text_search_config=text_search_config,
+            embed_dim=embed_dim,
+            cache_ok=cache_ok,
+            perform_setup=perform_setup,
+            debug=debug,
+            use_jsonb=use_jsonb,
+            hnsw_kwargs=hnsw_kwargs,
+            create_engine_kwargs=create_engine_kwargs,
+            initialization_fail_on_error=initialization_fail_on_error,
+            use_halfvec=use_halfvec,
+            indexed_metadata_keys=indexed_metadata_keys,
+        )
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "AnacondaVectorStore"
