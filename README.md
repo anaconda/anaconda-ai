@@ -24,11 +24,18 @@ Below you will find documentation for
 conda install -c anaconda-cloud anaconda-ai
 ```
 
-## Backend
+## Backends
 
-The backend for anaconda-ai is [Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator). This package
-package utilizes the backend API to list and download models and manage running servers. All activities performed
-by the CLI, SDK, and integrations here are visible within Anaconda AI Navigator.
+anaconda-ai supports multiple backends to provide the model catalog and operate servers.
+See the configuration section to change the default backend.
+
+Supported backends are:
+
+* `backend = "ai-navigator"`: [Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)
+  * This is the default backend
+* `backend = "ollama"`: [Ollama](https://ollama.com/)
+
+The backend application must be running to use anaconda-ai. All backends require an [Anaconda.com account](https://auth.anaconda.cloud/ui/registration?return_to=https://anaconda.cloud) to access the model catalog.
 
 ## Configuration
 
@@ -38,6 +45,7 @@ Anaconda AI supports configuration management in the `~/.anaconda/config.toml` f
 |Parameter|Environment variable|Description|Default value|
 |---------|--------------------|-----------|-------------|
 |`stop_server_on_exit`|`ANACONDA_AI_STOP_SERVER_ON_EXIT`|For any server started during a Python interpreter session stop the server when the interpreter stops. Does not affect servers that were previously running|`true`|
+|`backend`|`ANACONDA_AI_BACKEND`|The backend application|`"ai-navigator"`|
 
 ## Declaring model quantization files
 
