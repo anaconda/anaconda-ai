@@ -9,8 +9,8 @@ from rich.table import Table
 
 from anaconda_cli_base import console
 from .clients import get_default_client
-from .clients.base import GenericClient, ModelQuantization, Server
-
+from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
+from ._version import __version__
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
@@ -90,6 +90,17 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     table.add_row("Quantized Files", quantized)
     return table
 
+@app.command(name="version")
+def version() -> None:
+    """Version information of SDK and AI Navigator"""
+    console.print(f"SDK: {__version__}")
+
+    try:
+        client = get_default_client()
+        version = client.get_version()
+        console.print(version)
+    except Exception as e:
+        console.print("AI Navigator not found. Is it running?")
 
 @app.command(name="models")
 def models(
@@ -98,7 +109,7 @@ def models(
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
 ) -> None:
-    """Model model information"""
+    """Model information"""
     client = get_default_client()
     if model_id is None:
         renderable = _list_models(client)
@@ -311,3 +322,68 @@ def stop(
 ) -> None:
     client = get_default_client()
     client.servers.stop(server)
+
+
+@app.command("launch-vectordb")
+def launch_vector_db(
+) -> None:
+    """
+    Starts a vector db
+    """
+    client = get_default_client()
+    result = client.vector_db.create()
+    console.print(result)
+
+@app.command("delete-vectordb")
+def delete_vector_db(
+) -> None:
+    """
+    Deletes the vector db
+    """
+    client = get_default_client()
+    client.vector_db.delete()
+    console.print("Vector db deleted")
+
+@app.command("stop-vectordb")
+def stop_vector_db(
+) -> None:
+    """
+    Stops the vector db
+    """
+    client = get_default_client()
+    result = client.vector_db.stop()
+    console.print(result)
+
+@app.command("list-tables")
+def list_tables(
+) -> None:
+    """
+    Lists all tables in the vector db
+    """
+    client = get_default_client()
+    tables = client.vector_db.get_tables()
+    console.print(tables)
+
+@app.command("drop-table")
+def drop_table(
+    table: str = typer.Argument(help="Name of the table to drop"),
+) -> None:
+    """
+    Drops a table from the vector db
+    """
+    client = get_default_client()
+    client.vector_db.drop_table(table)
+    console.print(f"Table {table} dropped")
+
+@app.command("create-table")
+def create_table(
+    table: str = typer.Argument(help="Name of the table to create"),
+    schema: str = typer.Argument(help="Schema of the table to create"),
+) -> None:
+    """
+    Creates a table in the vector db
+    """
+    client = get_default_client()
+    validated_schema = VectorDbTableSchema.model_validate_json(schema)
+    client.vector_db.create_table(table, validated_schema)
+    console.print(f"Table {table} created")

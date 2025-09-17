@@ -11,11 +11,14 @@ from pydantic import SecretStr
 from pydantic import model_validator
 
 from ..clients import get_default_client
-from ..clients.base import Server, APIParams, LoadParams, InferParams
+from ..clients.base import GenericClient, Server, APIParams, LoadParams, InferParams
 
 
 def _prepare_model(
-    model_name: str, values: dict, embedding: Optional[bool] = None
+    model_name: str, 
+    values: dict,
+    embedding: Optional[bool] = None,
+    client: Optional[GenericClient] = None
 ) -> dict:
     api_params = values.get("api_params", {})
     load_params = values.get("load_params", {})
@@ -26,7 +29,9 @@ def _prepare_model(
     else:
         load_params["embedding"] = embedding
 
-    client = get_default_client()
+    if client is None:
+        client = get_default_client()
+
     server = client.servers.create(
         model=model_name,
         api_params=api_params,
@@ -112,7 +117,7 @@ class AnacondaQuantizedModelChat(BaseChatOpenAI):
         if not model_name:
             raise ValueError("model_name is required")
         else:
-            return _prepare_model(model_name, values)
+            return _prepare_model(model_name, values, client=values.get("client"))
 
     @property
     def _identifying_params(self) -> Dict[str, Any]:
@@ -141,4 +146,4 @@ class AnacondaQuantizedModelEmbeddings(OpenAIEmbeddings):
         if not model_name:
             raise ValueError("model_name is required")
         else:
-            return _prepare_model(model_name, values, embedding=True)
+            return _prepare_model(model_name, values, embedding=True, client=values.get("client"))

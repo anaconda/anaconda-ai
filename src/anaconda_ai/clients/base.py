@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 from typing import Union
+from requests import Response
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
@@ -23,6 +24,7 @@ from rich.console import Console
 from anaconda_cloud_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
+    AnacondaAIException,
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
@@ -37,11 +39,20 @@ MODEL_NAME = re.compile(
     flags=re.IGNORECASE,
 )
 
+class AiNavigatorVersion(BaseModel):
+    name: str
+    version: str
+    mambaVersion: str
+    llamaCppVersion: str
 
 class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
+    vector_db: "BaseVectorDb"
     _config: AnacondaAIConfig
+
+    def get_version(self) -> str:
+        raise NotImplementedError
 
 
 class ModelQuantization(BaseModel):
@@ -457,3 +468,54 @@ class BaseServers:
     def delete(self, server: Union[UUID4, Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._delete(server_id)
+
+class VectorDbServerResponse(BaseModel):
+    running: bool
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+
+class VectorDbTableColumn(BaseModel):
+    name: str
+    type: str
+    constraints: Optional[List[str]] = None
+
+class VectorDbTableSchema(BaseModel):
+    columns: List[VectorDbTableColumn]
+
+class TableInfo(BaseModel):
+    name: str
+    table_schema: VectorDbTableSchema = Field(alias="schema")
+    numRows: int
+
+class BaseVectorDb:
+    def __init__(self, client: GenericClient) -> None:
+        self._client = client
+
+    def create(self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None,
+        console: Optional[Console] = None,
+    ) -> VectorDbServerResponse:
+        raise NotImplementedError()
+    
+    def delete(self) -> None:
+        raise NotImplementedError
+    
+    def stop(self) -> VectorDbServerResponse:
+        raise NotImplementedError
+    
+    def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        raise NotImplementedError
+    
+    def get_tables(self) -> List[TableInfo]:
+        raise NotImplementedError
+
+    def drop_table(self, table: str) -> None:
+        raise NotImplementedError
+    
+
+class IncompatibleVersionError(Exception):
+    pass

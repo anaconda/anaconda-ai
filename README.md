@@ -77,6 +77,7 @@ download model files, start and stop servers through the backend.
 |launch|Launch a server for a model file|
 |servers|Show all running servers or detailed information about a single server|
 |stop|Stop a running server by id|
+|launch-vectordb|Starts a pg vector db|
 
 See the `--help` for each command for more details.
 
@@ -290,6 +291,14 @@ with client.servers.create('OpenHermes-2.5-Mistral-7B/Q4_K_M') as server:
 
 Each of  `.openai_client()` and `opeanai_async_client()` allow extra keyword parameters to pass to the
 client initialization.
+
+### Vector Db
+
+Creates a postgres vector db and returns the connection information.
+
+```text
+anaconda ai launch-vectordb
+```
 
 ## LLM
 

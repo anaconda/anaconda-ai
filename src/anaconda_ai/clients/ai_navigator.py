@@ -1,16 +1,23 @@
 from time import sleep, time
 from typing import Optional, Any, Union
-
+from anaconda_cli_base import console
+from packaging.version import parse
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
 from requests.exceptions import ConnectionError
 from rich.console import Console
 import rich.progress
+from rich.status import Status
 from urllib.parse import quote
 
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
+    AiNavigatorVersion,
+    BaseVectorDb,
+    IncompatibleVersionError,
+    VectorDbServerResponse,
+    TableInfo,
     GenericClient,
     ModelSummary,
     ModelQuantization,
@@ -18,10 +25,15 @@ from .base import (
     BaseServers,
     ServerConfig,
     Server,
+    VectorDbTableSchema,
 )
+from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
+MIN_AI_NAV_VERSION = "1.14.2"
+
+class ModelDownloadCancelledError(AnacondaAIException): ...
 
 
 class AINavigatorModels(BaseModels):
@@ -103,8 +115,6 @@ class AINavigatorModels(BaseModels):
                 res = self._client.get(url)
                 res.raise_for_status()
                 status = res.json()["data"]
-                if status["isDownloaded"]:
-                    break
 
                 download_status = status.get("downloadStatus", {})
                 if download_status.get("status", "") == "in_progress":
@@ -114,7 +124,12 @@ class AINavigatorModels(BaseModels):
                     progress_bar.update(task, completed=downloaded)
                     sleep(0.1)
                 else:
-                    break
+                    if not status["isDownloaded"]:
+                        raise ModelDownloadCancelledError(
+                            "The download process stopped."
+                        )
+                    else:
+                        break
 
     def _delete(
         self, model_summary: ModelSummary, quantization: ModelQuantization
@@ -183,6 +198,52 @@ class AINavigatorServers(BaseServers):
         res = self._client.delete(f"api/servers/{server_id}")
         res.raise_for_status()
 
+class AINavigatorVectorDbServer(BaseVectorDb):
+
+    def create(self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None, # TODO: Implement this
+        console: Optional[Console] = None,
+        ) -> VectorDbServerResponse:
+        """Create a vector database service.
+        
+        Returns:
+            dict: The vector database service information.
+        """
+        
+        text = f"Starting pg vector database"
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        with Status(text, console=console) as display:
+            res = self._client.post("api/vector-db")
+            text = "pg vector database started"
+            display.update(text)
+
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+
+        return VectorDbServerResponse(**res.json()["data"])
+    
+    def delete(self) -> None:
+        self._client.delete("api/vector-db")
+
+    def stop(self) -> VectorDbServerResponse:
+        res = self._client.patch("api/vector-db", json={"running": False})
+        return VectorDbServerResponse(**res.json()["data"])
+
+    def get_tables(self) -> list[TableInfo]:
+        res = self._client.get("api/vector-db/tables")
+        return [TableInfo(**t) for t in res.json()["data"]]
+    
+    def drop_table(self, table: str) -> None:
+        self._client.delete(f"api/vector-db/tables/{table}")
+
+    
+    def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        res = self._client.post(f"api/vector-db/tables", json={
+            "schema": schema.model_dump(),
+            "name": table
+        })
+     
 
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
@@ -216,6 +277,7 @@ class AINavigatorClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
+        self.vector_db = AINavigatorVectorDbServer(self)
         self.auth = AINavigatorAPIKey(self._config)
 
     def request(
@@ -226,10 +288,56 @@ class AINavigatorClient(GenericClient):
         **kwargs: Any,
     ) -> Response:
         try:
+            # to avoid recursive calls to the version check
+            if url != "api":
+                self.version_check()
+
             response = super().request(method, url, *args, **kwargs)
+            self.raise_for_status(response)
+
         except ConnectionError:
             raise RuntimeError(
-                "Could not connect to AI Navigator. It may not be running."
+                f"Could not connect to AI Navigator. It may not be running. Please ensure you have at least version {MIN_AI_NAV_VERSION} installed."
             )
 
         return response
+    
+    def version_check(self) -> None:
+        # ignore version check for ai-navigator-alpha
+        if self._config.backends.ai_navigator.app_name == "ai-navigator-alpha":
+            return
+        
+        ai_navigator_versions = self.get_ai_navigator_version()
+        if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
+            raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
+
+    def get_ai_navigator_version(self) -> AiNavigatorVersion:
+        res = self.get("api")
+        return AiNavigatorVersion(**res.json()["data"])
+    
+    def get_version(self) -> str:
+        ai_navigator_versions = self.get_ai_navigator_version()
+
+        warning = ""
+        try:
+            self.version_check()
+        except IncompatibleVersionError as e:
+            warning = f"Warning: {e}"
+
+        version_str = f"AI Navigator: {ai_navigator_versions.version}\n"\
+                f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
+                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"\
+                f"{warning}"
+        return version_str
+
+    def raise_for_status(self, response: Response) -> None:
+        if response.ok:
+            return
+        
+        error = None
+        try:
+            error = response.json()['error']
+        except:
+            response.raise_for_status()
+        
+        raise AnacondaAIException(error)

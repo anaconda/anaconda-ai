@@ -11,7 +11,9 @@ dependencies = [
   "typer",
   "ruamel.yaml",
   "openai",
-  "platformdirs"
+  "platformdirs",
+  "packaging",
+  "click <8.2"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
@@ -73,6 +75,7 @@ packages = ["src/anaconda_ai"]
 
 [tool.hatch.version]
 source = "vcs"
+raw-options.local_scheme = "no-local-version"
 
 [tool.mypy]
 disallow_untyped_defs = true
