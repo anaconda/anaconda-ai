@@ -1,22 +1,20 @@
 import atexit
 import re
-from enum import Enum
+import weakref
+import datetime as dt
 from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import List
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Type
 from typing import Union
-from requests import Response
 from typing_extensions import Self
 from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel, computed_field, field_validator, Field
+from pydantic import BaseModel, computed_field, model_validator, Field
 from pydantic.types import UUID4
 from rich.status import Status
 from rich.console import Console
@@ -24,7 +22,6 @@ from rich.console import Console
 from anaconda_cloud_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
-    AnacondaAIException,
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
@@ -39,11 +36,18 @@ MODEL_NAME = re.compile(
     flags=re.IGNORECASE,
 )
 
+
+def raises_(ex: Exception):
+    """Raises and exception"""
+    raise ex
+
+
 class AiNavigatorVersion(BaseModel):
     name: str
     version: str
     mambaVersion: str
     llamaCppVersion: str
+
 
 class GenericClient(BaseClient):
     models: "BaseModels"
@@ -55,70 +59,112 @@ class GenericClient(BaseClient):
         raise NotImplementedError
 
 
-class ModelQuantization(BaseModel):
-    id: str = Field(alias="sha256checksum")
-    modelFileName: str = Field(alias="name")
-    method: str = Field(alias="quantization")
-    sizeBytes: int
-    maxRamUsage: int
-    isDownloaded: bool = False
-    localPath: Optional[Path] = None
-    _client: GenericClient
+class Group(BaseModel):
+    id: int
+    name: str
+
+
+class Policy(BaseModel):
+    is_blocked: bool
+    allowed_groups: List[Any]
+
+
+class QuantizedFile(BaseModel):
+    file_uuid: UUID
+    model_uuid: UUID
+    file_type_id: Optional[str] = None
+    filename: Optional[str] = None
+    download_url: str  # Drop me later
+    sha256: str
+    size_bytes: int
+    generated_on: dt.datetime
+    published: bool
+    created_at: Optional[dt.datetime] = None
+    updated_at: Optional[dt.datetime] = None
+    format: str
+    quant_method: str
+    quant_engine: str
+    max_ram_usage: int
+    context_window_size: Optional[int]
+    estimated_n_cpus_req: Optional[int] = None
+    _model: "Model"
+
+    @property
+    def identifier(self) -> str:
+        return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
+
+    @property
+    def local_path(self) -> Path:
+        raise NotImplementedError
+
+    @property
+    def is_downloaded(self) -> bool:
+        raise NotImplementedError
 
     def download(
         self, show_progress: bool = True, console: Optional[Console] = None
     ) -> None:
-        self._client.models.download(self, show_progress=show_progress, console=console)
+        self._model._client.models.download(
+            self, show_progress=show_progress, console=console
+        )
 
     def delete(self) -> None:
-        self._client.models.delete(self)
+        self._model._client.models.delete(self)
 
 
-class TrainedFor(str, Enum):
-    sentence_similarity = "sentence-similarity"
-    text_generation = "text-generation"
-
-
-class ModelMetadata(BaseModel):
-    numParameters: int
-    contextWindowSize: int
-    trainedFor: TrainedFor
-    description: str
-    files: List[ModelQuantization]
-
-    @field_validator("files", mode="after")
-    @classmethod
-    def sort_quantizations(
-        cls, value: List[ModelQuantization]
-    ) -> List[ModelQuantization]:
-        return sorted(value, key=lambda q: q.method)
-
-
-class ModelSummary(BaseModel):
-    id: str
+class Tag(BaseModel):
+    id: int
     name: str
-    metadata: ModelMetadata
+
+
+class Model(BaseModel):
+    model_uuid: UUID
+    name: str
+    description: str
+    num_parameters: int
+    model_type: str
+    base_model: str
+    license: str
+    languages: List[str]
+    first_published: dt.datetime
+    trained_for: str
+    context_window_size: int
+    knowledge_cut_off: str
+    quantized_files: List[QuantizedFile]
+    groups: List[Group]
+    tags: List[Tag]
     _client: GenericClient
 
-    def get_quantization(self, method: str) -> ModelQuantization:
-        for quant in self.metadata.files:
-            if quant.method.lower() == method.lower():
-                quant._client = self._client
+    @model_validator(mode="after")
+    def add_model_weakref(self) -> Self:
+        for quant in self.quantized_files:
+            quant._model = weakref.proxy(self)
+        return self
+
+    def get_quantization(self, method: str) -> QuantizedFile:
+        for quant in self.quantized_files:
+            if quant.quant_method.lower() == method.lower():
                 return quant
         else:
             raise QuantizedFileNotFound(
                 f"Quantization {method} not found for {self.name}."
             )
 
+    def download(
+        self, method: str, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
+        quant = self.get_quantization(method)
+        quant.download(show_progress=show_progress, console=console)
+
 
 class BaseModels:
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def list(self) -> List[ModelSummary]:
+    def list(self) -> List[Model]:
         raise NotImplementedError
 
-    def get(self, model: str) -> ModelSummary:
+    def get(self, model: str) -> Model:
         match = MODEL_NAME.match(model)
         if match is None:
             raise ValueError(f"{model} does not look like a model name.")
@@ -130,9 +176,6 @@ class BaseModels:
             if entry.name.lower() == model_name.lower():
                 model_info = entry
                 break
-            elif entry.id.lower().endswith(model_name.lower()):
-                model_info = entry
-                break
         else:
             raise ModelNotFound(f"{model} was not found")
 
@@ -141,8 +184,7 @@ class BaseModels:
 
     def _download(
         self,
-        model_summary: ModelSummary,
-        quantization: ModelQuantization,
+        model_quantization: QuantizedFile,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
@@ -150,108 +192,61 @@ class BaseModels:
             "Downloading models is not available with this client"
         )
 
-    def _model_quant(
-        self, model: Union[str, ModelQuantization]
-    ) -> Tuple[ModelSummary, ModelQuantization]:
-        if isinstance(model, str):
-            match = MODEL_NAME.match(model)
-            if match is None:
-                raise ValueError(f"{model} does not look like a model name.")
+    def _find_quantization(self, model_quant_identifier: str) -> QuantizedFile:
+        match = MODEL_NAME.match(model_quant_identifier)
+        if match is None:
+            raise ValueError(
+                f"{model_quant_identifier} does not look like a model quantization identifier."
+            )
 
-            _, model_name, quant_method, _ = match.groups()
+        _, model_name, quant_method, _ = match.groups()
 
-            if quant_method is None:
-                raise ValueError(
-                    "You must include the quantization method in the model as <model>/<quantization>"
-                )
+        if quant_method is None:
+            raise ValueError(
+                "You must include the quantization method in the model as <model>/<quantization>"
+            )
 
-            model_info = self.get(model_name)
-            quantization = model_info.get_quantization(quant_method)
-        else:
-            model_info = self.get(model.modelFileName)
-            quantization = model
-
-        return model_info, quantization
+        model_info = self.get(model_name)
+        quantization = model_info.get_quantization(quant_method)
+        return quantization
 
     def download(
         self,
-        model: Union[str, ModelQuantization],
+        model_quantization: Union[str, QuantizedFile],
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
-        model_info, quantization = self._model_quant(model)
+        if isinstance(model_quantization, str):
+            model_quantization = self._find_quantization(model_quantization)
 
-        if quantization.isDownloaded and not force:
+        if model_quantization.is_downloaded and not force:
             return
 
         if force:
-            self.delete(model)
+            self.delete(model_quantization)
 
         self._download(
-            model_summary=model_info,
-            quantization=quantization,
+            model_quantization=model_quantization,
             show_progress=show_progress,
             console=console,
         )
 
-    def _delete(
-        self, model_summary: ModelSummary, quantization: ModelQuantization
-    ) -> None:
+    def _delete(self, model_quantization: QuantizedFile) -> None:
         raise NotImplementedError
 
-    def delete(self, model: Union[str, ModelQuantization]) -> None:
-        model_info, quantization = self._model_quant(model)
+    def delete(self, model_quantization: Union[str, QuantizedFile]) -> None:
+        if isinstance(model_quantization, str):
+            model_quantization = self._find_quantization(model_quantization)
 
-        self._delete(model_info, quantization)
-
-
-class APIParams(BaseModel, extra="forbid"):
-    host: Optional[str] = None
-    port: Optional[int] = None
-    api_key: Optional[str] = None
-    log_disable: Optional[bool] = None
-    mmproj: Optional[str] = None
-    timeout: Optional[int] = None
-    verbose: Optional[bool] = None
-    n_gpu_layers: Optional[int] = None
-    main_gpu: Optional[int] = None
-    metrics: Optional[bool] = None
-
-
-class LoadParams(BaseModel, extra="forbid"):
-    batch_size: Optional[int] = None
-    cont_batching: Optional[bool] = None
-    ctx_size: Optional[int] = None
-    main_gpu: Optional[int] = None
-    memory_f32: Optional[bool] = None
-    mlock: Optional[bool] = None
-    n_gpu_layers: Optional[int] = None
-    rope_freq_base: Optional[int] = None
-    rope_freq_scale: Optional[int] = None
-    seed: Optional[int] = None
-    tensor_split: Optional[List[Union[int, float]]] = None
-    use_mmap: Optional[bool] = None
-    embedding: Optional[bool] = None
-
-
-class InferParams(BaseModel, extra="forbid"):
-    threads: Optional[int] = None
-    n_predict: Optional[int] = None
-    top_k: Optional[int] = None
-    top_p: Optional[float] = None
-    min_p: Optional[float] = None
-    repeat_last: Optional[int] = None
-    repeat_penalty: Optional[float] = None
-    temp: Optional[float] = None
-    parallel: Optional[int] = None
+        self._delete(model_quantization)
 
 
 class ServerConfig(BaseModel):
     modelFileName: str
-    apiParams: APIParams = APIParams()
-    loadParams: LoadParams = LoadParams()
-    inferParams: InferParams = InferParams()
+    # apiParams: APIParams = APIParams()
+    # loadParams: LoadParams = LoadParams()
+    # inferParams: InferParams = InferParams()
     logsDir: str = "./logs"
 
 
@@ -331,7 +326,8 @@ class Server(BaseModel):
     @computed_field  # type: ignore[misc]
     @property
     def url(self) -> str:
-        return f"http://{self.serverConfig.apiParams.host}:{self.serverConfig.apiParams.port}"
+        return ""
+        # return f"http://{self.serverConfig.apiParams.host}:{self.serverConfig.apiParams.port}"
 
     @computed_field  # type: ignore[misc]
     @property
@@ -385,10 +381,10 @@ class BaseServers:
 
     def create(
         self,
-        model: Union[str, ModelQuantization],
-        api_params: Optional[Union[APIParams, Dict[str, Any]]] = None,
-        load_params: Optional[Union[LoadParams, Dict[str, Any]]] = None,
-        infer_params: Optional[Union[InferParams, Dict[str, Any]]] = None,
+        model: Union[str, QuantizedFile],
+        # api_params: Optional[Union[APIParams, Dict[str, Any]]] = None,
+        # load_params: Optional[Union[LoadParams, Dict[str, Any]]] = None,
+        # infer_params: Optional[Union[InferParams, Dict[str, Any]]] = None,
         download_if_needed: bool = True,
     ) -> Server:
         if isinstance(model, str):
@@ -408,7 +404,7 @@ class BaseServers:
 
             model_summary = self._client.models.get(model_name)
             model = model_summary.get_quantization(quantization)
-        elif isinstance(model, ModelQuantization):
+        elif isinstance(model, QuantizedFile):
             pass
         else:
             raise ValueError(
@@ -421,15 +417,15 @@ class BaseServers:
             else:
                 self._client.models.download(model)
 
-        apiParams = api_params if api_params else APIParams()
-        loadParams = load_params if load_params else LoadParams()
-        inferParams = infer_params if infer_params else InferParams()
+        # apiParams = api_params if api_params else APIParams()
+        # loadParams = load_params if load_params else LoadParams()
+        # inferParams = infer_params if infer_params else InferParams()
 
         server_config = ServerConfig(
-            modelFileName=model.modelFileName,
-            apiParams=apiParams,  # type: ignore
-            loadParams=loadParams,  # type: ignore
-            inferParams=inferParams,  # type: ignore
+            modelFileName=model.filename,
+            # apiParams=apiParams,  # type: ignore
+            # loadParams=loadParams,  # type: ignore
+            # inferParams=inferParams,  # type: ignore
         )
 
         matched = self.match(server_config)
@@ -469,6 +465,7 @@ class BaseServers:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 
+
 class VectorDbServerResponse(BaseModel):
     running: bool
     host: str
@@ -477,45 +474,50 @@ class VectorDbServerResponse(BaseModel):
     user: str
     password: str
 
+
 class VectorDbTableColumn(BaseModel):
     name: str
     type: str
     constraints: Optional[List[str]] = None
 
+
 class VectorDbTableSchema(BaseModel):
     columns: List[VectorDbTableColumn]
+
 
 class TableInfo(BaseModel):
     name: str
     table_schema: VectorDbTableSchema = Field(alias="schema")
     numRows: int
 
+
 class BaseVectorDb:
     def __init__(self, client: GenericClient) -> None:
         self._client = client
 
-    def create(self,
+    def create(
+        self,
         show_progress: bool = True,
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> VectorDbServerResponse:
         raise NotImplementedError()
-    
+
     def delete(self) -> None:
         raise NotImplementedError
-    
+
     def stop(self) -> VectorDbServerResponse:
         raise NotImplementedError
-    
+
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
         raise NotImplementedError
-    
+
     def get_tables(self) -> List[TableInfo]:
         raise NotImplementedError
 
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
-    
+
 
 class IncompatibleVersionError(Exception):
     pass
