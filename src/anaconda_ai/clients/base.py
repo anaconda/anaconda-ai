@@ -96,10 +96,13 @@ class QuantizedFile(BaseModel):
         raise NotImplementedError
 
     def download(
-        self, show_progress: bool = True, console: Optional[Console] = None
+        self,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+        path: Optional[Union[Path, str]] = None,
     ) -> None:
         self._model._client.models.download(
-            self, show_progress=show_progress, console=console
+            self, show_progress=show_progress, console=console, path=path
         )
 
     def delete(self) -> None:
@@ -148,10 +151,14 @@ class Model(BaseModel):
             )
 
     def download(
-        self, method: str, show_progress: bool = True, console: Optional[Console] = None
+        self,
+        method: str,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+        path: Optional[Union[Path, str]] = None,
     ) -> None:
         quant = self.get_quantization(method)
-        quant.download(show_progress=show_progress, console=console)
+        quant.download(show_progress=show_progress, console=console, path=path)
 
 
 class BaseModels:
@@ -213,21 +220,25 @@ class BaseModels:
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
+        path: Optional[Union[Path, str]] = None,
     ) -> None:
         if isinstance(model_quantization, str):
             model_quantization = self._find_quantization(model_quantization)
 
-        if model_quantization.is_downloaded and not force:
-            return
-
         if force:
             self.delete(model_quantization)
 
-        self._download(
-            model_quantization=model_quantization,
-            show_progress=show_progress,
-            console=console,
-        )
+        if not model_quantization.is_downloaded:
+            self._download(
+                model_quantization=model_quantization,
+                show_progress=show_progress,
+                console=console,
+            )
+
+        if path is not None:
+            path = Path(path)
+            path.unlink(missing_ok=True)
+            model_quantization.local_path.link_to(path)
 
     def _delete(self, model_quantization: QuantizedFile) -> None:
         raise NotImplementedError

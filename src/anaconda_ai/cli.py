@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 from typing import Optional
 
@@ -136,10 +137,16 @@ def download(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(help="Hard-link model file to this path after download"),
+    ] = None,
 ) -> None:
     """Download a model"""
     client = make_client(backend)
-    client.models.download(model, show_progress=True, force=force, console=console)
+    client.models.download(
+        model, show_progress=True, force=force, console=console, path=output
+    )
     console.print("[green]Success[/green]")
 
 
