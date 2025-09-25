@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any, Dict, Optional, Union, List
 
 import requests
@@ -66,7 +65,8 @@ class AICatalogModels(_AICatalogModels):
 
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
         ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
-        model_quantization.local_path.link_to(ollama_model_path)
+        if not ollama_model_path.exists():
+            model_quantization.local_path.link_to(ollama_model_path)
 
         self._client.servers.create(model_quantization)
 
@@ -166,15 +166,15 @@ class OllamaServers(BaseServers):
         server_config = config.backends.ollama.servers_path / f"{server_id}.json"
         if not server_config.exists():
             return
-        else:
-            server = Server(**json.loads(server_config.read_text()))
+
+        server = Server(**json.loads(server_config.read_text()))
 
         body = {"model": server.serverConfig.model_name, "keep_alive": 0}
         res = self._ollama_session.post(
             urljoin(self._ollama_session.base_url, "api/generate"), json=body
         )
         res.raise_for_status()
-        os.remove(server_config)
+        server_config.unlink()
 
     def _delete(self, server_id: str) -> None:
         self._stop(server_id)

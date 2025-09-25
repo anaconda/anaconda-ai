@@ -382,9 +382,6 @@ class BaseServers:
     def create(
         self,
         model: Union[str, QuantizedFile],
-        # api_params: Optional[Union[APIParams, Dict[str, Any]]] = None,
-        # load_params: Optional[Union[LoadParams, Dict[str, Any]]] = None,
-        # infer_params: Optional[Union[InferParams, Dict[str, Any]]] = None,
         download_if_needed: bool = True,
     ) -> Server:
         if isinstance(model, str):
