@@ -65,19 +65,26 @@ class AICatalogModels(_AICatalogModels):
 
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
         ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
-        if not ollama_model_path.exists():
-            model_quantization.local_path.link_to(ollama_model_path)
+        ollama_model_path.unlink(missing_ok=True)
+        model_quantization.local_path.link_to(ollama_model_path)
 
         self._client.servers.create(model_quantization)
 
     def _delete(self, model_quantization: AICatalogQuantizedFile) -> None:
+        ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
+        ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
+
         res = self._ollama_session.delete(
             urljoin(self._ollama_session.base_url, "api/delete"),
             json={"model": model_quantization.identifier},
         )
-        if res.status_code == 404 and model_quantization.local_path:
-            model_quantization.local_path.unlink()
+        if res.status_code == 404 and (
+            ollama_model_path.exists() or model_quantization.local_path.exists()
+        ):
+            ollama_model_path.unlink(missing_ok=True)
+            model_quantization.local_path.unlink(missing_ok=True)
             return
+
         res.raise_for_status()
 
 
