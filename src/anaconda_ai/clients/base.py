@@ -243,10 +243,6 @@ class ServerConfig(BaseModel):
     model_name: str
     host: Optional[str] = None
     port: Optional[int] = None
-    # apiParams: APIParams = APIParams()
-    # loadParams: LoadParams = LoadParams()
-    # inferParams: InferParams = InferParams()
-    # logsDir: str = "./logs"
 
 
 class Server(BaseModel):
@@ -365,11 +361,11 @@ class BaseServers:
         raise NotImplementedError
 
     def match(self, server_config: ServerConfig) -> Union[Server, None]:
-        exclude = {"apiParams": {"host", "port", "api_key"}}
+        excludes = {"host", "port"}
         servers = self.list()
         for server in servers:
-            config_dump = server_config.model_dump(exclude=exclude)
-            server_dump = server.serverConfig.model_dump(exclude=exclude)
+            config_dump = server_config.model_dump(exclude=excludes)
+            server_dump = server.serverConfig.model_dump(exclude=excludes)
             if server.is_running and (config_dump == server_dump):
                 server._matched = True
                 return server
@@ -413,15 +409,8 @@ class BaseServers:
             else:
                 self._client.models.download(model)
 
-        # apiParams = api_params if api_params else APIParams()
-        # loadParams = load_params if load_params else LoadParams()
-        # inferParams = infer_params if infer_params else InferParams()
-
         server_config = ServerConfig(
             model_name=model.identifier,
-            # apiParams=apiParams,  # type: ignore
-            # loadParams=loadParams,  # type: ignore
-            # inferParams=inferParams,  # type: ignore
         )
 
         matched = self.match(server_config)
@@ -513,7 +502,3 @@ class BaseVectorDb:
 
     def drop_table(self, table: str) -> None:
         raise NotImplementedError
-
-
-class IncompatibleVersionError(Exception):
-    pass
