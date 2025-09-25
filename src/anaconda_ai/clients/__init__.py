@@ -1,19 +1,21 @@
-from typing import Any
+from typing import Any, Optional
 
 from ..config import AnacondaAIConfig
-from .ai_navigator import AINavigatorClient
-from .ollama import OllamaClient
 from .base import GenericClient
+from .ai_catalog import AICatalogClient
+from .ollama import OllamaClient
+
+clients = {"ai-catalog": AICatalogClient, "ollama": OllamaClient}
 
 
-def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
-    config = AnacondaAIConfig()
-    if config.backend == "ai-navigator":
-        return AINavigatorClient(*args, **kwargs)
-    elif config.backend == "ollama":
-        return OllamaClient(*args, **kwargs)
+def make_client(
+    backend: Optional[str] = None, site: Optional[str] = None, **kwargs: Any
+) -> GenericClient:
+    if backend is None:
+        config = AnacondaAIConfig()
+        return clients[config.backend](**kwargs)
     else:
-        raise ValueError(f"{config.backend} is not supported")
+        return clients[backend](**kwargs)
 
 
-__all__ = ["AINavigatorClient", "OllamaClient", "get_default_client"]
+__all__ = ["make_client"]

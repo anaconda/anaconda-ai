@@ -1,6 +1,5 @@
 import atexit
 import re
-import weakref
 import datetime as dt
 from pathlib import Path
 from types import TracebackType
@@ -37,16 +36,9 @@ MODEL_NAME = re.compile(
 )
 
 
-def raises_(ex: Exception):
+def raises(ex: Exception):
     """Raises and exception"""
     raise ex
-
-
-class AiNavigatorVersion(BaseModel):
-    name: str
-    version: str
-    mambaVersion: str
-    llamaCppVersion: str
 
 
 class GenericClient(BaseClient):
@@ -89,10 +81,12 @@ class QuantizedFile(BaseModel):
     estimated_n_cpus_req: Optional[int] = None
     _model: "Model"
 
+    @computed_field
     @property
     def identifier(self) -> str:
         return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
+    @computed_field
     @property
     def local_path(self) -> Path:
         raise NotImplementedError
@@ -136,9 +130,12 @@ class Model(BaseModel):
     _client: GenericClient
 
     @model_validator(mode="after")
-    def add_model_weakref(self) -> Self:
+    def refined_quantized_list(self) -> Self:
         for quant in self.quantized_files:
-            quant._model = weakref.proxy(self)
+            quant._model = self
+        self.quantized_files = sorted(
+            self.quantized_files, key=lambda q: q.quant_method
+        )
         return self
 
     def get_quantization(self, method: str) -> QuantizedFile:
@@ -243,15 +240,17 @@ class BaseModels:
 
 
 class ServerConfig(BaseModel):
-    modelFileName: str
+    model_name: str
+    host: Optional[str] = None
+    port: Optional[int] = None
     # apiParams: APIParams = APIParams()
     # loadParams: LoadParams = LoadParams()
     # inferParams: InferParams = InferParams()
-    logsDir: str = "./logs"
+    # logsDir: str = "./logs"
 
 
 class Server(BaseModel):
-    id: UUID4
+    id: Union[UUID4, str]
     serverConfig: ServerConfig
     api_key: Optional[str] = "empty"
     _client: GenericClient
@@ -280,18 +279,18 @@ class Server(BaseModel):
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> None:
-        text = f"{self.serverConfig.modelFileName} (creating)"
+        text = f"{self.serverConfig.model_name} (creating)"
         console = Console() if console is None else console
         console.quiet = not show_progress
         with Status(text, console=console) as display:
             self._client.servers.start(self)
             status = "starting"
-            text = f"{self.serverConfig.modelFileName} ({status})"
+            text = f"{self.serverConfig.model_name} ({status})"
             display.update(text)
 
             while status != "running":
                 status = self._client.servers.status(self)
-                text = f"{self.serverConfig.modelFileName} ({status})"
+                text = f"{self.serverConfig.model_name} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
@@ -313,21 +312,20 @@ class Server(BaseModel):
     ) -> None:
         console = Console() if console is None else console
         console.quiet = not show_progress
-        text = f"{self.serverConfig.modelFileName} (stopping)"
+        text = f"{self.serverConfig.model_name} (stopping)"
         with Status(text, console=console) as display:
             status = "stopping"
             self._client.servers.stop(self.id)
             while status != "stopped":
                 status = self._client.servers.status(self)
-                text = f"{self.serverConfig.modelFileName} ({status})"
+                text = f"{self.serverConfig.model_name} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
     @computed_field  # type: ignore[misc]
     @property
     def url(self) -> str:
-        return ""
-        # return f"http://{self.serverConfig.apiParams.host}:{self.serverConfig.apiParams.port}"
+        return f"http://{self.serverConfig.host}:{self.serverConfig.port}"
 
     @computed_field  # type: ignore[misc]
     @property
@@ -346,6 +344,8 @@ class Server(BaseModel):
 
 
 class BaseServers:
+    always_detach: bool = False
+
     def __init__(self, client: GenericClient):
         self._client = client
 
@@ -402,8 +402,7 @@ class BaseServers:
                     "You must provide a quantization level in the model name as <model>/<quant>"
                 )
 
-            model_summary = self._client.models.get(model_name)
-            model = model_summary.get_quantization(quantization)
+            model = self._client.models.get(model_name).get_quantization(quantization)
         elif isinstance(model, QuantizedFile):
             pass
         else:
@@ -411,7 +410,7 @@ class BaseServers:
                 f"model={model} of type {type(model)} is not a supported way to specify a model."
             )
 
-        if not model.isDownloaded:
+        if not model.is_downloaded:
             if not download_if_needed:
                 raise ModelNotDownloadedError(f"{model} has not been downloaded")
             else:
@@ -422,7 +421,7 @@ class BaseServers:
         # inferParams = infer_params if infer_params else InferParams()
 
         server_config = ServerConfig(
-            modelFileName=model.filename,
+            model_name=model.identifier,
             # apiParams=apiParams,  # type: ignore
             # loadParams=loadParams,  # type: ignore
             # inferParams=inferParams,  # type: ignore

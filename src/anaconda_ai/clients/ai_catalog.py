@@ -68,7 +68,10 @@ class AICatalogQuantizedFile(QuantizedFile):
 
     @property
     def is_downloaded(self) -> bool:
-        return self.local_path.exists()
+        return (
+            self.local_path.exists()
+            and self.local_path.stat().st_size == self.size_bytes
+        )
 
 
 class AICatalogModel(Model):
@@ -96,45 +99,6 @@ class AICatalogModels(BaseModels):
                 )
         return models
 
-        # models: List[ModelSummary] = []
-        # for model in data:
-        #     summary = dict(
-        #         id=model["name"],
-        #         uuid=model["model_uuid"],
-        #         name=model["name"],
-        #         metadata=dict(
-        #             numParameters=model["num_parameters"],
-        #             contextWindowSize=model["context_window_size"],
-        #             trainedFor=model["trained_for"],
-        #             description=model["description"],
-        #             files=[],
-        #         ),
-        #     )
-        #     for quant in model["quantized_files"]:
-        #         filename = (
-        #             f"{model['name']}_{quant['quant_method']}.{quant['format'].lower()}"
-        #         )
-        #         path = self._quant_local_path(quant)
-        #         file = dict(
-        #             uuid=quant["file_uuid"],
-        #             sha256checksum=quant["sha256"],
-        #             name=filename,
-        #             quantization=quant["quant_method"],
-        #             sizeBytes=quant["size_bytes"],
-        #             maxRamUsage=quant["max_ram_usage"],
-        #             localPath=path,
-        #             published=quant["published"],
-        #             downloadUrl=quant["download_url"]
-        #         )
-
-        #         if path.exists() and (os.stat(path).st_size == quant["size_bytes"]):
-        #             file["isDownloaded"] = True
-
-        #         summary["metadata"]["files"].append(file)
-
-        #     models.append(ModelSummary(**summary))
-        # return models
-
     def _download(
         self,
         model_quantization: QuantizedFile,
@@ -148,11 +112,12 @@ class AICatalogModels(BaseModels):
             raise RuntimeError(
                 f"Cannot find download url for {model_quantization.identifier}"
             )
-        response = self._client.get(model_quantization.download_url, stream=True)
 
+        response = self._client.get(model_quantization.download_url, stream=True)
         # download_url = f"api/ai/model/models/{model_quantization._model.model_uuid}/files/{model_quantization.file_uuid}/download"
         # response = self._client.get(download_url, params={"redirect": False}, stream=True)
-        # response.raise_for_status()
+
+        response.raise_for_status()
 
         console = Console() if console is None else console
         stream_progress = rich.progress.Progress(
