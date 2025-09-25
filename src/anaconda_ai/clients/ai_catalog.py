@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Union, Dict, Any
 
@@ -61,6 +62,8 @@ def http_error(e: HTTPError) -> int:
 
 
 class AICatalogQuantizedFile(QuantizedFile):
+    download_url: Optional[str] = None
+
     @property
     def local_path(self) -> Path:
         models_path = AnacondaAIConfig().backends.ai_catalog.models_path
@@ -82,6 +85,7 @@ class AICatalogModels(BaseModels):
     def __init__(self, client: GenericClient):
         super().__init__(client)
 
+    @lru_cache
     def list(self) -> List[AICatalogModel]:
         response = self._client.get("/api/ai/model/org/models/model-data")
         # response = self._client.get("/api/ai/model/models")
@@ -92,6 +96,7 @@ class AICatalogModels(BaseModels):
         for model in data:
             try:
                 entry = AICatalogModel(**model)
+                entry._client = self._client
                 models.append(entry)
             except ValidationError as e:
                 raise ValueError(
@@ -101,7 +106,7 @@ class AICatalogModels(BaseModels):
 
     def _download(
         self,
-        model_quantization: QuantizedFile,
+        model_quantization: AICatalogQuantizedFile,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
