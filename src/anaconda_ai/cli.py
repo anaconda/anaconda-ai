@@ -271,6 +271,7 @@ def stop(
 ) -> None:
     client = make_client(backend)
     client.servers.stop(server)
+    client.servers.delete(server)
 
 
 @app.command("launch-vectordb")
