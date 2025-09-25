@@ -255,7 +255,9 @@ def servers(
 
         params = server.serverConfig.model_dump_json(
             indent=2,
-            exclude={"model_name", "host", "port"},
+            exclude={
+                "model_name",
+            },
             exclude_none=True,
             exclude_defaults=True,
         )

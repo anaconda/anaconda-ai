@@ -13,12 +13,12 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
-from pydantic import BaseModel, computed_field, model_validator, Field
+from pydantic import BaseModel, computed_field, model_validator, Field, PrivateAttr
 from pydantic.types import UUID4
 from rich.status import Status
 from rich.console import Console
 
-from anaconda_cloud_auth.client import BaseClient
+from anaconda_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
     ModelNotFound,
@@ -45,7 +45,7 @@ class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
-    _config: AnacondaAIConfig
+    _config: AnacondaAIConfig = PrivateAttr()
 
     def get_version(self) -> str:
         raise NotImplementedError
@@ -66,7 +66,6 @@ class QuantizedFile(BaseModel):
     model_uuid: UUID
     file_type_id: Optional[str] = None
     filename: Optional[str] = None
-    download_url: str  # Drop me later
     sha256: str
     size_bytes: int
     generated_on: dt.datetime
@@ -79,7 +78,7 @@ class QuantizedFile(BaseModel):
     max_ram_usage: int
     context_window_size: Optional[int]
     estimated_n_cpus_req: Optional[int] = None
-    _model: "Model"
+    _model: "Model" = PrivateAttr()
 
     @computed_field
     @property
@@ -130,7 +129,7 @@ class Model(BaseModel):
     quantized_files: List[QuantizedFile]
     groups: List[Group]
     tags: List[Tag]
-    _client: GenericClient
+    _client: GenericClient = PrivateAttr()
 
     @model_validator(mode="after")
     def refined_quantized_list(self) -> Self:
@@ -252,16 +251,14 @@ class BaseModels:
 
 class ServerConfig(BaseModel):
     model_name: str
-    host: Optional[str] = None
-    port: Optional[int] = None
 
 
 class Server(BaseModel):
     id: Union[UUID4, str]
     serverConfig: ServerConfig
     api_key: Optional[str] = "empty"
-    _client: GenericClient
-    _matched: bool = False
+    _client: GenericClient = PrivateAttr()
+    _matched: bool = PrivateAttr(default=False)
 
     @property
     def status(self) -> str:
@@ -332,7 +329,7 @@ class Server(BaseModel):
     @computed_field  # type: ignore[misc]
     @property
     def url(self) -> str:
-        return f"http://{self.serverConfig.host}:{self.serverConfig.port}"
+        raise NotImplementedError()
 
     @computed_field  # type: ignore[misc]
     @property
@@ -371,8 +368,9 @@ class BaseServers:
     def list(self) -> List[Server]:
         raise NotImplementedError
 
-    def match(self, server_config: ServerConfig) -> Union[Server, None]:
-        excludes = {"host", "port"}
+    def match(
+        self, server_config: ServerConfig, excludes: Optional[set] = None
+    ) -> Union[Server, None]:
         servers = self.list()
         for server in servers:
             config_dump = server_config.model_dump(exclude=excludes)

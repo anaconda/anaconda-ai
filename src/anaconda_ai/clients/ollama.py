@@ -1,12 +1,13 @@
-import json
 from typing import Any, Dict, Optional, Union, List
 
 import requests
+from pydantic import computed_field
 from requests.exceptions import ConnectionError
 from rich.console import Console
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from ..config import AnacondaAIConfig
+from ..exceptions import AssetNotFound
 from .base import (
     GenericClient,
     QuantizedFile,
@@ -78,14 +79,18 @@ class AICatalogModels(_AICatalogModels):
             urljoin(self._ollama_session.base_url, "api/delete"),
             json={"model": model_quantization.identifier},
         )
-        if res.status_code == 404 and (
-            ollama_model_path.exists() or model_quantization.local_path.exists()
-        ):
-            ollama_model_path.unlink(missing_ok=True)
-            model_quantization.local_path.unlink(missing_ok=True)
-            return
+        if res.status_code > 404:
+            res.raise_for_status()
 
-        res.raise_for_status()
+        ollama_model_path.unlink(missing_ok=True)
+        model_quantization.local_path.unlink(missing_ok=True)
+
+
+class OllamaServer(Server):
+    @computed_field  # type: ignore[misc]
+    @property
+    def url(self) -> str:
+        return AnacondaAIConfig().backends.ollama.ollama_base_url
 
 
 class OllamaServers(BaseServers):
@@ -95,33 +100,34 @@ class OllamaServers(BaseServers):
         super().__init__(client)
         self._ollama_session = ollama_session
 
-    def list(self) -> List[Server]:
-        config = AnacondaAIConfig()
-
-        saved_server_configs: Dict[str, Server] = {}
-        for fn in config.backends.ollama.servers_path.glob("*.json"):
-            with fn.open() as f:
-                server = Server(**json.load(f))
-                server._client = self._client
-                saved_server_configs[server.serverConfig.model_name] = server
-
+    def _get_available_ollama_models(self) -> List[str]:
         res = self._ollama_session.get(
             urljoin(self._ollama_session.base_url, "api/tags")
         )
         res.raise_for_status()
         data: List[Dict[str, str]] = res.json()["models"]
+        return [model["name"].rsplit(":", maxsplit=1)[0] for model in data]
 
-        servers: List[Server] = []
-        for server_entry in data:
-            model = server_entry["name"].rsplit(":", maxsplit=1)[0]
-            if model not in saved_server_configs:
+    def list(self) -> List[OllamaServer]:
+        active_models = self._get_available_ollama_models()
+
+        servers = []
+        for model in active_models:
+            try:
+                quant = self._client.models._find_quantization(model)
+                assert quant.identifier == model
+                server_config = OllamaServer(
+                    id=quant.identifier,
+                    serverConfig=ServerConfig(model_name=quant.identifier),
+                )
+                server_config._client = self._client
+                servers.append(server_config)
+            except AssetNotFound:
                 continue
 
-            matched = saved_server_configs[model]
-            servers.append(matched)
         return servers
 
-    def _create(self, server_config: ServerConfig) -> Server:
+    def _create(self, server_config: ServerConfig) -> OllamaServer:
         match = MODEL_NAME.match(server_config.model_name)
         if match is None:
             raise ValueError(
@@ -139,28 +145,17 @@ class OllamaServers(BaseServers):
         res = self._ollama_session.post(url, json=body)
         res.raise_for_status()
 
-        parsed = urlparse(self._ollama_session.base_url)
-        server_config.host = parsed.hostname or "localhost"
-        server_config.port = parsed.port or 11434
-        server_entry = Server(
+        server_entry = OllamaServer(
             id=server_config.model_name,
             serverConfig=server_config,
-            _client=self._client,
         )
-        config = AnacondaAIConfig()
-        config.backends.ollama.servers_path.mkdir(parents=True, exist_ok=True)
-
-        server_file = (
-            config.backends.ollama.servers_path / f"{server_config.model_name}.json"
-        )
-        server_file.write_text(server_entry.model_dump_json(indent=2))
+        server_entry._client = self._client
 
         return server_entry
 
     def _status(self, server_id: str) -> str:
-        config = AnacondaAIConfig()
-        server_config = config.backends.ollama.servers_path / f"{server_id}.json"
-        if server_config.exists():
+        available_models = self._get_available_ollama_models()
+        if server_id in available_models:
             return "running"
         else:
             return "stopped"
@@ -169,19 +164,11 @@ class OllamaServers(BaseServers):
         pass
 
     def _stop(self, server_id: str) -> None:
-        config = AnacondaAIConfig()
-        server_config = config.backends.ollama.servers_path / f"{server_id}.json"
-        if not server_config.exists():
-            return
-
-        server = Server(**json.loads(server_config.read_text()))
-
-        body = {"model": server.serverConfig.model_name, "keep_alive": 0}
+        body = {"model": server_id, "keep_alive": 0}
         res = self._ollama_session.post(
             urljoin(self._ollama_session.base_url, "api/generate"), json=body
         )
         res.raise_for_status()
-        server_config.unlink()
 
     def _delete(self, server_id: str) -> None:
         self._stop(server_id)
