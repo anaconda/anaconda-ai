@@ -3,6 +3,7 @@ from typing import Annotated
 from typing import Optional
 
 import typer
+from requests.exceptions import HTTPError
 from rich.console import RenderableType
 from rich.status import Status
 from rich.table import Column
@@ -10,7 +11,7 @@ from rich.table import Table
 
 from anaconda_cli_base import console
 from .clients import make_client
-from .clients.base import GenericClient, QuantizedFile, Server, VectorDbTableSchema
+from .clients.base import GenericClient, Server, VectorDbTableSchema
 from ._version import __version__
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
@@ -18,34 +19,33 @@ app = typer.Typer(add_completion=False, help="Actions for Anaconda curated model
 CHECK_MARK = "[bold green]✔︎[/bold green]"
 
 
-def get_running_servers(
-    client: GenericClient, quantization: QuantizedFile
-) -> list[Server]:
+def get_running_servers(client: GenericClient) -> list[Server]:
     try:
-        servers = [
-            s
-            for s in client.servers.list()
-            if s.serverConfig.model_name.endswith(quantization.identifier)
-        ]
+        servers = client.servers.list()
         return servers
-    except AttributeError:
+    except (HTTPError, AttributeError):
         return []
 
 
 def _list_models(client: GenericClient) -> RenderableType:
     models = client.models.list()
+    servers = get_running_servers(client)
     table = Table(
         Column("Model", no_wrap=True),
         "Params (B)",
-        "Quantizations\ndownloaded in bold\ngreen when running",
+        "Quantizations\ndownloaded in bold\ngreen for active servers",
         "Trained for",
         header_style="bold green",
     )
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
         for quant in model.quantized_files:
-            servers = get_running_servers(client, quant)
-            color = "green" if servers else ""
+            matched_servers = [
+                s
+                for s in servers
+                if s.serverConfig.model_name.endswith(quant.identifier)
+            ]
+            color = "green" if matched_servers else ""
             emphasis = "bold" if quant.is_downloaded else "dim"
             method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
 
@@ -60,6 +60,7 @@ def _list_models(client: GenericClient) -> RenderableType:
 
 def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     info = client.models.get(model_id)
+    servers = get_running_servers(client)
 
     table = Table.grid(padding=1, pad_edge=True)
     table.title = model_id
@@ -76,14 +77,16 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         "Downloaded",
         "Max Ram (GB)",
         "Size (GB)",
-        "Running",
+        "Server(s)",
         header_style="bold green",
     )
     for quant in info.quantized_files:
         method = quant.quant_method
         downloaded = CHECK_MARK if quant.is_downloaded else ""
-        servers = get_running_servers(client, quant)
-        running = CHECK_MARK if servers else ""
+        matched_servers = [
+            s for s in servers if s.serverConfig.model_name.endswith(quant.identifier)
+        ]
+        running = CHECK_MARK if matched_servers else ""
 
         ram = f"{quant.max_ram_usage / 1024 / 1024 / 1024:.2f}"
         size = f"{quant.size_bytes / 1024 / 1024 / 1024:.2f}"
@@ -112,12 +115,13 @@ def models(
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
     """Model information"""
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     if model_id is None:
         renderable = _list_models(client)
     else:
@@ -131,6 +135,7 @@ def download(
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -140,7 +145,7 @@ def download(
     ] = None,
 ) -> None:
     """Download a model"""
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     client.models.download(
         model, show_progress=True, force=force, console=console, path=output
     )
@@ -150,12 +155,13 @@ def download(
 @app.command(name="remove")
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
     """Remove a downloaded a model"""
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     client.models.delete(model)
     console.print("[green]Success[/green]")
 
@@ -168,6 +174,7 @@ def launch(
     model: str = typer.Argument(
         help="Name of the quantized model, it will download first if needed.",
     ),
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -183,7 +190,7 @@ def launch(
 ) -> None:
     """Launch an inference server for a model"""
 
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     client.models.download(model, force=force_download)
 
     text = f"{model} (creating)"
@@ -230,12 +237,13 @@ def launch(
 
 @app.command("servers")
 def servers(
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
     """List running servers"""
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     servers = client.servers.list()
 
     table = Table(
@@ -270,11 +278,12 @@ def servers(
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
+    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
-    client = make_client(backend)
+    client = make_client(backend=backend, site=site)
     client.servers.stop(server)
     client.servers.delete(server)
 

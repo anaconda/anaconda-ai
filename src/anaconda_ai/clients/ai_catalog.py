@@ -232,6 +232,7 @@ class AICatalogClient(GenericClient):
 
     def __init__(
         self,
+        site: Optional[str] = None,
         domain: Optional[str] = None,
         api_key: Optional[str] = None,
         user_agent: Optional[str] = None,
@@ -250,9 +251,10 @@ class AICatalogClient(GenericClient):
         self._ai_config = AnacondaAIConfig(**kwargs_top)  # type: ignore
 
         super().__init__(
+            site=site,
             user_agent=user_agent,
             api_key=api_key,
-            domain=self._ai_config.backends.ai_catalog.domain,
+            domain=domain,
             ssl_verify=ssl_verify,
             extra_headers=extra_headers,
         )

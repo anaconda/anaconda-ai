@@ -13,9 +13,9 @@ def make_client(
 ) -> GenericClient:
     if backend is None:
         config = AnacondaAIConfig()
-        return clients[config.backend](**kwargs)
+        return clients[config.backend](site=site, **kwargs)
     else:
-        return clients[backend](**kwargs)
+        return clients[backend](site=site, **kwargs)
 
 
 __all__ = ["make_client"]

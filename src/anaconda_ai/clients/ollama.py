@@ -177,6 +177,7 @@ class OllamaServers(BaseServers):
 class OllamaClient(AICatalogClient):
     def __init__(
         self,
+        site: Optional[str] = None,
         ollama_base_url: Optional[str] = None,
         models_domain: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -185,6 +186,7 @@ class OllamaClient(AICatalogClient):
         extra_headers: Optional[Union[str, dict]] = None,
     ):
         super().__init__(
+            site=site,
             domain=models_domain,
             api_key=api_key,
             user_agent=user_agent,

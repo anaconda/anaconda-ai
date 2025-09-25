@@ -26,7 +26,6 @@ class OllamaConfig(BaseBackend):
 
 
 class AICatalogConfig(BaseBackend):
-    domain: str = "anaconda.com"
     api_version: str = "2"
 
 
