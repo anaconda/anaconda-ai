@@ -349,6 +349,7 @@ class Server(BaseModel):
 
 class BaseServers:
     always_detach: bool = False
+    match_field_excludes: set[str] = set()
 
     def __init__(self, client: GenericClient):
         self._client = client
@@ -368,13 +369,13 @@ class BaseServers:
     def list(self) -> List[Server]:
         raise NotImplementedError
 
-    def match(
-        self, server_config: ServerConfig, excludes: Optional[set] = None
-    ) -> Union[Server, None]:
+    def match(self, server_config: ServerConfig) -> Union[Server, None]:
         servers = self.list()
         for server in servers:
-            config_dump = server_config.model_dump(exclude=excludes)
-            server_dump = server.serverConfig.model_dump(exclude=excludes)
+            config_dump = server_config.model_dump(exclude=self.match_field_excludes)
+            server_dump = server.serverConfig.model_dump(
+                exclude=self.match_field_excludes
+            )
             if server.is_running and (config_dump == server_dump):
                 server._matched = True
                 return server

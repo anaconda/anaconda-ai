@@ -244,15 +244,13 @@ def servers(
     table = Table(
         Column("Server ID", no_wrap=True),
         "Model Name",
+        "Status",
         "OpenAI BaseURL",
         "Params",
         header_style="bold green",
     )
 
     for server in servers:
-        if not server.is_running:
-            continue
-
         params = server.serverConfig.model_dump_json(
             indent=2,
             exclude={
@@ -264,6 +262,7 @@ def servers(
         table.add_row(
             str(server.id),
             str(server.serverConfig.model_name),
+            server.status,
             server.openai_url,
             params,
         )

@@ -1,11 +1,13 @@
+import datetime as dt
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Union, Dict, Any
+from uuid import UUID
 
 import json
 import requests
 import rich.progress
-from pydantic import ValidationError
+from pydantic import ValidationError, computed_field
 from rich.console import Console
 from requests.exceptions import HTTPError
 
@@ -15,7 +17,15 @@ from anaconda_cli_base.exceptions import register_error_handler
 
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
-from .base import GenericClient, Model, BaseModels, QuantizedFile
+from .base import (
+    GenericClient,
+    Model,
+    BaseModels,
+    QuantizedFile,
+    BaseServers,
+    Server,
+    ServerConfig,
+)
 
 
 def catalog_login_required(
@@ -104,6 +114,18 @@ class AICatalogModels(BaseModels):
                 )
         return models
 
+    def _get_model_by_uuid(self, model_uuid: UUID) -> AICatalogModel:
+        res = self._client.get(f"/api/ai/models/{model_uuid}")
+        res.raise_for_status()
+        return AICatalogModel(**res.json())
+
+    def _get_quantization_by_uuid(
+        self, model_uuid: UUID, file_uuid: UUID
+    ) -> AICatalogQuantizedFile:
+        res = self._client.get(f"/api/ai/models/{model_uuid}/quants/{file_uuid}")
+        res.raise_for_status()
+        return AICatalogQuantizedFile(**res.json())
+
     def _download(
         self,
         model_quantization: AICatalogQuantizedFile,
@@ -152,6 +174,59 @@ class AICatalogModels(BaseModels):
         model_quantization.local_path.unlink()
 
 
+class AICatalogServerConfig(ServerConfig):
+    # model: AICatalogModel
+    name: str
+    model_uuid: UUID
+    file_uuid: UUID
+    address: str
+    port: int
+    start_ts: dt.datetime
+
+
+class AICatalogServer(Server):
+    serverConfig: AICatalogServerConfig
+
+    @property
+    def api_key(self) -> str:
+        return (
+            self._client.auth.api_key
+            or self._client.auth._token_info.get_access_token()
+        )  # type: ignore
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"{self.serverConfig.address}:{self.serverConfig.port}"
+
+
+class AICatalogServers(BaseServers):
+    @lru_cache
+    def list(self) -> List[AICatalogServer]:
+        res = self._client.get("api/ai/model/org/servers")
+        res.raise_for_status()
+        discovered = res.json().get("result", {}).get("data", [])
+
+        servers = []
+        for server in discovered:
+            model = AICatalogModel(**server["model"])
+            server_entry = AICatalogServer(
+                id=server["id"],
+                serverConfig=AICatalogServerConfig(
+                    model_name=model.quantized_files[0].identifier, **server
+                ),
+            )
+            server_entry._client = self._client
+            servers.append(server_entry)
+
+        return servers
+
+    def _status(self, server_id: str) -> str:
+        res = self._client.get(f"api/ai/model/org/servers/server/{server_id}")
+        res.raise_for_status()
+        return res.json()["status"]
+
+
 class AICatalogClient(GenericClient):
     _user_agent = f"anaconda-ai/{version}"
 
@@ -188,4 +263,5 @@ class AICatalogClient(GenericClient):
             )
 
         self.models = AICatalogModels(self)
+        self.servers = AICatalogServers(self)
         self.hooks["response"].insert(0, catalog_login_required)
