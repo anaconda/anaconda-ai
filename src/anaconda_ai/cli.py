@@ -26,7 +26,6 @@ def get_running_servers(
             s
             for s in client.servers.list()
             if s.serverConfig.model_name.endswith(quantization.identifier)
-            and s.status == "running"
         ]
         return servers
     except AttributeError:
@@ -45,12 +44,10 @@ def _list_models(client: GenericClient) -> RenderableType:
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
         for quant in model.quantized_files:
-            if quant.is_downloaded:
-                servers = get_running_servers(client, quant)
-                color = "green" if servers else ""
-                method = f"[bold {color}]{quant.quant_method}[/bold {color}]"
-            else:
-                method = f"[dim]{quant.quant_method}[/dim]"
+            servers = get_running_servers(client, quant)
+            color = "green" if servers else ""
+            emphasis = "bold" if quant.is_downloaded else "dim"
+            method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
 
             quantizations.append(method)
 
