@@ -4,8 +4,13 @@ from ..config import AnacondaAIConfig
 from .base import GenericClient
 from .ai_catalog import AICatalogClient
 from .ollama import OllamaClient
+from .anaconda_desktop import AnacondaDesktopClient
 
-clients = {"ai-catalog": AICatalogClient, "ollama": OllamaClient}
+clients = {
+    "ai-catalog": AICatalogClient,
+    "ollama": OllamaClient,
+    "anaconda-desktop": AnacondaDesktopClient,
+}
 
 
 def make_client(
