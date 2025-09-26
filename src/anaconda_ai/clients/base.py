@@ -1,6 +1,5 @@
 import atexit
 import re
-import datetime as dt
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -51,39 +50,17 @@ class GenericClient(BaseClient):
         raise NotImplementedError
 
 
-class Group(BaseModel):
-    id: int
-    name: str
-
-
-class Policy(BaseModel):
-    is_blocked: bool
-    allowed_groups: List[Any]
-
-
 class QuantizedFile(BaseModel):
-    file_uuid: UUID
-    model_uuid: UUID
-    file_type_id: Optional[str] = None
-    filename: Optional[str] = None
     sha256: str
     size_bytes: int
-    generated_on: dt.datetime
-    published: bool
-    created_at: Optional[dt.datetime] = None
-    updated_at: Optional[dt.datetime] = None
-    format: str
     quant_method: str
-    quant_engine: str
     max_ram_usage: int
-    context_window_size: Optional[int]
-    estimated_n_cpus_req: Optional[int] = None
     _model: "Model" = PrivateAttr()
 
     @computed_field
     @property
     def identifier(self) -> str:
-        return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
+        raise NotImplementedError
 
     @computed_field
     @property
@@ -108,27 +85,13 @@ class QuantizedFile(BaseModel):
         self._model._client.models.delete(self)
 
 
-class Tag(BaseModel):
-    id: int
-    name: str
-
-
 class Model(BaseModel):
-    model_uuid: UUID
     name: str
     description: str
     num_parameters: int
-    model_type: str
-    base_model: str
-    license: str
-    languages: List[str]
-    first_published: dt.datetime
     trained_for: str
     context_window_size: int
-    knowledge_cut_off: str
     quantized_files: List[QuantizedFile]
-    groups: List[Group]
-    tags: List[Tag]
     _client: GenericClient = PrivateAttr()
 
     @model_validator(mode="after")

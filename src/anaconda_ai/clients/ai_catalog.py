@@ -7,7 +7,7 @@ from uuid import UUID
 import json
 import requests
 import rich.progress
-from pydantic import ValidationError, computed_field
+from pydantic import ValidationError, computed_field, BaseModel
 from rich.console import Console
 from requests.exceptions import HTTPError
 
@@ -71,8 +71,29 @@ def http_error(e: HTTPError) -> int:
         return 1
 
 
+class Policy(BaseModel):
+    is_blocked: bool
+    allowed_groups: List[Any]
+
+
 class AICatalogQuantizedFile(QuantizedFile):
+    file_uuid: UUID
+    model_uuid: UUID
+    generated_on: dt.datetime
+    quant_engine: str
+    published: bool
+    file_type_id: Optional[str] = None
+    created_at: Optional[dt.datetime] = None
+    updated_at: Optional[dt.datetime] = None
+    context_window_size: Optional[int]
+    estimated_n_cpus_req: Optional[int] = None
+    format: str
     download_url: Optional[str] = None
+
+    @computed_field
+    @property
+    def identifier(self) -> str:
+        return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
     @property
     def local_path(self) -> Path:
@@ -87,7 +108,26 @@ class AICatalogQuantizedFile(QuantizedFile):
         )
 
 
+class Tag(BaseModel):
+    id: int
+    name: str
+
+
+class Group(BaseModel):
+    id: int
+    name: str
+
+
 class AICatalogModel(Model):
+    model_uuid: UUID
+    model_type: str
+    base_model: str
+    license: str
+    languages: List[str]
+    first_published: dt.datetime
+    knowledge_cut_off: str
+    groups: List[Group]
+    tags: List[Tag]
     quantized_files: List[AICatalogQuantizedFile]
 
 
