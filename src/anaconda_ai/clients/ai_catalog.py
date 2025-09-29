@@ -87,7 +87,6 @@ class AICatalogQuantizedFile(QuantizedFile):
     updated_at: Optional[dt.datetime] = None
     context_window_size: Optional[int]
     estimated_n_cpus_req: Optional[int] = None
-    format: str
     download_url: Optional[str] = None
 
     @computed_field
@@ -169,6 +168,7 @@ class AICatalogModels(BaseModels):
     def _download(
         self,
         model_quantization: AICatalogQuantizedFile,
+        path: Optional[Path] = None,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
@@ -209,6 +209,11 @@ class AICatalogModels(BaseModels):
                 for chunk in response.iter_content(1024**2):
                     f.write(chunk)
                     s.update(task, advance=len(chunk))
+
+        if path is not None:
+            path = Path(path)
+            path.unlink(missing_ok=True)
+            model_quantization.local_path.link_to(path)
 
     def _delete(self, model_quantization: AICatalogQuantizedFile) -> None:
         model_quantization.local_path.unlink()

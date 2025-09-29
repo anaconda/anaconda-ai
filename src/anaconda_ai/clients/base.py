@@ -54,18 +54,14 @@ class QuantizedFile(BaseModel):
     sha256: str
     size_bytes: int
     quant_method: str
+    format: str
     max_ram_usage: int
     _model: "Model" = PrivateAttr()
 
     @computed_field
     @property
     def identifier(self) -> str:
-        raise NotImplementedError
-
-    @computed_field
-    @property
-    def local_path(self) -> Path:
-        raise NotImplementedError
+        return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
     @property
     def is_downloaded(self) -> bool:
@@ -151,6 +147,7 @@ class BaseModels:
     def _download(
         self,
         model_quantization: QuantizedFile,
+        path: Optional[Path] = None,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
@@ -179,10 +176,10 @@ class BaseModels:
     def download(
         self,
         model_quantization: Union[str, QuantizedFile],
+        path: Optional[Union[Path, str]] = None,
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
-        path: Optional[Union[Path, str]] = None,
     ) -> None:
         if isinstance(model_quantization, str):
             model_quantization = self._find_quantization(model_quantization)
@@ -190,17 +187,15 @@ class BaseModels:
         if force:
             self.delete(model_quantization)
 
+        path = path if path is None else Path(path)
+
         if not model_quantization.is_downloaded:
             self._download(
                 model_quantization=model_quantization,
+                path=path,
                 show_progress=show_progress,
                 console=console,
             )
-
-        if path is not None:
-            path = Path(path)
-            path.unlink(missing_ok=True)
-            model_quantization.local_path.link_to(path)
 
     def _delete(self, model_quantization: QuantizedFile) -> None:
         raise NotImplementedError
@@ -312,6 +307,7 @@ class Server(BaseModel):
 
 class BaseServers:
     always_detach: bool = False
+    download_required: bool = True
     match_field_excludes: set[str] = set()
 
     def __init__(self, client: GenericClient):
@@ -376,11 +372,12 @@ class BaseServers:
                 f"model={model} of type {type(model)} is not a supported way to specify a model."
             )
 
-        if not model.is_downloaded:
-            if not download_if_needed:
-                raise ModelNotDownloadedError(f"{model} has not been downloaded")
-            else:
-                self._client.models.download(model)
+        if self.download_required:
+            if not model.is_downloaded:
+                if not download_if_needed:
+                    raise ModelNotDownloadedError(f"{model} has not been downloaded")
+                else:
+                    self._client.models.download(model)
 
         server_config = ServerConfig(
             model_name=model.identifier,
