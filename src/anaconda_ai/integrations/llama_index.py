@@ -1,15 +1,14 @@
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import Union
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
 from llama_index.llms.openai import OpenAI
 from llama_index.core.base.llms.types import LLMMetadata
 from pydantic import Field
 
-from ..clients import get_default_client
-from ..clients.base import APIParams, LoadParams, InferParams, ServerConfig
+from ..clients import make_client
+from ..clients.base import ServerConfig
 
 
 class AnacondaLLMMetadata(LLMMetadata):
@@ -31,25 +30,20 @@ class AnacondaModel(OpenAI):
     def __init__(
         self,
         model: str,
+        site: Optional[str] = None,
+        backend: Optional[str] = None,
         system_prompt: Optional[str] = None,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: Optional[int] = None,
-        api_params: Optional[Union[Dict[str, Any], APIParams]] = None,
-        load_params: Optional[Union[Dict[str, Any], LoadParams]] = None,
-        infer_params: Optional[Union[Dict[str, Any], InferParams]] = None,
+        extra_options: Optional[Dict[str, Any]] = None,
     ) -> None:
-        client = get_default_client()
-        server = client.servers.create(
-            model,
-            api_params=api_params,
-            load_params=load_params,
-            infer_params=infer_params,
-        )
+        client = make_client(site=site, backend=backend)
+        server = client.servers.create(model, extra_options=extra_options)
         server.start()
-        context_window = client.models.get(model).metadata.contextWindowSize
+        context_window = client.models.get(model).context_window_size
 
         super().__init__(
-            model=server.serverConfig.modelFileName,
+            model=server.serverConfig.model_name,
             api_key=server.api_key,
             api_base=server.openai_url,
             is_chat_model=True,

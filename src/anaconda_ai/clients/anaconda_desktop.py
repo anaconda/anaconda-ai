@@ -209,11 +209,9 @@ class AnacondaDesktopServers(BaseServers):
         }
 
         config_dump = server_config.model_dump(exclude=match_excludes)
-        print(config_dump)
         servers = self.list()
         for server in servers:
             server_dump = server.serverConfig.model_dump(exclude=match_excludes)
-            print(server_dump)
             if server.is_running and (config_dump == server_dump):
                 server._matched = True
                 return server
