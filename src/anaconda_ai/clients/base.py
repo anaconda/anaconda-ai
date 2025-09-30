@@ -218,6 +218,7 @@ class Server(BaseModel):
     _client: GenericClient = PrivateAttr()
     _matched: bool = PrivateAttr(default=False)
 
+    @computed_field
     @property
     def status(self) -> str:
         return self._client.servers.status(self.id)

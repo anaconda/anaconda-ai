@@ -1,15 +1,24 @@
 from pathlib import Path
 from time import time, sleep
-from typing import List, Optional
+from typing import List, Optional, Any
 from urllib.parse import quote
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, ConfigDict
 from rich.console import Console
 import rich.progress
 
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
-from .base import Model, QuantizedFile, BaseModels, GenericClient
+from .base import (
+    Model,
+    QuantizedFile,
+    BaseModels,
+    GenericClient,
+    Server,
+    BaseServers,
+    ServerConfig,
+)
+from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
 
@@ -152,6 +161,81 @@ class AnacondaDesktopModels(BaseModels):
         res.raise_for_status()
 
 
+class AnacondaDesktopServerConfig(ServerConfig):
+    model_name: str = Field(alias="modelFileName")
+    id: Optional[str] = None
+    server_params: dict[str, Any] = Field(default={}, alias="serverParams")
+    load_params: dict[str, Any] = Field(default={}, alias="loadParams")
+    infer_params: dict[str, Any] = Field(default={}, alias="inferParams")
+    logs_dir: str = Field(default="./logs", alias="logsDir")
+    start_server_on_create: bool = Field(default=True, alias="startServerOnCreate")
+
+    model_config = ConfigDict(serialize_by_alias=True)  # , validate_by_alias=True)
+
+
+class AnacondaDesktopServer(Server):
+    serverConfig: AnacondaDesktopServerConfig
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"http://{self.serverConfig.server_params['host']}:{self.serverConfig.server_params['port']}"
+
+
+class AnacondaDesktopServers(BaseServers):
+    def list(self) -> List[Server]:
+        res = self._client.get("api/servers")
+        res.raise_for_status()
+        servers = []
+        for s in res.json()["data"]:
+            if "id" not in s:
+                continue
+            server = AnacondaDesktopServer(**s)
+            server._client = self._client
+            servers.append(server)
+        return servers
+
+    def _create(
+        self, server_config: AnacondaDesktopServerConfig
+    ) -> AnacondaDesktopServer:
+        server_config = AnacondaDesktopServerConfig(
+            modelFileName=server_config.model_name
+        )
+
+        requested_port = server_config.server_params.get("port", 0)
+        if not requested_port:
+            port = find_free_port()
+            server_config.server_params["port"] = port
+
+        server_config.server_params["host"] = "127.0.0.1"
+
+        model_quantization = self._client.models._find_quantization(
+            server_config.model_name
+        )
+        if model_quantization._model.trained_for == "sentence-similarity":
+            server_config.load_params["embedding"] = True
+
+        body = {"serverConfig": server_config.model_dump(exclude={"id"})}
+
+        res = self._client.post("api/servers", json=body)
+        res.raise_for_status()
+        server = AnacondaDesktopServer(**res.json()["data"])
+        return server
+
+    def _status(self, server_id: str) -> str:
+        res = self._client.get(f"api/servers/{server_id}")
+        res.raise_for_status()
+        return res.json()["data"]["status"]
+
+    def _start(self, server_id: str) -> None:
+        res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
+        res.raise_for_status()
+
+    def _stop(self, server_id: str) -> None:
+        res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
+        res.raise_for_status()
+
+
 class AnacondaDesktopClient(GenericClient):
     def __init__(self, site: Optional[str] = None) -> None:
         _ = site  # just ignore it
@@ -163,3 +247,4 @@ class AnacondaDesktopClient(GenericClient):
         self._base_uri = f"http://{domain}"
 
         self.models = AnacondaDesktopModels(self)
+        self.servers = AnacondaDesktopServers(self)
