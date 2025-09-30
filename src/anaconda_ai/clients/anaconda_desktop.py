@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import time, sleep
-from typing import List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from urllib.parse import quote
 
 from pydantic import Field, computed_field, ConfigDict
@@ -183,7 +183,7 @@ class AnacondaDesktopServer(Server):
 
 
 class AnacondaDesktopServers(BaseServers):
-    def list(self) -> List[Server]:
+    def list(self) -> List[AnacondaDesktopServer]:
         res = self._client.get("api/servers")
         res.raise_for_status()
         servers = []
@@ -195,11 +195,36 @@ class AnacondaDesktopServers(BaseServers):
             servers.append(server)
         return servers
 
+    def match(
+        self,
+        server_config: AnacondaDesktopServerConfig,
+    ) -> Union[AnacondaDesktopServer, None]:
+        match_excludes = {
+            "id": True,
+            "start_server_on_create": True,
+            "logs_dir": True,
+            "server_params": {"port": True, "host": True},
+        }
+
+        config_dump = server_config.model_dump(exclude=match_excludes)
+        print(config_dump)
+        servers = self.list()
+        for server in servers:
+            server_dump = server.serverConfig.model_dump(exclude=match_excludes)
+            print(server_dump)
+            if server.is_running and (config_dump == server_dump):
+                server._matched = True
+                return server
+        else:
+            return None
+
     def _create(
-        self, server_config: AnacondaDesktopServerConfig
+        self,
+        model_quantization: AnacondaDesktopQuantizedFile,
+        extra_options: Optional[Dict[str, Any]] = None,
     ) -> AnacondaDesktopServer:
         server_config = AnacondaDesktopServerConfig(
-            modelFileName=server_config.model_name
+            modelFileName=model_quantization.identifier
         )
 
         requested_port = server_config.server_params.get("port", 0)
@@ -209,11 +234,14 @@ class AnacondaDesktopServers(BaseServers):
 
         server_config.server_params["host"] = "127.0.0.1"
 
-        model_quantization = self._client.models._find_quantization(
-            server_config.model_name
-        )
         if model_quantization._model.trained_for == "sentence-similarity":
             server_config.load_params["embedding"] = True
+
+        matched = self.match(
+            server_config,
+        )
+        if matched is not None:
+            return matched
 
         body = {"serverConfig": server_config.model_dump(exclude={"id"})}
 

@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional, Union, List
+from pathlib import Path
+from typing import Any, Dict, Optional, Union, List, cast
 
 import requests
 from pydantic import computed_field
@@ -10,11 +11,9 @@ from ..config import AnacondaAIConfig
 from ..exceptions import AssetNotFound
 from .base import (
     GenericClient,
-    QuantizedFile,
     BaseServers,
     Server,
     ServerConfig,
-    MODEL_NAME,
 )
 from .ai_catalog import AICatalogModels as _AICatalogModels
 from .ai_catalog import AICatalogQuantizedFile
@@ -54,15 +53,18 @@ class AICatalogModels(_AICatalogModels):
 
     def download(
         self,
-        model_quantization: Union[str, QuantizedFile],
+        model_quantization: Union[str, AICatalogQuantizedFile],
+        path: Optional[Path] = None,
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
     ) -> None:
-        super().download(model_quantization, force, show_progress, console)
+        super().download(model_quantization, path, force, show_progress, console)
 
         if isinstance(model_quantization, str):
-            model_quantization = self._find_quantization(model_quantization)
+            model_quantization = cast(
+                AICatalogQuantizedFile, self._find_quantization(model_quantization)
+            )
 
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
         ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
@@ -92,6 +94,11 @@ class OllamaServer(Server):
     def url(self) -> str:
         return AnacondaAIConfig().backends.ollama.ollama_base_url
 
+    def stop(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
+        return
+
 
 class OllamaServers(BaseServers):
     always_detach: bool = True
@@ -104,6 +111,12 @@ class OllamaServers(BaseServers):
         res = self._ollama_session.get(
             urljoin(self._ollama_session.base_url, "api/tags")
         )
+        res.raise_for_status()
+        data: List[Dict[str, str]] = res.json()["models"]
+        return [model["name"].rsplit(":", maxsplit=1)[0] for model in data]
+
+    def _get_running_ollama_models(self) -> List[str]:
+        res = self._ollama_session.get(urljoin(self._ollama_session.base_url, "api/ps"))
         res.raise_for_status()
         data: List[Dict[str, str]] = res.json()["models"]
         return [model["name"].rsplit(":", maxsplit=1)[0] for model in data]
@@ -127,35 +140,45 @@ class OllamaServers(BaseServers):
 
         return servers
 
-    def _create(self, server_config: ServerConfig) -> OllamaServer:
-        match = MODEL_NAME.match(server_config.model_name)
-        if match is None:
-            raise ValueError(
-                f"{server_config.model_name} is not a valid model quantization"
-            )
+    def match(self, server_config: ServerConfig) -> Union[Server, None]:
+        config_dump = server_config.model_dump()
+        print(config_dump)
+        servers = self.list()
+        for server in servers:
+            server_dump = server.serverConfig.model_dump()
+            print(server_dump)
+            if server.is_running and (config_dump == server_dump):
+                server._matched = True
+                return server
+        else:
+            return None
 
-        _, model, quantization, _ = match.groups()
-        quant = self._client.models.get(model).get_quantization(quantization)
-
+    def _create(
+        self,
+        model_quantization: AICatalogQuantizedFile,
+        extra_options: Optional[Dict[str, Any]] = None,
+    ) -> OllamaServer:
         body = {
-            "model": server_config.model_name,
-            "files": {server_config.model_name: f"sha256:{quant.sha256}"},
+            "model": model_quantization.identifier,
+            "files": {
+                model_quantization.identifier: f"sha256:{model_quantization.sha256}"
+            },
         }
         url = urljoin(self._ollama_session.base_url, "api/create")
         res = self._ollama_session.post(url, json=body)
         res.raise_for_status()
 
         server_entry = OllamaServer(
-            id=server_config.model_name,
-            serverConfig=server_config,
+            id=model_quantization.identifier,
+            serverConfig=ServerConfig(model_name=model_quantization.identifier),
         )
         server_entry._client = self._client
 
         return server_entry
 
     def _status(self, server_id: str) -> str:
-        available_models = self._get_available_ollama_models()
-        if server_id in available_models:
+        running_models = self._get_available_ollama_models()
+        if server_id in running_models:
             return "running"
         else:
             return "stopped"
@@ -164,11 +187,12 @@ class OllamaServers(BaseServers):
         pass
 
     def _stop(self, server_id: str) -> None:
-        body = {"model": server_id, "keep_alive": 0}
-        res = self._ollama_session.post(
-            urljoin(self._ollama_session.base_url, "api/generate"), json=body
-        )
-        res.raise_for_status()
+        return
+        # body = {"model": server_id, "keep_alive": 0}
+        # res = self._ollama_session.post(
+        #     urljoin(self._ollama_session.base_url, "api/generate"), json=body
+        # )
+        # res.raise_for_status()
 
     def _delete(self, server_id: str) -> None:
         self._stop(server_id)

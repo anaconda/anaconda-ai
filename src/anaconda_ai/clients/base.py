@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from types import TracebackType
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Type
@@ -309,7 +310,6 @@ class Server(BaseModel):
 class BaseServers:
     always_detach: bool = False
     download_required: bool = True
-    match_field_excludes: set[str] = set()
 
     def __init__(self, client: GenericClient):
         self._client = client
@@ -329,26 +329,18 @@ class BaseServers:
     def list(self) -> List[Server]:
         raise NotImplementedError
 
-    def match(self, server_config: ServerConfig) -> Union[Server, None]:
-        servers = self.list()
-        for server in servers:
-            config_dump = server_config.model_dump(exclude=self.match_field_excludes)
-            server_dump = server.serverConfig.model_dump(
-                exclude=self.match_field_excludes
-            )
-            if server.is_running and (config_dump == server_dump):
-                server._matched = True
-                return server
-        else:
-            return None
-
-    def _create(self, server_config: ServerConfig) -> Server:
+    def _create(
+        self,
+        model_quantization: QuantizedFile,
+        extra_options: Optional[Dict[str, Any]] = None,
+    ) -> Server:
         raise NotImplementedError
 
     def create(
         self,
         model: Union[str, QuantizedFile],
         download_if_needed: bool = True,
+        extra_options: Optional[Dict[str, Any]] = None,
     ) -> Server:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -380,17 +372,9 @@ class BaseServers:
                 else:
                     self._client.models.download(model)
 
-        server_config = ServerConfig(
-            model_name=model.identifier,
-        )
-
-        matched = self.match(server_config)
-        if matched is None:
-            server = self._create(server_config=server_config)
-            server._client = self._client
-            return server
-        else:
-            return matched
+        server = self._create(model, extra_options=extra_options)
+        server._client = self._client
+        return server
 
     def _start(self, server_id: str) -> None:
         raise NotImplementedError
