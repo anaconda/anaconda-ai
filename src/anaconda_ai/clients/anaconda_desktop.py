@@ -192,6 +192,8 @@ class AnacondaDesktopServers(BaseServers):
                 continue
             server = AnacondaDesktopServer(**s)
             server._client = self._client
+            if not server.is_running:
+                continue
             servers.append(server)
         return servers
 
