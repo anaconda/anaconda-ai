@@ -1,11 +1,9 @@
 from pathlib import Path
 from time import time, sleep
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Generator
 from urllib.parse import quote
 
 from pydantic import Field, computed_field, ConfigDict
-from rich.console import Console
-import rich.progress
 
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
@@ -81,27 +79,7 @@ class AnacondaDesktopModels(BaseModels):
         self,
         model_quantization: AnacondaDesktopQuantizedFile,
         path: Optional[Path] = None,
-        show_progress: bool = True,
-        console: Optional[Console] = None,
-    ) -> None:
-        size = model_quantization.size_bytes
-        console = Console() if console is None else console
-        stream_progress = rich.progress.Progress(
-            rich.progress.TextColumn("[progress.description]{task.description}"),
-            rich.progress.BarColumn(),
-            rich.progress.DownloadColumn(),
-            rich.progress.TransferSpeedColumn(),
-            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
-            console=console,
-            refresh_per_second=10,
-        )
-        description = f"Downloading {model_quantization.identifier}"
-        task = stream_progress.add_task(
-            description=description,
-            total=int(size),
-            visible=show_progress,
-        )
-
+    ) -> Generator[int, None, None]:
         res = self._client.patch(model_quantization._url, json={"action": "start"})
         res.raise_for_status()
         status = res.json()["data"]
@@ -117,39 +95,36 @@ class AnacondaDesktopModels(BaseModels):
                 f"Cannot initiate download of {model_quantization.identifier}"
             )
 
-        with stream_progress as progress_bar:
-            t0 = time()
+        t0 = time()
+        res = self._client.get(model_quantization._url)
+        res.raise_for_status()
+        status = res.json()["data"]
+        # Must wait until the download officially
+        # starts then we can poll for progress
+        elapsed = time() - t0
+        while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
             res = self._client.get(model_quantization._url)
             res.raise_for_status()
             status = res.json()["data"]
-            # Must wait until the download officially
-            # starts then we can poll for progress
             elapsed = time() - t0
-            while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
-                res = self._client.get(model_quantization._url)
-                res.raise_for_status()
-                status = res.json()["data"]
-                elapsed = time() - t0
 
-            while True:
-                res = self._client.get(model_quantization._url)
-                res.raise_for_status()
-                status = res.json()["data"]
+        while True:
+            res = self._client.get(model_quantization._url)
+            res.raise_for_status()
+            status = res.json()["data"]
 
-                download_status = status.get("downloadStatus", {})
-                if download_status.get("status", "") == "in_progress":
-                    downloaded = download_status.get("progress", {}).get(
-                        "transferredBytes", 0
-                    )
-                    progress_bar.update(task, completed=downloaded)
-                    sleep(0.1)
+            download_status = status.get("downloadStatus", {})
+            if download_status.get("status", "") == "in_progress":
+                downloaded = download_status.get("progress", {}).get(
+                    "transferredBytes", 0
+                )
+                yield downloaded
+                sleep(0.1)
+            else:
+                if not status["isDownloaded"]:
+                    raise ModelDownloadCancelledError("The download process stopped.")
                 else:
-                    if not status["isDownloaded"]:
-                        raise ModelDownloadCancelledError(
-                            "The download process stopped."
-                        )
-                    else:
-                        break
+                    break
 
         if path is not None:
             path = Path(path)

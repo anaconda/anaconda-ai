@@ -4,6 +4,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Type
@@ -13,6 +14,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import openai
+import rich.progress
 from pydantic import BaseModel, computed_field, model_validator, Field, PrivateAttr
 from pydantic.types import UUID4
 from rich.status import Status
@@ -145,17 +147,6 @@ class BaseModels:
         model_info._client = self._client
         return model_info
 
-    def _download(
-        self,
-        model_quantization: QuantizedFile,
-        path: Optional[Path] = None,
-        show_progress: bool = True,
-        console: Optional[Console] = None,
-    ) -> None:
-        raise NotImplementedError(
-            "Downloading models is not available with this client"
-        )
-
     def _find_quantization(self, model_quant_identifier: str) -> QuantizedFile:
         match = MODEL_NAME.match(model_quant_identifier)
         if match is None:
@@ -174,6 +165,15 @@ class BaseModels:
         quantization = model_info.get_quantization(quant_method)
         return quantization
 
+    def _download(
+        self,
+        model_quantization: QuantizedFile,
+        path: Optional[Path] = None,
+    ) -> Generator[int, None, None]:
+        raise NotImplementedError(
+            "Downloading models is not available with this client"
+        )
+
     def download(
         self,
         model_quantization: Union[str, QuantizedFile],
@@ -190,13 +190,30 @@ class BaseModels:
 
         path = path if path is None else Path(path)
 
-        if not model_quantization.is_downloaded:
-            self._download(
-                model_quantization=model_quantization,
-                path=path,
-                show_progress=show_progress,
-                console=console,
-            )
+        if model_quantization.is_downloaded:
+            return
+
+        size = model_quantization.size_bytes
+        console = Console() if console is None else console
+        stream_progress = rich.progress.Progress(
+            rich.progress.TextColumn("[progress.description]{task.description}"),
+            rich.progress.BarColumn(),
+            rich.progress.DownloadColumn(),
+            rich.progress.TransferSpeedColumn(),
+            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
+            console=console,
+            refresh_per_second=10,
+        )
+        description = f"Downloading {model_quantization.identifier}"
+        task = stream_progress.add_task(
+            description=description,
+            total=int(size),
+            visible=show_progress,
+        )
+
+        with stream_progress as progress_bar:
+            for downloaded_bytes in self._download(model_quantization, path):
+                progress_bar.update(task, completed=downloaded_bytes)
 
     def _delete(self, model_quantization: QuantizedFile) -> None:
         raise NotImplementedError

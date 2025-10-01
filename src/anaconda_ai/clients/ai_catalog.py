@@ -1,14 +1,12 @@
 import datetime as dt
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional, Union, Dict, Any, Generator
 from uuid import UUID
 
 import json
 import requests
-import rich.progress
 from pydantic import ValidationError, computed_field, BaseModel
-from rich.console import Console
 from requests.exceptions import HTTPError
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
@@ -169,9 +167,7 @@ class AICatalogModels(BaseModels):
         self,
         model_quantization: AICatalogQuantizedFile,
         path: Optional[Path] = None,
-        show_progress: bool = True,
-        console: Optional[Console] = None,
-    ) -> None:
+    ) -> Generator[int, None, None]:
         if not model_quantization.published:
             raise RuntimeError(f"{model_quantization.identifier} is not published")
 
@@ -186,29 +182,13 @@ class AICatalogModels(BaseModels):
 
         response.raise_for_status()
 
-        console = Console() if console is None else console
-        stream_progress = rich.progress.Progress(
-            rich.progress.TextColumn("[progress.description]{task.description}"),
-            rich.progress.BarColumn(),
-            rich.progress.DownloadColumn(),
-            rich.progress.TransferSpeedColumn(),
-            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
-            console=console,
-            refresh_per_second=10,
-        )
-        description = f"Downloading {model_quantization.identifier}"
-        task = stream_progress.add_task(
-            description=description,
-            total=int(model_quantization.size_bytes),
-            visible=show_progress,
-        )
-
         model_quantization.local_path.parent.mkdir(parents=True, exist_ok=True)
         with open(model_quantization.local_path, "wb") as f:
-            with stream_progress as s:
-                for chunk in response.iter_content(1024**2):
-                    f.write(chunk)
-                    s.update(task, advance=len(chunk))
+            downloaded_bytes = 0
+            for chunk in response.iter_content(1024**2):
+                f.write(chunk)
+                downloaded_bytes += len(chunk)
+                yield downloaded_bytes
 
         if path is not None:
             path = Path(path)
