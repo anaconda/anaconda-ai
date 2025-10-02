@@ -4,7 +4,9 @@ from typing import Optional
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
 from llama_index.llms.openai import OpenAI
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.base.llms.types import LLMMetadata
+from llama_index.core.callbacks.base import CallbackManager
 from pydantic import Field
 
 from ..clients import make_client
@@ -78,3 +80,51 @@ class AnacondaModel(OpenAI):
             model_name=self.model,
             server_config=server_config,
         )
+
+
+class AnacondaEmbeddingModel(OpenAIEmbedding):
+    _server_config: ServerConfig
+
+    def __init__(
+        self,
+        model_name: str,
+        site: Optional[str] = None,
+        backend: Optional[str] = None,
+        embed_batch_size: int = 10,
+        dimensions: Optional[int] = None,
+        additional_kwargs: Optional[Dict[str, Any]] = None,
+        max_retries: int = 10,
+        timeout: float = 60.0,
+        reuse_client: bool = True,
+        callback_manager: Optional[CallbackManager] = None,
+        num_workers: Optional[int] = None,
+        extra_options: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> None:
+        # ensure model is not passed in kwargs, will cause error in parent class
+        if "model" in kwargs:
+            raise ValueError(
+                "Use `model_name` instead of `model` to initialize OpenAILikeEmbedding"
+            )
+
+        client = make_client(site=site, backend=backend)
+        server = client.servers.create(model_name, extra_options=extra_options)
+        server.start()
+
+        super().__init__(
+            model_name=model_name,
+            embed_batch_size=embed_batch_size,
+            dimensions=dimensions,
+            callback_manager=callback_manager,
+            additional_kwargs=additional_kwargs,
+            api_key=server.api_key,
+            api_base=server.openai_url,
+            api_version="empty",
+            max_retries=max_retries,
+            reuse_client=reuse_client,
+            timeout=timeout,
+            num_workers=num_workers,
+            **kwargs,
+        )
+
+        self._server_config = server.serverConfig
