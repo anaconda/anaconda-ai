@@ -1,16 +1,26 @@
-from typing import Any
+from typing import Any, Optional
 
 from ..config import AnacondaAIConfig
-from .ai_navigator import AINavigatorClient
 from .base import GenericClient
+from .ai_catalyst import AICatalystClient
+from .ollama import OllamaClient
+from .anaconda_desktop import AnacondaDesktopClient
+
+clients = {
+    "ai-catalyst": AICatalystClient,
+    "ollama": OllamaClient,
+    "anaconda-desktop": AnacondaDesktopClient,
+}
 
 
-def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
-    config = AnacondaAIConfig()
-    if config.backend == "ai-navigator":
-        return AINavigatorClient(*args, **kwargs)
+def make_client(
+    backend: Optional[str] = None, site: Optional[str] = None, **kwargs: Any
+) -> GenericClient:
+    if backend is None:
+        config = AnacondaAIConfig()
+        return clients[config.backend](site=site, **kwargs)
     else:
-        raise ValueError(f"{config.backend} is not supported")
+        return clients[backend](site=site, **kwargs)
 
 
-__all__ = ["AINavigatorClient", "get_default_client"]
+__all__ = ["make_client"]
