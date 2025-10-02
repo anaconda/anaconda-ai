@@ -103,6 +103,10 @@ module = "llama_index.llms.openai.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
+module = "llama_index.embeddings.openai.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
 module = "llm.*"
 
 [[tool.mypy.overrides]]
