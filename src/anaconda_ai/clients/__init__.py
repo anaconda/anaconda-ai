@@ -2,12 +2,12 @@ from typing import Any, Optional
 
 from ..config import AnacondaAIConfig
 from .base import GenericClient
-from .ai_catalog import AICatalogClient
+from .ai_catalyst import AICatalystClient
 from .ollama import OllamaClient
 from .anaconda_desktop import AnacondaDesktopClient
 
 clients = {
-    "ai-catalog": AICatalogClient,
+    "ai-catalyst": AICatalystClient,
     "ollama": OllamaClient,
     "anaconda-desktop": AnacondaDesktopClient,
 }

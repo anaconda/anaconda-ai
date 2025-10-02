@@ -15,7 +15,7 @@ class OllamaConfig(BaseModel):
     ollama_base_url: str = "http://localhost:11434"
 
 
-class AICatalogConfig(BaseModel):
+class AICatalystConfig(BaseModel):
     api_version: str = "2"
     models_path: Path = Path("~/.anaconda/ai/models").expanduser()
 
@@ -76,7 +76,7 @@ class AnacondaDesktopConfig(BaseModel):
 
 
 class Backends(BaseModel):
-    ai_catalog: AICatalogConfig = Field(default_factory=AICatalogConfig)
+    ai_catalyst: AICatalystConfig = Field(default_factory=AICatalystConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     anaconda_desktop: AnacondaDesktopConfig = Field(
         default_factory=AnacondaDesktopConfig
@@ -85,5 +85,5 @@ class Backends(BaseModel):
 
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
-    backend: Literal["ollama", "ai-catalog", "anaconda-desktop"] = "ai-catalog"
+    backend: Literal["ollama", "ai-catalyst", "anaconda-desktop"] = "ai-catalyst"
     stop_server_on_exit: bool = True

@@ -26,7 +26,7 @@ from .base import (
 )
 
 
-def catalog_login_required(
+def catalyst_login_required(
     response: requests.Response, *args: Any, **kwargs: Any
 ) -> requests.Response:
     has_auth_header = response.request.headers.get("Authorization", False)
@@ -74,7 +74,7 @@ class Policy(BaseModel):
     allowed_groups: List[Any]
 
 
-class AICatalogQuantizedFile(QuantizedFile):
+class AICatalystQuantizedFile(QuantizedFile):
     file_uuid: UUID
     model_uuid: UUID
     generated_on: dt.datetime
@@ -94,7 +94,7 @@ class AICatalogQuantizedFile(QuantizedFile):
 
     @property
     def local_path(self) -> Path:
-        models_path = AnacondaAIConfig().backends.ai_catalog.models_path
+        models_path = AnacondaAIConfig().backends.ai_catalyst.models_path
         return models_path / self.identifier
 
     @property
@@ -115,7 +115,7 @@ class Group(BaseModel):
     name: str
 
 
-class AICatalogModel(Model):
+class AICatalystModel(Model):
     model_uuid: UUID
     model_type: str
     base_model: str
@@ -125,15 +125,15 @@ class AICatalogModel(Model):
     knowledge_cut_off: str
     groups: List[Group]
     tags: List[Tag]
-    quantized_files: List[AICatalogQuantizedFile]
+    quantized_files: List[AICatalystQuantizedFile]
 
 
-class AICatalogModels(BaseModels):
+class AICatalystModels(BaseModels):
     def __init__(self, client: GenericClient):
         super().__init__(client)
 
     @lru_cache
-    def list(self) -> List[AICatalogModel]:
+    def list(self) -> List[AICatalystModel]:
         response = self._client.get("/api/ai/model/org/models/model-data")
         # response = self._client.get("/api/ai/model/models")
         response.raise_for_status()
@@ -142,7 +142,7 @@ class AICatalogModels(BaseModels):
         models = []
         for model in data:
             try:
-                entry = AICatalogModel(**model)
+                entry = AICatalystModel(**model)
                 entry._client = self._client
                 models.append(entry)
             except ValidationError as e:
@@ -151,21 +151,21 @@ class AICatalogModels(BaseModels):
                 )
         return models
 
-    def _get_model_by_uuid(self, model_uuid: UUID) -> AICatalogModel:
+    def _get_model_by_uuid(self, model_uuid: UUID) -> AICatalystModel:
         res = self._client.get(f"/api/ai/models/{model_uuid}")
         res.raise_for_status()
-        return AICatalogModel(**res.json())
+        return AICatalystModel(**res.json())
 
     def _get_quantization_by_uuid(
         self, model_uuid: UUID, file_uuid: UUID
-    ) -> AICatalogQuantizedFile:
+    ) -> AICatalystQuantizedFile:
         res = self._client.get(f"/api/ai/models/{model_uuid}/quants/{file_uuid}")
         res.raise_for_status()
-        return AICatalogQuantizedFile(**res.json())
+        return AICatalystQuantizedFile(**res.json())
 
     def _download(
         self,
-        model_quantization: AICatalogQuantizedFile,
+        model_quantization: AICatalystQuantizedFile,
         path: Optional[Path] = None,
     ) -> Generator[int, None, None]:
         if not model_quantization.published:
@@ -195,12 +195,12 @@ class AICatalogModels(BaseModels):
             path.unlink(missing_ok=True)
             model_quantization.local_path.link_to(path)
 
-    def _delete(self, model_quantization: AICatalogQuantizedFile) -> None:
+    def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:
         model_quantization.local_path.unlink()
 
 
-class AICatalogServerConfig(ServerConfig):
-    # model: AICatalogModel
+class AICatalystServerConfig(ServerConfig):
+    # model: AICatalystModel
     name: str
     model_uuid: UUID
     file_uuid: UUID
@@ -209,8 +209,8 @@ class AICatalogServerConfig(ServerConfig):
     start_ts: dt.datetime
 
 
-class AICatalogServer(Server):
-    serverConfig: AICatalogServerConfig
+class AICatalystServer(Server):
+    serverConfig: AICatalystServerConfig
 
     @property
     def api_key(self) -> str:
@@ -225,19 +225,19 @@ class AICatalogServer(Server):
         return f"{self.serverConfig.address}:{self.serverConfig.port}"
 
 
-class AICatalogServers(BaseServers):
+class AICatalystServers(BaseServers):
     @lru_cache
-    def list(self) -> List[AICatalogServer]:
+    def list(self) -> List[AICatalystServer]:
         res = self._client.get("api/ai/model/org/servers")
         res.raise_for_status()
         discovered = res.json().get("result", {}).get("data", [])
 
         servers = []
         for server in discovered:
-            model = AICatalogModel(**server["model"])
-            server_entry = AICatalogServer(
+            model = AICatalystModel(**server["model"])
+            server_entry = AICatalystServer(
                 id=server["id"],
-                serverConfig=AICatalogServerConfig(
+                serverConfig=AICatalystServerConfig(
                     model_name=model.quantized_files[0].identifier, **server
                 ),
             )
@@ -252,7 +252,7 @@ class AICatalogServers(BaseServers):
         return res.json()["status"]
 
 
-class AICatalogClient(GenericClient):
+class AICatalystClient(GenericClient):
     _user_agent = f"anaconda-ai/{version}"
 
     def __init__(
@@ -272,7 +272,7 @@ class AICatalogClient(GenericClient):
         if api_version is not None:
             kwargs["api_version"] = api_version
 
-        kwargs_top = {"backends": {"ai_catalog": kwargs}}
+        kwargs_top = {"backends": {"ai_catalyst": kwargs}}
         self._ai_config = AnacondaAIConfig(**kwargs_top)  # type: ignore
 
         super().__init__(
@@ -284,11 +284,11 @@ class AICatalogClient(GenericClient):
             extra_headers=extra_headers,
         )
 
-        if self._ai_config.backends.ai_catalog.api_version is not None:
+        if self._ai_config.backends.ai_catalyst.api_version is not None:
             self.headers["X-Anaconda-Api-Version"] = (
-                self._ai_config.backends.ai_catalog.api_version
+                self._ai_config.backends.ai_catalyst.api_version
             )
 
-        self.models = AICatalogModels(self)
-        self.servers = AICatalogServers(self)
-        self.hooks["response"].insert(0, catalog_login_required)
+        self.models = AICatalystModels(self)
+        self.servers = AICatalystServers(self)
+        self.hooks["response"].insert(0, catalyst_login_required)

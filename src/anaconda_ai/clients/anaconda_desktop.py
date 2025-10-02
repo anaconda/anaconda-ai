@@ -199,7 +199,8 @@ class AnacondaDesktopServers(BaseServers):
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> AnacondaDesktopServer:
         server_config = AnacondaDesktopServerConfig(
-            modelFileName=model_quantization.identifier
+            modelFileName=model_quantization.identifier,
+            loadParams={} if extra_options is None else extra_options,
         )
 
         requested_port = server_config.server_params.get("port", 0)

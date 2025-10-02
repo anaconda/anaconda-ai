@@ -1,4 +1,5 @@
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, Optional, Union, List, cast
 
 import requests
@@ -15,9 +16,84 @@ from .base import (
     Server,
     ServerConfig,
 )
-from .ai_catalog import AICatalogModels as _AICatalogModels
-from .ai_catalog import AICatalogQuantizedFile
-from .ai_catalog import AICatalogClient
+from .ai_catalyst import AICatalystModels as _AICatalystModels
+from .ai_catalyst import AICatalystQuantizedFile
+from .ai_catalyst import AICatalystClient
+
+SYSTEM_PROMPT = dedent("""\
+    You are a helpful assistant with access to the following tools:
+
+    {{ .Tools }}
+
+    When you need to use a tool, respond with a JSON object in the following format:
+    {
+      "tool_name": "tool_function_name",
+      "parameters": {
+        "param1": "value1",
+        "param2": "value2"
+      }
+    }
+""")
+
+# TEMPLATE = "{{ .Prompt }}"
+
+TEMPLATE = dedent("""\
+    {{- if or .System .Tools }}<|start_header_id|>system<|end_header_id|>
+    {{- if .System }}
+
+    {{ .System }}
+    {{- end }}
+    {{- if .Tools }}
+
+    Cutting Knowledge Date: December 2023
+
+    When you receive a tool call response, use the output to format an answer to the original user question.
+
+    You are a helpful assistant with tool calling capabilities.
+    {{- end }}<|eot_id|>
+    {{- end }}
+    {{- range $i, $_ := .Messages }}
+    {{- $last := eq (len (slice $.Messages $i)) 1 }}
+    {{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
+    {{- if and $.Tools $last }}
+
+    Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
+
+    Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables.
+
+    {{ range $.Tools }}
+    {{- . }}
+    {{ end }}
+    Question: {{ .Content }}<|eot_id|>
+    {{- else }}
+
+    {{ .Content }}<|eot_id|>
+    {{- end }}{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+    {{ end }}
+    {{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
+    {{- if .ToolCalls }}
+    {{ range .ToolCalls }}
+    {"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{ end }}
+    {{- else }}
+
+    {{ .Content }}
+    {{- end }}{{ if not $last }}<|eot_id|>{{ end }}
+    {{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
+
+    {{ .Content }}<|eot_id|>{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+    {{ end }}
+    {{- end }}
+    {{- end }}
+""")
+
+# """
+
+# # Template for user input and tool responses
+# TEMPLATE """
+# {{{{ .Prompt }}}}
+# """
 
 
 class OllamaSession(requests.Session):
@@ -46,14 +122,14 @@ class OllamaSession(requests.Session):
         return response
 
 
-class AICatalogModels(_AICatalogModels):
+class AICatalystModels(_AICatalystModels):
     def __init__(self, client: GenericClient, ollama_session: OllamaSession):
         super().__init__(client)
         self._ollama_session = ollama_session
 
     def download(
         self,
-        model_quantization: Union[str, AICatalogQuantizedFile],
+        model_quantization: AICatalystQuantizedFile,
         path: Optional[Path] = None,
         force: bool = False,
         show_progress: bool = True,
@@ -63,7 +139,7 @@ class AICatalogModels(_AICatalogModels):
 
         if isinstance(model_quantization, str):
             model_quantization = cast(
-                AICatalogQuantizedFile, self._find_quantization(model_quantization)
+                AICatalystQuantizedFile, self._find_quantization(model_quantization)
             )
 
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
@@ -73,7 +149,7 @@ class AICatalogModels(_AICatalogModels):
 
         self._client.servers.create(model_quantization)
 
-    def _delete(self, model_quantization: AICatalogQuantizedFile) -> None:
+    def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
         ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
 
@@ -135,7 +211,7 @@ class OllamaServers(BaseServers):
                 )
                 server_config._client = self._client
                 servers.append(server_config)
-            except AssetNotFound:
+            except (AssetNotFound, ValueError):
                 continue
 
         return servers
@@ -155,14 +231,18 @@ class OllamaServers(BaseServers):
 
     def _create(
         self,
-        model_quantization: AICatalogQuantizedFile,
+        model_quantization: AICatalystQuantizedFile,
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> OllamaServer:
+        blob = (
+            AnacondaAIConfig().backends.ollama.models_path
+            / f"sha256-{model_quantization.sha256}"
+        )
         body = {
             "model": model_quantization.identifier,
-            "files": {
-                model_quantization.identifier: f"sha256:{model_quantization.sha256}"
-            },
+            # "system": SYSTEM_PROMPT,
+            "template": TEMPLATE,
+            "files": {model_quantization.identifier: blob.name},
         }
         url = urljoin(self._ollama_session.base_url, "api/create")
         res = self._ollama_session.post(url, json=body)
@@ -198,7 +278,7 @@ class OllamaServers(BaseServers):
         self._stop(server_id)
 
 
-class OllamaClient(AICatalogClient):
+class OllamaClient(AICatalystClient):
     def __init__(
         self,
         site: Optional[str] = None,
@@ -219,5 +299,5 @@ class OllamaClient(AICatalogClient):
         )
 
         ollama_session = OllamaSession(ollama_base_url)
-        self.models = AICatalogModels(self, ollama_session)
+        self.models = AICatalystModels(self, ollama_session)
         self.servers = OllamaServers(self, ollama_session)

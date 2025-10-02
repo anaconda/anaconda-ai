@@ -74,7 +74,7 @@ class AnacondaModel(OpenAI):
             context_window=self.context_window,
             num_output=self.max_tokens or -1,
             is_chat_model=True,
-            is_function_calling_model=False,
+            is_function_calling_model=True,
             model_name=self.model,
             server_config=server_config,
         )
