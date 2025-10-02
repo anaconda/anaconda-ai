@@ -42,7 +42,7 @@ dev = [
 ]
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
-llama-index = ["llama-index-llms-openai"]
+llama-index = ["llama-index-llms-openai", "llama-index-embeddings-openai"]
 llm = ["llm>=0.22"]
 panel = [
   "panel>=1.5.4; python_version >= '3.10'",
@@ -100,6 +100,10 @@ module = "llama_index.core.*"
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = "llama_index.llms.openai.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "llama_index.embeddings.openai.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
