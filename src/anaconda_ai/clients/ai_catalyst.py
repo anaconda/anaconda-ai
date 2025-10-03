@@ -206,7 +206,7 @@ class AICatalystServerConfig(ServerConfig):
     file_uuid: UUID
     address: str
     port: int
-    start_ts: dt.datetime
+    # start_ts: dt.datetime
 
 
 class AICatalystServer(Server):
