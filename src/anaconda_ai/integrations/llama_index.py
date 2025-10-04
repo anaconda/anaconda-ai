@@ -59,7 +59,7 @@ class AnacondaModel(OpenAI):
             system_prompt=system_prompt,
             context_window=context_window,
             max_tokens=max_tokens,
-            is_function_calling_model=False,
+            is_function_calling_model=server.serverConfig.loadParams.jinja or False,
             temperature=temperature,
         )
 
@@ -82,7 +82,7 @@ class AnacondaModel(OpenAI):
             context_window=self.context_window,
             num_output=self.max_tokens or -1,
             is_chat_model=True,
-            is_function_calling_model=False,
+            is_function_calling_model=self._server_config.loadParams.jinja or False,
             model_name=self.model,
             server_config=server_config,
         )

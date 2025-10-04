@@ -174,6 +174,8 @@ The three server parameters Pydantic classes are shown here.
 If the value `None` is used for any parameter the server
 will utilize the backend default value.
 
+Note: If you wish to use tool calling with a model that has been trained to to so you must enabled Jinja with `load_params={'jinja': True}`.
+
 ```python
 class APIParams(BaseModel, extra="forbid"):
     host: str = "127.0.0.1"
@@ -190,6 +192,7 @@ class APIParams(BaseModel, extra="forbid"):
 
 class LoadParams(BaseModel, extra="forbid"):
     batch_size: int | None = None
+    jinja: bool | None = None
     cont_batching: bool | None = None
     ctx_size: int | None = None
     main_gpu: int | None = None

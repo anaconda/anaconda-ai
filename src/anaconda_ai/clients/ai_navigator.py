@@ -1,6 +1,6 @@
 from time import sleep, time
+from pydantic import ValidationError
 from typing import Optional, Any, Union
-from anaconda_cli_base import console
 from packaging.version import parse
 from requests import PreparedRequest, Response
 from requests.auth import AuthBase
@@ -32,6 +32,7 @@ from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
 MIN_AI_NAV_VERSION = "1.14.2"
+
 
 class ModelDownloadCancelledError(AnacondaAIException): ...
 
@@ -148,7 +149,10 @@ class AINavigatorServers(BaseServers):
         for s in res.json()["data"]:
             if "id" not in s:
                 continue
-            server = Server(**s)
+            try:
+                server = Server(**s)
+            except ValidationError:
+                pass
             server._client = self._client
             servers.append(server)
         return servers
@@ -198,20 +202,21 @@ class AINavigatorServers(BaseServers):
         res = self._client.delete(f"api/servers/{server_id}")
         res.raise_for_status()
 
-class AINavigatorVectorDbServer(BaseVectorDb):
 
-    def create(self,
+class AINavigatorVectorDbServer(BaseVectorDb):
+    def create(
+        self,
         show_progress: bool = True,
-        leave_running: Optional[bool] = None, # TODO: Implement this
+        leave_running: Optional[bool] = None,  # TODO: Implement this
         console: Optional[Console] = None,
-        ) -> VectorDbServerResponse:
+    ) -> VectorDbServerResponse:
         """Create a vector database service.
-        
+
         Returns:
             dict: The vector database service information.
         """
-        
-        text = f"Starting pg vector database"
+
+        text = "Starting pg vector database"
         console = Console() if console is None else console
         console.quiet = not show_progress
         with Status(text, console=console) as display:
@@ -222,7 +227,7 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
         return VectorDbServerResponse(**res.json()["data"])
-    
+
     def delete(self) -> None:
         self._client.delete("api/vector-db")
 
@@ -233,17 +238,16 @@ class AINavigatorVectorDbServer(BaseVectorDb):
     def get_tables(self) -> list[TableInfo]:
         res = self._client.get("api/vector-db/tables")
         return [TableInfo(**t) for t in res.json()["data"]]
-    
+
     def drop_table(self, table: str) -> None:
         self._client.delete(f"api/vector-db/tables/{table}")
 
-    
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
-        res = self._client.post(f"api/vector-db/tables", json={
-            "schema": schema.model_dump(),
-            "name": table
-        })
-     
+        res = self._client.post(
+            "api/vector-db/tables", json={"schema": schema.model_dump(), "name": table}
+        )
+        res.raise_for_status()
+
 
 class AINavigatorAPIKey(AuthBase):
     def __init__(self, config: AnacondaAIConfig) -> None:
@@ -301,20 +305,22 @@ class AINavigatorClient(GenericClient):
             )
 
         return response
-    
+
     def version_check(self) -> None:
         # ignore version check for ai-navigator-alpha
         if self._config.backends.ai_navigator.app_name == "ai-navigator-alpha":
             return
-        
+
         ai_navigator_versions = self.get_ai_navigator_version()
         if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
-            raise IncompatibleVersionError(f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}")   
+            raise IncompatibleVersionError(
+                f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}"
+            )
 
     def get_ai_navigator_version(self) -> AiNavigatorVersion:
         res = self.get("api")
         return AiNavigatorVersion(**res.json()["data"])
-    
+
     def get_version(self) -> str:
         ai_navigator_versions = self.get_ai_navigator_version()
 
@@ -324,20 +330,22 @@ class AINavigatorClient(GenericClient):
         except IncompatibleVersionError as e:
             warning = f"Warning: {e}"
 
-        version_str = f"AI Navigator: {ai_navigator_versions.version}\n"\
-                f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"\
-                f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"\
-                f"{warning}"
+        version_str = (
+            f"AI Navigator: {ai_navigator_versions.version}\n"
+            f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"
+            f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"
+            f"{warning}"
+        )
         return version_str
 
     def raise_for_status(self, response: Response) -> None:
         if response.ok:
             return
-        
+
         error = None
         try:
-            error = response.json()['error']
-        except:
+            error = response.json()["error"]
+        except Exception:
             response.raise_for_status()
-        
+
         raise AnacondaAIException(error)
