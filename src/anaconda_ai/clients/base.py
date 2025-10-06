@@ -231,7 +231,7 @@ class ServerConfig(BaseModel):
 
 class Server(BaseModel):
     id: Union[UUID4, str]
-    serverConfig: ServerConfig
+    config: ServerConfig
     api_key: Optional[str] = "empty"
     _client: GenericClient = PrivateAttr()
     _matched: bool = PrivateAttr(default=False)
@@ -260,18 +260,18 @@ class Server(BaseModel):
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> None:
-        text = f"{self.serverConfig.model_name} (creating)"
+        text = f"{self.config.model_name} (creating)"
         console = Console() if console is None else console
         console.quiet = not show_progress
         with Status(text, console=console) as display:
             self._client.servers.start(self)
             status = "starting"
-            text = f"{self.serverConfig.model_name} ({status})"
+            text = f"{self.config.model_name} ({status})"
             display.update(text)
 
             while status != "running":
                 status = self._client.servers.status(self)
-                text = f"{self.serverConfig.model_name} ({status})"
+                text = f"{self.config.model_name} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
@@ -293,13 +293,13 @@ class Server(BaseModel):
     ) -> None:
         console = Console() if console is None else console
         console.quiet = not show_progress
-        text = f"{self.serverConfig.model_name} (stopping)"
+        text = f"{self.config.model_name} (stopping)"
         with Status(text, console=console) as display:
             status = "stopping"
             self._client.servers.stop(self.id)
             while status != "stopped":
                 status = self._client.servers.status(self)
-                text = f"{self.serverConfig.model_name} ({status})"
+                text = f"{self.config.model_name} ({status})"
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 

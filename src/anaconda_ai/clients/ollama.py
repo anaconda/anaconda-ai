@@ -207,7 +207,7 @@ class OllamaServers(BaseServers):
                 assert quant.identifier == model
                 server_config = OllamaServer(
                     id=quant.identifier,
-                    serverConfig=ServerConfig(model_name=quant.identifier),
+                    config=ServerConfig(model_name=quant.identifier),
                 )
                 server_config._client = self._client
                 servers.append(server_config)
@@ -221,7 +221,7 @@ class OllamaServers(BaseServers):
         print(config_dump)
         servers = self.list()
         for server in servers:
-            server_dump = server.serverConfig.model_dump()
+            server_dump = server.config.model_dump()
             print(server_dump)
             if server.is_running and (config_dump == server_dump):
                 server._matched = True

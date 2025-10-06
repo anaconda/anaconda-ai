@@ -149,12 +149,12 @@ class AnacondaDesktopServerConfig(ServerConfig):
 
 
 class AnacondaDesktopServer(Server):
-    serverConfig: AnacondaDesktopServerConfig
+    config: AnacondaDesktopServerConfig = Field(alias="serverConfig")
 
     @computed_field
     @property
     def url(self) -> str:
-        return f"http://{self.serverConfig.server_params['host']}:{self.serverConfig.server_params['port']}"
+        return f"http://{self.config.server_params['host']}:{self.config.server_params['port']}"
 
 
 class AnacondaDesktopServers(BaseServers):
@@ -186,7 +186,7 @@ class AnacondaDesktopServers(BaseServers):
         config_dump = server_config.model_dump(exclude=match_excludes)
         servers = self.list()
         for server in servers:
-            server_dump = server.serverConfig.model_dump(exclude=match_excludes)
+            server_dump = server.config.model_dump(exclude=match_excludes)
             if server.is_running and (config_dump == server_dump):
                 server._matched = True
                 return server

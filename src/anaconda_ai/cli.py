@@ -41,9 +41,7 @@ def _list_models(client: GenericClient) -> RenderableType:
         quantizations = []
         for quant in model.quantized_files:
             matched_servers = [
-                s
-                for s in servers
-                if s.serverConfig.model_name.endswith(quant.identifier)
+                s for s in servers if s.config.model_name.endswith(quant.identifier)
             ]
             color = "green" if matched_servers else ""
             emphasis = "bold" if quant.is_downloaded else "dim"
@@ -84,7 +82,7 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         method = quant.quant_method
         downloaded = CHECK_MARK if quant.is_downloaded else ""
         matched_servers = [
-            s for s in servers if s.serverConfig.model_name.endswith(quant.identifier)
+            s for s in servers if s.config.model_name.endswith(quant.identifier)
         ]
         running = CHECK_MARK if matched_servers else ""
 
@@ -256,7 +254,7 @@ def servers(
     )
 
     for server in servers:
-        params = server.serverConfig.model_dump_json(
+        params = server.config.model_dump_json(
             indent=2,
             exclude={
                 "model_name",
@@ -266,7 +264,7 @@ def servers(
         )
         table.add_row(
             str(server.id),
-            str(server.serverConfig.model_name),
+            str(server.config.model_name),
             server.status,
             server.openai_url,
             params,

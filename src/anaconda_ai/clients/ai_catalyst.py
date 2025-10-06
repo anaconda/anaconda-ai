@@ -206,23 +206,22 @@ class AICatalystServerConfig(ServerConfig):
     file_uuid: UUID
     address: str
     port: int
-    # start_ts: dt.datetime
 
 
 class AICatalystServer(Server):
-    serverConfig: AICatalystServerConfig
+    config: AICatalystServerConfig
 
     @property
     def api_key(self) -> str:
         return (
-            self._client.auth.api_key
-            or self._client.auth._token_info.get_access_token()
-        )  # type: ignore
+            self._client.auth.api_key  # type: ignore
+            or self._client.auth._token_info.get_access_token()  # type: ignore
+        )
 
     @computed_field
     @property
     def url(self) -> str:
-        return f"{self.serverConfig.address}:{self.serverConfig.port}"
+        return f"{self.config.address}:{self.config.port}"
 
 
 class AICatalystServers(BaseServers):
@@ -237,7 +236,7 @@ class AICatalystServers(BaseServers):
             model = AICatalystModel(**server["model"])
             server_entry = AICatalystServer(
                 id=server["id"],
-                serverConfig=AICatalystServerConfig(
+                config=AICatalystServerConfig(
                     model_name=model.quantized_files[0].identifier, **server
                 ),
             )
