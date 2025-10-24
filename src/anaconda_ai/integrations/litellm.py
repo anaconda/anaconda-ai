@@ -1,7 +1,6 @@
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator, Tuple
 
 import openai
-import litellm
 from httpx import Timeout
 from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
 from litellm.llms.custom_llm import CustomLLM
@@ -193,11 +192,3 @@ class AnacondaLLM(CustomLLM):
                 wrapped.handle_openai_chat_completion_chunk(chunk),
             )
             yield handled
-
-
-# This should be moved to an entrypoint if implemented
-# https://github.com/BerriAI/litellm/issues/7733
-anaconda_llm = AnacondaLLM()
-litellm.custom_provider_map.append(
-    {"provider": "anaconda", "custom_handler": anaconda_llm}
-)

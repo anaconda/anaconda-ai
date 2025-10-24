@@ -30,7 +30,7 @@ anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-ai[langchain,litellm,llm,llama-index,panel]"
+  "anaconda-ai[dspy,langchain,litellm,llm,llama-index,panel]"
 ]
 dev = [
   "mypy",
@@ -40,6 +40,7 @@ dev = [
   "tox",
   "types-requests"
 ]
+dspy = ["dspy"]
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
 llama-index = ["llama-index-llms-openai", "llama-index-embeddings-openai"]
@@ -64,6 +65,7 @@ version-file = "src/anaconda_ai/_version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/anaconda_ai",
+  "/src/anaconda_ai.pth",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
@@ -72,6 +74,11 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anaconda_ai"]
+
+# This should be moved to an entrypoint if and when implemented at litellm
+# See: https://github.com/BerriAI/litellm/issues/7733
+[tool.hatch.build.targets.wheel.force-include]
+"src/anaconda_ai.pth" = "anaconda_ai.pth"
 
 [tool.hatch.version]
 source = "vcs"
