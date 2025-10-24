@@ -1,0 +1,1 @@
+import os, sys;exec('try:\n    import litellm\n    from anaconda_ai.integrations.litellm import AnacondaLLM\n    anaconda_llm = AnacondaLLM()\n    litellm.custom_provider_map.append(\n        {"provider": "anaconda", "custom_handler": anaconda_llm}\n    )\nexcept ImportError:\n    pass\n')

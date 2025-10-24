@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "hatchling.build"
-requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1", "hatch-autorun"]
+requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
@@ -65,6 +65,7 @@ version-file = "src/anaconda_ai/_version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/anaconda_ai",
+  "/src/anaconda_ai.pth",
   "/pyproject.toml",
   "/tests",
   "/Makefile",
@@ -76,18 +77,8 @@ packages = ["src/anaconda_ai"]
 
 # This should be moved to an entrypoint if and when implemented at litellm
 # See: https://github.com/BerriAI/litellm/issues/7733
-[tool.hatch.build.targets.wheel.hooks.autorun]
-code = """
-try:
-    import litellm
-    from anaconda_ai.integrations.litellm import AnacondaLLM
-    anaconda_llm = AnacondaLLM()
-    litellm.custom_provider_map.append(
-        {"provider": "anaconda", "custom_handler": anaconda_llm}
-    )
-except ImportError:
-    pass
-"""
+[tool.hatch.build.targets.wheel.force-include]
+"src/anaconda_ai.pth" = "anaconda_ai.pth"
 
 [tool.hatch.version]
 source = "vcs"
