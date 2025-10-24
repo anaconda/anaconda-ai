@@ -73,6 +73,25 @@ include = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/anaconda_ai"]
 
+# This should be moved to an entrypoint if and when implemented at litellm
+# See: https://github.com/BerriAI/litellm/issues/7733
+[tool.hatch.build.targets.wheel.hooks.autorun]
+code = """
+try:
+    import litellm
+    from anaconda_ai.integrations.litellm import AnacondaLLM
+    anaconda_llm = AnacondaLLM()
+    litellm.custom_provider_map.append(
+        {"provider": "anaconda", "custom_handler": anaconda_llm}
+    )
+except ImportError:
+    pass
+"""
+dependencies = ["hatch-autorun"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.version]
 source = "vcs"
 raw-options.local_scheme = "no-local-version"
