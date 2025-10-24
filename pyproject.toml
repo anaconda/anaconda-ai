@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "hatchling.build"
-requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
+requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1", "hatch-autorun"]
 
 [project]
 dependencies = [
@@ -88,10 +88,6 @@ try:
 except ImportError:
     pass
 """
-dependencies = ["hatch-autorun"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
