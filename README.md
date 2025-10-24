@@ -375,13 +375,10 @@ The `AnacondaModel` class supports the following arguments
 
 ## LiteLLM
 
-This provides a CustomLLM provider for use with `litellm`.  But, since litellm does not currently support
-[entrypoints](https://github.com/BerriAI/litellm/issues/7733) to register the provider,
-the user must import the module first.
+This provides a CustomLLM provider for use with `litellm`.
 
 ```python
 import litellm
-import anaconda_ai.integrations.litellm
 
 response = litellm.completion(
     'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
@@ -407,7 +404,6 @@ like Predict or ChainofThought
 
 ```python
 import dspy
-import anaconda_ai.integrations.litellm
 
 lm = dspy.LM('anaconda/openhermes-2.5-mistral-7b/q4_k_m')
 dspy.configure(lm=lm)
