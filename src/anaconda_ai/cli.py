@@ -182,22 +182,15 @@ def launch(
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
     ),
-    force_download: bool = typer.Option(
-        False, help="Download the model file even if it is already cached"
-    ),
 ) -> None:
     """Launch an inference server for a model"""
 
     client = make_client(backend=backend, site=site)
-    client.models.download(model, force=force_download)
 
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
         server = client.servers.create(
             model=model,
-            # api_params=api_params,
-            # load_params=load_params,
-            # infer_params=infer_params,
         )
         client.servers.start(server)
         status = client.servers.status(server)
