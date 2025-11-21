@@ -87,3 +87,4 @@ class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
     backend: Literal["ollama", "ai-catalyst", "anaconda-desktop"] = "ai-catalyst"
     stop_server_on_exit: bool = True
+    server_operations_timeout: int = 30

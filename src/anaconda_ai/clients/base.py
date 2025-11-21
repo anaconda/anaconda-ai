@@ -1,6 +1,7 @@
 import atexit
 import re
 from pathlib import Path
+from time import time
 from types import TracebackType
 from typing import Any
 from typing import Dict
@@ -23,6 +24,7 @@ from rich.console import Console
 from anaconda_auth.client import BaseClient
 from ..config import AnacondaAIConfig
 from ..exceptions import (
+    AnacondaAIException,
     ModelNotFound,
     QuantizedFileNotFound,
     ModelNotDownloadedError,
@@ -269,10 +271,17 @@ class Server(BaseModel):
             text = f"{self.config.model_name} ({status})"
             display.update(text)
 
+            t0 = time()
+            start_timeout = AnacondaAIConfig().server_operations_timeout
             while status != "running":
                 status = self._client.servers.status(self)
                 text = f"{self.config.model_name} ({status})"
                 display.update(text)
+                t1 = time()
+                if (t1 - t0) > start_timeout:
+                    raise AnacondaAIException(
+                        f"Server start timed out after {start_timeout} seconds"
+                    )
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
         if not self._matched:
