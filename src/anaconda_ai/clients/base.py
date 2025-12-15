@@ -16,7 +16,6 @@ from urllib.parse import urljoin
 import openai
 import rich.progress
 from pydantic import BaseModel, computed_field, model_validator, Field, PrivateAttr
-from pydantic.types import UUID4
 from rich.status import Status
 from rich.console import Console
 
@@ -424,14 +423,14 @@ class BaseServers:
     def _stop(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def stop(self, server: Union[UUID4, Server, str]) -> None:
+    def stop(self, server: Union[Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._stop(server_id)
 
     def _delete(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def delete(self, server: Union[UUID4, Server, str]) -> None:
+    def delete(self, server: Union[Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 
