@@ -10,7 +10,7 @@ from rich.table import Column
 from rich.table import Table
 
 from anaconda_cli_base import console
-from .clients import make_client
+from .clients import AnacondaAIClient
 from .clients.base import GenericClient, Server, VectorDbTableSchema
 from ._version import __version__
 
@@ -100,7 +100,7 @@ def version() -> None:
     console.print(f"SDK: {__version__}")
 
     try:
-        client = make_client()
+        client = AnacondaAIClient()
         version = client.get_version()
         console.print(version)
     except Exception:
@@ -119,7 +119,7 @@ def models(
     ] = None,
 ) -> None:
     """Model information"""
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
     if model_id is None:
         renderable = _list_models(client)
     else:
@@ -143,7 +143,7 @@ def download(
     ] = None,
 ) -> None:
     """Download a model"""
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
     client.models.download(
         model, show_progress=True, force=force, console=console, path=output
     )
@@ -159,7 +159,7 @@ def remove(
     ] = None,
 ) -> None:
     """Remove a downloaded a model"""
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
     client.models.delete(model)
     console.print("[green]Success[/green]")
 
@@ -185,7 +185,7 @@ def launch(
 ) -> None:
     """Launch an inference server for a model"""
 
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
 
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
@@ -234,7 +234,7 @@ def servers(
     ] = None,
 ) -> None:
     """List running servers"""
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
     servers = client.servers.list()
 
     table = Table(
@@ -274,7 +274,7 @@ def stop(
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
-    client = make_client(backend=backend, site=site)
+    client = AnacondaAIClient(backend=backend, site=site)
     client.servers.stop(server)
     client.servers.delete(server)
 
@@ -284,7 +284,7 @@ def launch_vector_db() -> None:
     """
     Starts a vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     result = client.vector_db.create()
     console.print(result)
 
@@ -294,7 +294,7 @@ def delete_vector_db() -> None:
     """
     Deletes the vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     client.vector_db.delete()
     console.print("Vector db deleted")
 
@@ -304,7 +304,7 @@ def stop_vector_db() -> None:
     """
     Stops the vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     result = client.vector_db.stop()
     console.print(result)
 
@@ -314,7 +314,7 @@ def list_tables() -> None:
     """
     Lists all tables in the vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     tables = client.vector_db.get_tables()
     console.print(tables)
 
@@ -326,7 +326,7 @@ def drop_table(
     """
     Drops a table from the vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     client.vector_db.drop_table(table)
     console.print(f"Table {table} dropped")
 
@@ -339,7 +339,7 @@ def create_table(
     """
     Creates a table in the vector db
     """
-    client = make_client()
+    client = AnacondaAIClient()
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
     console.print(f"Table {table} created")
