@@ -8,48 +8,59 @@ from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import ModelResponse, GenericStreamingChunk
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
-from ..clients import get_default_client
-
-client = get_default_client()
+from ..clients import AnacondaAIClient
 
 
 def create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
 ) -> Tuple[openai.OpenAI, str]:
-    server = client.servers.create(model, **kwargs)
-    server.start()
-    return server.openai_client(timeout=timeout), server.serverConfig.modelFileName
+    site = kwargs.pop("site", None)
+    domain = kwargs.pop("domain", None)
+    ckwargs = {}
+    if site is not None:
+        ckwargs["site"] = site
+    if domain is not None:
+        ckwargs["domain"] = domain
+    client = AnacondaAIClient(**ckwargs)
+    if model.startswith("server/"):
+        server_name = model.split("/", maxsplit=1)[1]
+        server = client.servers.get(server_name)
+    else:
+        server = client.servers.create(model, **kwargs)
+    if not server.is_running:
+        server.start()
+    return server.openai_client(timeout=timeout), server.config.model_name
 
 
 async def async_create_and_start(
     model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
 ) -> Tuple[openai.AsyncOpenAI, str]:
-    server = client.servers.create(model, **kwargs)
-    server.start()
-    return server.openai_async_client(
-        timeout=timeout
-    ), server.serverConfig.modelFileName
+    site = kwargs.pop("site", None)
+    domain = kwargs.pop("domain", None)
+    ckwargs = {}
+    if site is not None:
+        ckwargs["site"] = site
+    if domain is not None:
+        ckwargs["domain"] = domain
+    client = AnacondaAIClient(**ckwargs)
+    if model.startswith("server/"):
+        server_name = model.split("/", maxsplit=1)[1]
+        server = client.servers.get(server_name)
+    else:
+        server = client.servers.create(model, **kwargs)
+    if not server.is_running:
+        server.start()
+    return server.async_openai_client(timeout=timeout), server.config.model_name
 
 
 class AnacondaLLM(CustomLLM):
-    def _prepare_inference_kwargs(self, optional_params: dict) -> dict:
+    def _prepare_kwargs(self, optional_params: dict) -> dict:
         inference_kwargs = optional_params.copy()
         _ = inference_kwargs.pop("stream", None)
         _ = inference_kwargs.pop("stream_options", None)
         _ = inference_kwargs.pop("max_retries", None)
-        _ = inference_kwargs.pop("optional_params", None)
-        return inference_kwargs
-
-    def _prepare_server_kwargs(self, optional_params: dict) -> dict:
-        optional = optional_params.get("optional_params", {})
-        api_params = optional.get("api_params", None)
-        load_params = optional.get("load_params", None)
-        infer_params = optional.get("infer_params", None)
-        return {
-            "api_params": api_params,
-            "load_params": load_params,
-            "infer_params": infer_params,
-        }
+        optional_kwargs = inference_kwargs.pop("optional_params", {})
+        return inference_kwargs, optional_kwargs
 
     def completion(
         self,
@@ -70,10 +81,9 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[HTTPHandler] = None,
     ) -> ModelResponse:
-        inference_kwargs = self._prepare_inference_kwargs(optional_params)
-        server_kwargs = self._prepare_server_kwargs(optional_params)
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start(
-            model=model, timeout=timeout, **server_kwargs
+            model=model, timeout=timeout, **optional_kwargs
         )
         response = _client.chat.completions.create(
             messages=messages, model=model_name, **inference_kwargs
@@ -100,11 +110,10 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[HTTPHandler] = None,
     ) -> Iterator[GenericStreamingChunk]:
-        server_kwargs = self._prepare_server_kwargs(optional_params)
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start(
-            model=model, timeout=timeout, **server_kwargs
+            model=model, timeout=timeout, **optional_kwargs
         )
-        inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = _client.chat.completions.create(
             messages=messages, model=model_name, stream=True, **inference_kwargs
         )
@@ -141,11 +150,10 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
-        server_kwargs = self._prepare_server_kwargs(optional_params)
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = await async_create_and_start(
-            model=model, timeout=timeout, **server_kwargs
+            model=model, timeout=timeout, **optional_kwargs
         )
-        inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
             messages=messages, model=model_name, **inference_kwargs
         )
@@ -171,12 +179,11 @@ class AnacondaLLM(CustomLLM):
         timeout: Optional[Union[float, Timeout]] = None,
         client: Optional[AsyncHTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
-        server_kwargs = self._prepare_server_kwargs(optional_params)
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = await async_create_and_start(
-            model=model, timeout=timeout, **server_kwargs
+            model=model, timeout=timeout, **optional_kwargs
         )
 
-        inference_kwargs = self._prepare_inference_kwargs(optional_params)
         response = await _client.chat.completions.create(
             messages=messages, model=model_name, stream=True, **inference_kwargs
         )
