@@ -1,17 +1,21 @@
 import datetime as dt
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any, Generator
+from typing import List, Optional, Union, Dict, Any, Generator, MutableMapping, ClassVar
 from uuid import UUID
 
+import openai
 import json
 import requests
 from pydantic import ValidationError, computed_field, BaseModel
 from requests.exceptions import HTTPError
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
+from anaconda_auth.token import TokenInfo
 from anaconda_cli_base.console import console
 from anaconda_cli_base.exceptions import register_error_handler
+
+from anaconda_ai.exceptions import QuantizedFileNotFound
 
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
@@ -80,7 +84,6 @@ class AICatalystQuantizedFile(QuantizedFile):
     generated_on: dt.datetime
     quant_engine: str
     published: bool
-    file_type_id: Optional[str] = None
     created_at: Optional[dt.datetime] = None
     updated_at: Optional[dt.datetime] = None
     context_window_size: Optional[int]
@@ -115,6 +118,11 @@ class Group(BaseModel):
     name: str
 
 
+class AICatalystConvertedFiles(BaseModel):
+    generated_on: dt.datetime
+    published: bool
+
+
 class AICatalystModel(Model):
     model_uuid: UUID
     model_type: str
@@ -126,6 +134,7 @@ class AICatalystModel(Model):
     groups: List[Group]
     tags: List[Tag]
     quantized_files: List[AICatalystQuantizedFile]
+    converted_files: List[AICatalystConvertedFiles]
 
 
 class AICatalystModels(BaseModels):
@@ -134,8 +143,7 @@ class AICatalystModels(BaseModels):
 
     @lru_cache
     def list(self) -> List[AICatalystModel]:
-        response = self._client.get("/api/ai/model/org/models/model-data")
-        # response = self._client.get("/api/ai/model/models")
+        response = self._client.get("/api/ai/model/models")
         response.raise_for_status()
         data = response.json()["result"]["data"]
 
@@ -151,17 +159,34 @@ class AICatalystModels(BaseModels):
                 )
         return models
 
-    def _get_model_by_uuid(self, model_uuid: UUID) -> AICatalystModel:
-        res = self._client.get(f"/api/ai/models/{model_uuid}")
+        # Save only the most recently generated model for each unique name
+        # sorted_models = sorted(models, key=lambda m: m.converted_files[0].generated_on, reverse=False)
+        # by_name = {model.name: model for model in sorted_models}
+        # deduped_models = list[AICatalystModel](by_name.values())
+        # return deduped_models
+
+    def _get_model_by_uuid(self, model_uuid: Union[UUID, str]) -> AICatalystModel:
+        res = self._client.get(f"/api/ai/model/models/{model_uuid}")
         res.raise_for_status()
-        return AICatalystModel(**res.json())
+        return AICatalystModel(**res.json()["data"])
 
     def _get_quantization_by_uuid(
-        self, model_uuid: UUID, file_uuid: UUID
+        self, model_uuid: Union[UUID, str], file_uuid: Union[str, UUID]
     ) -> AICatalystQuantizedFile:
-        res = self._client.get(f"/api/ai/models/{model_uuid}/quants/{file_uuid}")
-        res.raise_for_status()
-        return AICatalystQuantizedFile(**res.json())
+        if isinstance(file_uuid, str):
+            file_uuid = UUID(file_uuid)
+
+        model = self._get_model_by_uuid(model_uuid)
+        for quant in model.quantized_files:
+            if quant.file_uuid == file_uuid:
+                return quant
+
+        raise QuantizedFileNotFound(
+            f"Could not find quantized file UUID {file_uuid} for model {model_uuid}"
+        )
+        # res = self._client.get(f"/api/ai/model/models/{model_uuid}/files/{file_uuid}")
+        # res.raise_for_status()
+        # return AICatalystQuantizedFile(**res.json()["data"])
 
     def _download(
         self,
@@ -176,9 +201,10 @@ class AICatalystModels(BaseModels):
                 f"Cannot find download url for {model_quantization.identifier}"
             )
 
-        response = self._client.get(model_quantization.download_url, stream=True)
-        # download_url = f"api/ai/model/models/{model_quantization._model.model_uuid}/files/{model_quantization.file_uuid}/download"
-        # response = self._client.get(download_url, params={"redirect": False}, stream=True)
+        res = self._client.get(model_quantization.download_url)
+        res.raise_for_status()
+        signed_url = res.json()["download_url"]
+        response = requests.get(signed_url, stream=True)
 
         response.raise_for_status()
 
@@ -193,7 +219,8 @@ class AICatalystModels(BaseModels):
         if path is not None:
             path = Path(path)
             path.unlink(missing_ok=True)
-            model_quantization.local_path.link_to(path)
+            # model_quantization.local_path.hardlink_to(path)
+            path.hardlink_to(model_quantization.local_path)
 
     def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:
         model_quantization.local_path.unlink()
@@ -201,86 +228,232 @@ class AICatalystModels(BaseModels):
 
 class AICatalystServerConfig(ServerConfig):
     # model: AICatalystModel
-    name: str
+    # id: UUID
+    # owner: str
+    # uuid: UUID
     model_uuid: UUID
     file_uuid: UUID
-    address: str
-    port: int
+    # address: str
+    # status: str
 
 
 class AICatalystServer(Server):
+    id: str
+    uuid: UUID
+    owner: str
     config: AICatalystServerConfig
+    api_key: ClassVar[str] = None
 
+    @computed_field  # type: ignore[misc]
     @property
-    def api_key(self) -> str:
-        return (
-            self._client.auth.api_key  # type: ignore
-            or self._client.auth._token_info.get_access_token()  # type: ignore
+    def openai_url(self) -> str:
+        return f"{self.url}/v1"
+
+    def openai_client(self, **kwargs: Any) -> openai.OpenAI:
+        api_key = (
+            self._client.config.api_key
+            or TokenInfo.load(domain=self._client.config.domain).api_key
         )
+        client = openai.OpenAI(base_url=self.openai_url, api_key=api_key, **kwargs)
+        return client
 
-    @computed_field
-    @property
-    def url(self) -> str:
-        return f"{self.config.address}:{self.config.port}"
+    def async_openai_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
+        api_key = (
+            self._client.config.api_key
+            or TokenInfo.load(domain=self._client.config.domain).api_key
+        )
+        client = openai.AsyncOpenAI(base_url=self.openai_url, api_key=api_key, **kwargs)
+        return client
 
 
 class AICatalystServers(BaseServers):
+    _client: "AICatalystClient"
+    download_required: bool = False
+
     @lru_cache
     def list(self) -> List[AICatalystServer]:
-        res = self._client.get("api/ai/model/org/servers")
+        res = self._client.get("api/ai/inference/servers")
         res.raise_for_status()
-        discovered = res.json().get("result", {}).get("data", [])
+        discovered = res.json().get("data", {}).get("servers", [])
 
         servers = []
         for server in discovered:
-            model = AICatalystModel(**server["model"])
+            model = self._client.models._get_quantization_by_uuid(
+                server["model_uuid"], server["file_uuid"]
+            )
+            model_name = model.identifier
             server_entry = AICatalystServer(
-                id=server["id"],
+                id=server["name"],
+                uuid=server["id"],
+                url=server["address"],
+                owner=server["owner"],
+                client=self._client,
                 config=AICatalystServerConfig(
-                    model_name=model.quantized_files[0].identifier, **server
+                    model_name=model_name,
+                    model_uuid=server["model_uuid"],
+                    file_uuid=server["file_uuid"],
                 ),
             )
-            server_entry._client = self._client
             servers.append(server_entry)
 
         return servers
 
-    def _status(self, server_id: str) -> str:
-        res = self._client.get(f"api/ai/model/org/servers/server/{server_id}")
+    def get(self, server: Union[str, UUID]) -> AICatalystServer:
+        servers = self.list()
+
+        try:
+            uuid = UUID(server)
+        except ValueError:
+            uuid = None
+
+        for found_server in servers:
+            if uuid and found_server.uuid == uuid:
+                return found_server
+            elif server == found_server.id:
+                return found_server
+
+    def _create(
+        self,
+        model_quantization: AICatalystQuantizedFile,
+        extra_options: Optional[Dict[str, Any]] = None,
+    ) -> Server:
+        file_uuid = model_quantization.file_uuid
+        model_uuid = model_quantization.model_uuid
+
+        existing_servers = self._client.servers.list()
+        for server in existing_servers:
+            config = server.config.model_dump(exclude={"model_name"})
+            if {"file_uuid": file_uuid, "model_uuid": model_uuid} == config:
+                return server
+
+        extra_options = extra_options or {}
+        body = {
+            "name": extra_options.get("name", "") or model_quantization.identifier,
+            "file_uuid": str(file_uuid),
+            "model_uuid": str(model_uuid),
+        }
+
+        res = self._client.post("api/ai/inference/servers/server", json=body)
         res.raise_for_status()
-        return res.json()["status"]
+        data = res.json()["data"]
+
+        server_config = AICatalystServerConfig(
+            model_name=model_quantization.identifier,
+            model_uuid=data["model_uuid"],
+            file_uuid=data["file_uuid"],
+        )
+        server_entry = AICatalystServer(
+            uuid=data["id"],
+            id=data["name"],
+            owner=data["owner"],
+            url=data["address"],
+            config=server_config,
+            client=self._client,
+        )
+        # server_entry._client = self._client
+
+        # server_entry = AICatalystServer(
+        #     id=data["id"],
+        #     config=ServerConfig(model_name=model_quantization.identifier),
+        # )
+
+        return server_entry
+
+    def _get_server_id(self, server: Union[AICatalystServer, UUID, str]) -> str:
+        if isinstance(server, AICatalystServer):
+            server_id = str(server.uuid)
+        elif isinstance(server, str):
+            server_entry = self.get(server)
+            server_id = server_entry.uuid
+
+        return server_id
+        # return super()._get_server_id(server)
+
+    def _start(self, server_id: str) -> None:
+        res = self._client.post(f"api/ai/inference/servers/server/{server_id}/start")
+        res.raise_for_status()
+
+    def _stop(self, server_id: str) -> None:
+        res = self._client.post(f"api/ai/inference/servers/server/{server_id}/stop")
+        res.raise_for_status()
+
+    def _status(self, server_id: str) -> str:
+        res = self._client.get("api/ai/inference/servers")
+        res.raise_for_status()
+        for server in res.json()["data"]["servers"]:
+            if server["id"] == str(server_id):
+                break
+        else:
+            return "<unknown>"
+
+        if server["status"] == "stopped":
+            return "stopped"
+
+        res = self._client.get(f"{server['address']}/v1/models")
+        if res.ok:
+            return "running"
+        else:
+            return "starting"
+
+        # not currently working
+        # try:
+        #     res = self._client.get(f"api/ai/inference/servers/server/{server_id}")
+        #     res.raise_for_status()
+        #     status = res.json()["data"]["status"]
+        # except Exception:
+        #     status = "<unknown>"
+        # return status
+
+    def _delete(self, server_id: str) -> None:
+        res = self._client.get(f"api/ai/inference/servers/server/{server_id}")
+        res.raise_for_status()
 
 
 class AICatalystClient(GenericClient):
     _user_agent = f"anaconda-ai/{version}"
+    models: AICatalystModels
+    servers: AICatalystServers
 
     def __init__(
         self,
         site: Optional[str] = None,
+        base_uri: Optional[str] = None,
         domain: Optional[str] = None,
+        auth_domain_override: Optional[str] = None,
         api_key: Optional[str] = None,
         user_agent: Optional[str] = None,
-        ssl_verify: Optional[bool] = None,
         api_version: Optional[str] = None,
+        ssl_verify: Optional[Union[bool, str]] = None,
         extra_headers: Optional[Union[str, dict]] = None,
+        hash_hostname: Optional[bool] = None,
+        proxy_servers: Optional[MutableMapping[str, str]] = None,
+        client_cert: Optional[str] = None,
+        client_cert_key: Optional[str] = None,
     ):
-        kwargs: Dict[str, Any] = {}
+        ai_kwargs: Dict[str, Any] = {}
         if domain is not None:
-            kwargs["domain"] = domain
+            ai_kwargs["domain"] = domain
 
         if api_version is not None:
-            kwargs["api_version"] = api_version
+            ai_kwargs["api_version"] = api_version
 
-        kwargs_top = {"backends": {"ai_catalyst": kwargs}}
+        kwargs_top = {"backends": {"ai_catalyst": ai_kwargs}}
         self._ai_config = AnacondaAIConfig(**kwargs_top)  # type: ignore
 
         super().__init__(
             site=site,
-            user_agent=user_agent,
-            api_key=api_key,
+            base_uri=base_uri,
             domain=domain,
+            auth_domain_override=auth_domain_override,
+            api_key=api_key,
+            user_agent=user_agent,
+            api_version=api_version,
             ssl_verify=ssl_verify,
             extra_headers=extra_headers,
+            hash_hostname=hash_hostname,
+            proxy_servers=proxy_servers,
+            client_cert=client_cert,
+            client_cert_key=client_cert_key,
         )
 
         if self._ai_config.backends.ai_catalyst.api_version is not None:

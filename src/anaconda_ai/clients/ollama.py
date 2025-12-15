@@ -1,7 +1,8 @@
+import json
 from pathlib import Path
-from textwrap import dedent
 from typing import Any, Dict, Optional, Union, List, cast
 
+import gguf
 import requests
 from pydantic import computed_field
 from requests.exceptions import ConnectionError
@@ -19,81 +20,6 @@ from .base import (
 from .ai_catalyst import AICatalystModels as _AICatalystModels
 from .ai_catalyst import AICatalystQuantizedFile
 from .ai_catalyst import AICatalystClient
-
-SYSTEM_PROMPT = dedent("""\
-    You are a helpful assistant with access to the following tools:
-
-    {{ .Tools }}
-
-    When you need to use a tool, respond with a JSON object in the following format:
-    {
-      "tool_name": "tool_function_name",
-      "parameters": {
-        "param1": "value1",
-        "param2": "value2"
-      }
-    }
-""")
-
-# TEMPLATE = "{{ .Prompt }}"
-
-TEMPLATE = dedent("""\
-    {{- if or .System .Tools }}<|start_header_id|>system<|end_header_id|>
-    {{- if .System }}
-
-    {{ .System }}
-    {{- end }}
-    {{- if .Tools }}
-
-    Cutting Knowledge Date: December 2023
-
-    When you receive a tool call response, use the output to format an answer to the original user question.
-
-    You are a helpful assistant with tool calling capabilities.
-    {{- end }}<|eot_id|>
-    {{- end }}
-    {{- range $i, $_ := .Messages }}
-    {{- $last := eq (len (slice $.Messages $i)) 1 }}
-    {{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
-    {{- if and $.Tools $last }}
-
-    Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
-
-    Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables.
-
-    {{ range $.Tools }}
-    {{- . }}
-    {{ end }}
-    Question: {{ .Content }}<|eot_id|>
-    {{- else }}
-
-    {{ .Content }}<|eot_id|>
-    {{- end }}{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
-
-    {{ end }}
-    {{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
-    {{- if .ToolCalls }}
-    {{ range .ToolCalls }}
-    {"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{ end }}
-    {{- else }}
-
-    {{ .Content }}
-    {{- end }}{{ if not $last }}<|eot_id|>{{ end }}
-    {{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
-
-    {{ .Content }}<|eot_id|>{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
-
-    {{ end }}
-    {{- end }}
-    {{- end }}
-""")
-
-# """
-
-# # Template for user input and tool responses
-# TEMPLATE """
-# {{{{ .Prompt }}}}
-# """
 
 
 class OllamaSession(requests.Session):
@@ -143,9 +69,11 @@ class AICatalystModels(_AICatalystModels):
             )
 
         ollama_models_path = AnacondaAIConfig().backends.ollama.models_path
+        ollama_models_path.mkdir(parents=True, exist_ok=True)
         ollama_model_path = ollama_models_path / f"sha256-{model_quantization.sha256}"
+
         ollama_model_path.unlink(missing_ok=True)
-        model_quantization.local_path.link_to(ollama_model_path)
+        ollama_model_path.hardlink_to(model_quantization.local_path)
 
         self._client.servers.create(model_quantization)
 
@@ -238,19 +166,35 @@ class OllamaServers(BaseServers):
             AnacondaAIConfig().backends.ollama.models_path
             / f"sha256-{model_quantization.sha256}"
         )
+
         body = {
-            "model": model_quantization.identifier,
-            # "system": SYSTEM_PROMPT,
-            "template": TEMPLATE,
-            "files": {model_quantization.identifier: blob.name},
+            "files": {
+                model_quantization.identifier: str(
+                    model_quantization.local_path.absolute()
+                )
+            },
         }
+
+        reader = gguf.GGUFReader(blob, "r")
+        chat_template_field = reader.get_field("tokenizer.chat_template")
+        if chat_template_field is not None:
+            template = chat_template_field.contents().replace("{{- bos_token }}\n", "")
+            body["template"] = template
+
         url = urljoin(self._ollama_session.base_url, "api/create")
         res = self._ollama_session.post(url, json=body)
-        res.raise_for_status()
+        if not res.ok:
+            raise RuntimeError(res.content)
+            # res.raise_for_status()
+        else:
+            for line in res.text.splitlines():
+                js = json.loads(line)
+                if "error" in js:
+                    raise RuntimeError(js["error"])
 
         server_entry = OllamaServer(
             id=model_quantization.identifier,
-            serverConfig=ServerConfig(model_name=model_quantization.identifier),
+            config=ServerConfig(model_name=model_quantization.identifier),
         )
         server_entry._client = self._client
 

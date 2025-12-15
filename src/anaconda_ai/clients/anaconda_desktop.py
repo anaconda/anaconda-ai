@@ -1,9 +1,11 @@
 from pathlib import Path
 from time import time, sleep
-from typing import Dict, List, Optional, Any, Union, Generator
+from typing import Dict, List, Optional, Any, Union, Generator, MutableMapping
+from typing_extensions import Self
 from urllib.parse import quote
+from warnings import warn
 
-from pydantic import Field, computed_field, ConfigDict
+from pydantic import Field, computed_field, ConfigDict, model_validator
 
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
@@ -150,11 +152,18 @@ class AnacondaDesktopServerConfig(ServerConfig):
 
 class AnacondaDesktopServer(Server):
     config: AnacondaDesktopServerConfig = Field(alias="serverConfig")
+    url: Optional[str] = None
 
-    @computed_field
-    @property
-    def url(self) -> str:
-        return f"http://{self.config.server_params['host']}:{self.config.server_params['port']}"
+    @model_validator(mode="after")
+    def generate_url(self) -> Self:
+        if self.url is None:
+            self.url = f"http://{self.config.server_params['host']}:{self.config.server_params['port']}"
+        return self
+
+    # @computed_field
+    # @property
+    # def url(self) -> str:
+    #     return f"http://{self.config.server_params['host']}:{self.config.server_params['port']}"
 
 
 class AnacondaDesktopServers(BaseServers):
@@ -241,12 +250,29 @@ class AnacondaDesktopServers(BaseServers):
 
 
 class AnacondaDesktopClient(GenericClient):
-    def __init__(self, site: Optional[str] = None) -> None:
-        _ = site  # just ignore it
+    def __init__(
+        self,
+        site: Optional[str] = None,
+        base_uri: Optional[str] = None,
+        domain: Optional[str] = None,
+        auth_domain_override: Optional[str] = None,
+        api_key: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        api_version: Optional[str] = None,
+        ssl_verify: Optional[Union[bool, str]] = None,
+        extra_headers: Optional[Union[str, dict]] = None,
+        hash_hostname: Optional[bool] = None,
+        proxy_servers: Optional[MutableMapping[str, str]] = None,
+        client_cert: Optional[str] = None,
+        client_cert_key: Optional[str] = None,
+    ) -> None:
+        if site is not None:
+            warn("site configuration is not supported here")
         self._ai_config = AnacondaAIConfig()
         domain = f"localhost:{self._ai_config.backends.anaconda_desktop.port}"
         super().__init__(
-            domain=domain, api_key=self._ai_config.backends.anaconda_desktop.api_key
+            domain=domain or domain,
+            api_key=api_key or self._ai_config.backends.anaconda_desktop.api_key,
         )
         self._base_uri = f"http://{domain}"
 

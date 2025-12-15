@@ -12,7 +12,6 @@ from typing import Type
 from typing import Union
 from typing_extensions import Self
 from urllib.parse import urljoin
-from uuid import UUID
 
 import openai
 import rich.progress
@@ -232,11 +231,16 @@ class ServerConfig(BaseModel):
 
 
 class Server(BaseModel):
-    id: Union[UUID4, str]
+    id: str
+    url: str
     config: ServerConfig
     api_key: Optional[str] = "empty"
     _client: GenericClient = PrivateAttr()
     _matched: bool = PrivateAttr(default=False)
+
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(**data)
+        self._client = client
 
     @computed_field
     @property
@@ -314,11 +318,6 @@ class Server(BaseModel):
 
     @computed_field  # type: ignore[misc]
     @property
-    def url(self) -> str:
-        raise NotImplementedError()
-
-    @computed_field  # type: ignore[misc]
-    @property
     def openai_url(self) -> str:
         return urljoin(self.url, "/v1")
 
@@ -326,7 +325,7 @@ class Server(BaseModel):
         client = openai.OpenAI(base_url=self.openai_url, api_key=self.api_key, **kwargs)
         return client
 
-    def openai_async_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
+    def async_openai_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
         client = openai.AsyncOpenAI(
             base_url=self.openai_url, api_key=self.api_key, **kwargs
         )
@@ -340,11 +339,9 @@ class BaseServers:
     def __init__(self, client: GenericClient):
         self._client = client
 
-    def _get_server_id(self, server: Union[UUID4, Server, str]) -> str:
+    def _get_server_id(self, server: Union[Server, str]) -> str:
         if isinstance(server, Server):
             server_id = str(server.id)
-        elif isinstance(server, UUID):
-            server_id = str(server)
         elif isinstance(server, str):
             server_id = server
         else:
@@ -353,6 +350,9 @@ class BaseServers:
         return server_id
 
     def list(self) -> List[Server]:
+        raise NotImplementedError
+
+    def get(self, server: str) -> Server:
         raise NotImplementedError
 
     def _create(
@@ -376,6 +376,10 @@ class BaseServers:
                 )
 
             _, model_name, quantization, _ = match.groups()
+            if model_name is None or quantization is None:
+                raise ValueError(
+                    f"{model} does not look like a quantized model name in the format <model>/<quant>"
+                )
             quantization = quantization.upper()
 
             if not quantization:
@@ -405,14 +409,14 @@ class BaseServers:
     def _start(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def start(self, server: Union[UUID4, Server, str]) -> None:
+    def start(self, server: Union[Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._start(server_id)
 
     def _status(self, server_id: str) -> str:
         raise NotImplementedError
 
-    def status(self, server: Union[UUID4, Server, str]) -> str:
+    def status(self, server: Union[Server, str]) -> str:
         server_id = self._get_server_id(server)
         status = self._status(server_id)
         return status
