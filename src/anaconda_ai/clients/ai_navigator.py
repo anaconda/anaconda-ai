@@ -246,6 +246,9 @@ class AINavigatorServers(BaseServers):
         res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
         res.raise_for_status()
 
+    def _delete(self, server_id: str) -> None:
+        return
+
 
 class AINavigatorClient(GenericClient):
     def __init__(
