@@ -44,7 +44,7 @@ def _list_models(client: GenericClient) -> RenderableType:
                 s for s in servers if s.config.model_name.endswith(quant.identifier)
             ]
             color = "green" if matched_servers else ""
-            emphasis = "bold" if quant.is_downloaded else "dim"
+            emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
             method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
 
             quantizations.append(method)
