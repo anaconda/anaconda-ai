@@ -278,6 +278,8 @@ class Server(BaseModel):
             start_timeout = AnacondaAIConfig().server_operations_timeout
             while status != "running":
                 status = self._client.servers.status(self)
+                if status == "errored":
+                    raise AnacondaAIException("Server failed to start")
                 text = f"{self.config.model_name} ({status})"
                 display.update(text)
                 t1 = time()
