@@ -1,4 +1,5 @@
-from typing import Optional, Union, MutableMapping
+from typing import Any, Optional, Union, MutableMapping
+from warnings import warn
 
 from anaconda_auth.config import AnacondaAuthSite
 
@@ -50,3 +51,8 @@ class AnacondaAIClient(GenericClient):
             client_cert=client_cert,
             client_cert_key=client_cert_key,
         )
+
+
+def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
+    warn("get_default_client is depcreated, use AnacondaAIClient(...) instead")
+    return AnacondaAIClient(*args, **kwargs)

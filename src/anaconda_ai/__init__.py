@@ -3,6 +3,6 @@ try:
 except ImportError:  # pragma: nocover
     __version__ = "unknown"
 
-from .clients import AnacondaAIClient
+from .clients import AnacondaAIClient, get_default_client
 
-__all__ = ["__version__", "AnacondaAIClient"]
+__all__ = ["__version__", "AnacondaAIClient", "get_default_client"]
