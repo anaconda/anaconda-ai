@@ -54,5 +54,5 @@ class AnacondaAIClient(GenericClient):
 
 
 def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
-    warn("get_default_client is depcreated, use AnacondaAIClient(...) instead")
+    warn("get_default_client is deprecated, use AnacondaAIClient(...) instead")
     return AnacondaAIClient(*args, **kwargs)
