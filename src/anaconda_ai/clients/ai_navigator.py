@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Any, Union, Generator
 from typing_extensions import Self
 from urllib.parse import quote
 
-from pydantic import Field, computed_field, ConfigDict, model_validator
+from pydantic import Field, computed_field, ConfigDict, model_validator, BaseModel
 
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
@@ -137,12 +137,51 @@ class AINavigatorModels(BaseModels):
         res.raise_for_status()
 
 
+class AINavigatorServerParams(BaseModel, extra="ignore"):
+    host: Optional[str] = None
+    port: Optional[int] = None
+    mmproj: Optional[str] = None
+    timeout: Optional[int] = None
+    n_gpu_layers: Optional[int] = None
+    main_gpu: Optional[int] = None
+    metrics: Optional[bool] = None
+    batch_size: Optional[int] = None
+    jinja: Optional[bool] = None
+    cont_batching: Optional[bool] = None
+    ctx_size: Optional[int] = None
+    main_gpu: Optional[int] = None
+    memory_f32: Optional[bool] = None
+    mlock: Optional[bool] = None
+    n_gpu_layers: Optional[int] = None
+    rope_freq_base: Optional[int] = None
+    rope_freq_scale: Optional[int] = None
+    seed: Optional[int] = None
+    tensor_split: Optional[List[Union[int, float]]] = None
+    use_mmap: Optional[bool] = None
+    embedding: Optional[bool] = None
+    threads: Optional[int] = None
+    n_predict: Optional[int] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    min_p: Optional[float] = None
+    repeat_last: Optional[int] = None
+    repeat_penalty: Optional[float] = None
+    temp: Optional[float] = None
+    parallel: Optional[int] = None
+
+
 class AINavigatorServerConfig(ServerConfig):
     model_name: str = Field(alias="modelFileName")
     id: Optional[str] = None
-    api_params: dict[str, Any] = Field(default={}, alias="apiParams")
-    load_params: dict[str, Any] = Field(default={}, alias="loadParams")
-    infer_params: dict[str, Any] = Field(default={}, alias="inferParams")
+    api_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="apiParams"
+    )
+    load_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="loadParams"
+    )
+    infer_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="inferParams"
+    )
     logs_dir: str = Field(default="./logs", alias="logsDir")
     start_server_on_create: bool = Field(default=True, alias="startServerOnCreate")
 
@@ -156,8 +195,8 @@ class AINavigatorServer(Server):
     @model_validator(mode="after")
     def generate_url(self) -> Self:
         if self.url is None:
-            host = self.config.api_params.get("host")
-            port = self.config.api_params.get("port")
+            host = self.config.api_params.host
+            port = self.config.api_params.port
             if host and port:
                 self.url = f"http://{host}:{port}"
         return self
@@ -206,18 +245,18 @@ class AINavigatorServers(BaseServers):
     ) -> AINavigatorServer:
         server_config = AINavigatorServerConfig(
             modelFileName=model_quantization.identifier,
-            loadParams={} if extra_options is None else extra_options,
+            loadParams=AINavigatorServerParams(**(extra_options or {})),
         )
 
-        requested_port = server_config.api_params.get("port", 0)
+        requested_port = server_config.api_params.port or 0
         if not requested_port:
             port = find_free_port()
-            server_config.api_params["port"] = port
+            server_config.api_params.port = port
 
-        server_config.api_params["host"] = "127.0.0.1"
+        server_config.api_params.host = "127.0.0.1"
 
         if model_quantization._model.trained_for == "sentence-similarity":
-            server_config.load_params["embedding"] = True
+            server_config.load_params.embedding = True
 
         matched = self.match(
             server_config,
