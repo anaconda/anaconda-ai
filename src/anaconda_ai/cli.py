@@ -9,6 +9,7 @@ from rich.status import Status
 from rich.table import Column
 from rich.table import Table
 
+from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
 from .clients import make_client
 from .clients.base import GenericClient, Server, VectorDbTableSchema
@@ -27,7 +28,9 @@ def get_running_servers(client: GenericClient) -> list[Server]:
         return []
 
 
-def _list_models(client: GenericClient) -> RenderableType:
+def _list_models(
+    client: GenericClient, show_blocked: Optional[bool] = None
+) -> RenderableType:
     models = client.models.list()
     servers = get_running_servers(client)
     table = Table(
@@ -37,22 +40,35 @@ def _list_models(client: GenericClient) -> RenderableType:
         "Trained for",
         header_style="bold green",
     )
+
+    if show_blocked is None:
+        show_blocked = AnacondaAIConfig().show_blocked_models
+
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
         for quant in model.quantized_files:
+            if not quant.is_allowed and not show_blocked:
+                continue
+
             matched_servers = [
                 s for s in servers if s.config.model_name.endswith(quant.identifier)
             ]
-            color = "green" if matched_servers else ""
-            emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
+
+            if quant.is_allowed:
+                color = "green" if matched_servers else ""
+                emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
+            else:
+                color = "bright_red"
+                emphasis = "dim"
+
             method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
 
             quantizations.append(method)
 
-        quants = ", ".join(quantizations)
-
-        parameters = f"{model.num_parameters/1e9:8.2f}"
-        table.add_row(model.name, parameters, quants, model.trained_for)
+        if quantizations:
+            quants = ", ".join(quantizations)
+            parameters = f"{model.num_parameters/1e9:8.2f}"
+            table.add_row(model.name, parameters, quants, model.trained_for)
     return table
 
 
@@ -80,6 +96,8 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     )
     for quant in info.quantized_files:
         method = quant.quant_method
+        if not quant.is_allowed:
+            method = f"[bright_red]{method}[/bright_red]"
         downloaded = CHECK_MARK if quant.is_downloaded else ""
         matched_servers = [
             s for s in servers if s.config.model_name.endswith(quant.identifier)
@@ -117,11 +135,16 @@ def models(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    show_blocked: Optional[bool] = typer.Option(
+        None,
+        "--show-blocked/--no-show-blocked",
+        help="Show or hide unavailable models.",
+    ),
 ) -> None:
     """Model information"""
     client = make_client(backend=backend, site=site)
     if model_id is None:
-        renderable = _list_models(client)
+        renderable = _list_models(client, show_blocked=show_blocked)
     else:
         renderable = _model_info(client, model_id)
     console.print(renderable)

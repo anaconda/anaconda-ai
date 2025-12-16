@@ -64,6 +64,11 @@ class QuantizedFile(BaseModel):
 
     @computed_field
     @property
+    def is_allowed(self) -> bool:
+        True
+
+    @computed_field
+    @property
     def identifier(self) -> str:
         return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 

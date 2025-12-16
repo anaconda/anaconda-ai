@@ -1,5 +1,5 @@
 import datetime as dt
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import List, Optional, Union, Dict, Any, Generator, MutableMapping, ClassVar
 from uuid import UUID
@@ -73,9 +73,11 @@ def http_error(e: HTTPError) -> int:
         return 1
 
 
-class Policy(BaseModel):
+class AICatalystQuantizedFilePolicy(BaseModel):
     is_blocked: bool
-    allowed_groups: List[Any]
+    missing_license_acceptance: bool
+    allowed_groups: List[str]
+    download_status: str
 
 
 class AICatalystQuantizedFile(QuantizedFile):
@@ -88,7 +90,25 @@ class AICatalystQuantizedFile(QuantizedFile):
     updated_at: Optional[dt.datetime] = None
     context_window_size: Optional[int]
     estimated_n_cpus_req: Optional[int] = None
-    download_url: Optional[str] = None
+    policy: Optional[AICatalystQuantizedFilePolicy] = None
+
+    @computed_field
+    @property
+    def is_allowed(self) -> bool:
+        if self.policy is None:
+            return True
+
+        if self.policy.is_blocked:
+            return False
+        elif any([g in self.policy.allowed_groups for g in self._model._client.groups]):
+            if self.policy.missing_license_acceptance:
+                return False
+            elif self.policy.download_status != "downloaded":
+                return False
+            else:
+                return True
+        else:
+            return False
 
     @computed_field
     @property
@@ -106,6 +126,10 @@ class AICatalystQuantizedFile(QuantizedFile):
             self.local_path.exists()
             and self.local_path.stat().st_size == self.size_bytes
         )
+
+    @property
+    def download_url(self) -> str:
+        return f"/api/ai/model/models/{self.model_uuid}/files/{self.file_uuid}/download"
 
 
 class Tag(BaseModel):
@@ -143,7 +167,7 @@ class AICatalystModels(BaseModels):
 
     @lru_cache
     def list(self) -> List[AICatalystModel]:
-        response = self._client.get("/api/ai/model/models")
+        response = self._client.get("/api/ai/model/org/models/model-data")
         response.raise_for_status()
         data = response.json()["result"]["data"]
 
@@ -464,3 +488,15 @@ class AICatalystClient(GenericClient):
         self.models = AICatalystModels(self)
         self.servers = AICatalystServers(self)
         self.hooks["response"].insert(0, catalyst_login_required)
+
+    @cached_property
+    def groups(self) -> list[str]:
+        res = self.get("api/auth/sessions/whoami")
+        res.raise_for_status()
+
+        orgs = res.json()["passport"]["organizations"]
+        for org in orgs:
+            if org["org_id"] == "repo":
+                break
+        groups = [g["id"] for g in org["groups"]]
+        return groups
