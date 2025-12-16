@@ -1,9 +1,8 @@
 from pathlib import Path
 from time import time, sleep
-from typing import Dict, List, Optional, Any, Union, Generator, MutableMapping
+from typing import Dict, List, Optional, Any, Union, Generator
 from typing_extensions import Self
 from urllib.parse import quote
-from warnings import warn
 
 from pydantic import Field, computed_field, ConfigDict, model_validator
 
@@ -147,7 +146,7 @@ class AINavigatorServerConfig(ServerConfig):
     logs_dir: str = Field(default="./logs", alias="logsDir")
     start_server_on_create: bool = Field(default=True, alias="startServerOnCreate")
 
-    model_config = ConfigDict(serialize_by_alias=True)  # , validate_by_alias=True)
+    model_config = ConfigDict(serialize_by_alias=True)
 
 
 class AINavigatorServer(Server):
@@ -253,28 +252,15 @@ class AINavigatorServers(BaseServers):
 class AINavigatorClient(GenericClient):
     def __init__(
         self,
-        site: Optional[str] = None,
-        base_uri: Optional[str] = None,
         domain: Optional[str] = None,
-        auth_domain_override: Optional[str] = None,
         api_key: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        api_version: Optional[str] = None,
-        ssl_verify: Optional[Union[bool, str]] = None,
-        extra_headers: Optional[Union[str, dict]] = None,
-        hash_hostname: Optional[bool] = None,
-        proxy_servers: Optional[MutableMapping[str, str]] = None,
-        client_cert: Optional[str] = None,
-        client_cert_key: Optional[str] = None,
+        **kwargs: Any,
     ) -> None:
-        if site is not None:
-            warn("site configuration is not supported here")
         self._ai_config = AnacondaAIConfig()
-        domain = f"localhost:{self._ai_config.backends.ai_navigator.port}"
-        super().__init__(
-            domain=domain or domain,
-            api_key=api_key or self._ai_config.backends.ai_navigator.api_key,
-        )
+        domain = domain or f"localhost:{self._ai_config.backends.ai_navigator.port}"
+        api_key = api_key or self._ai_config.backends.ai_navigator.api_key
+
+        super().__init__(domain=domain, api_key=api_key)
         self._base_uri = f"http://{domain}"
 
         self.models = AINavigatorModels(self)
