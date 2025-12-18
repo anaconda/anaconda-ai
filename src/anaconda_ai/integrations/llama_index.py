@@ -40,6 +40,7 @@ class AnacondaModel(OpenAI):
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: Optional[int] = None,
         extra_options: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> None:
         client = client or AnacondaAIClient(site=site, backend=backend)
         if model and server_name:
@@ -66,6 +67,7 @@ class AnacondaModel(OpenAI):
             max_tokens=max_tokens,
             is_function_calling_model=True,
             temperature=temperature,
+            **kwargs,
         )
 
         self._server_config = server.config
@@ -84,7 +86,7 @@ class AnacondaModel(OpenAI):
         )
 
         return AnacondaLLMMetadata(
-            # context_window=self.context_window,
+            context_window=self.context_window,
             num_output=self.max_tokens or -1,
             is_chat_model=True,
             is_function_calling_model=True,
