@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, List, cast
 
-import gguf
 import requests
 from requests.exceptions import ConnectionError
 from rich.console import Console
@@ -176,8 +175,14 @@ class OllamaServers(BaseServers):
             },
         }
 
-        reader = gguf.GGUFReader(blob, "r")
-        chat_template_field = reader.get_field("tokenizer.chat_template")
+        try:
+            import gguf
+
+            reader = gguf.GGUFReader(blob, "r")
+            chat_template_field = reader.get_field("tokenizer.chat_template")
+        except ImportError:
+            chat_template_field = None
+
         if chat_template_field is not None:
             template = chat_template_field.contents().replace("{{- bos_token }}\n", "")
             body["template"] = template
