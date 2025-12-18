@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator, Tuple
 
 import openai
@@ -5,51 +6,51 @@ import litellm
 from httpx import Timeout
 from litellm.llms.custom_httpx.http_handler import HTTPHandler, AsyncHTTPHandler
 from litellm.llms.custom_llm import CustomLLM
-from litellm.types.utils import ModelResponse, GenericStreamingChunk
+from litellm.types.utils import ModelResponse, GenericStreamingChunk, EmbeddingResponse
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
 from ..clients import AnacondaAIClient
+from ..clients.base import GenericClient, Server
+
+
+def prepare_server(model: str, options: dict) -> Server:
+    kwargs = deepcopy(options)
+
+    client_kwargs = kwargs.pop("client", {})
+    if isinstance(client_kwargs, dict):
+        client = AnacondaAIClient(**client_kwargs)
+    elif isinstance(client_kwargs, GenericClient):
+        client = client_kwargs
+
+    server_params = kwargs.pop("server", {})
+
+    if model.startswith("server/"):
+        server_name = model.split("/", maxsplit=1)[1]
+        server = client.servers.get(server_name)
+    else:
+        server = client.servers.create(model, extra_options=server_params)
+
+    if not server.is_running:
+        server.start()
+
+    return server
 
 
 def create_and_start(
-    model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
+    model: str,
+    timeout: Optional[Union[float, Timeout]] = None,
+    kwargs: Optional[dict] = None,
 ) -> Tuple[openai.OpenAI, str]:
-    site = kwargs.pop("site", None)
-    domain = kwargs.pop("domain", None)
-    ckwargs = {}
-    if site is not None:
-        ckwargs["site"] = site
-    if domain is not None:
-        ckwargs["domain"] = domain
-    client = AnacondaAIClient(**ckwargs)
-    if model.startswith("server/"):
-        server_name = model.split("/", maxsplit=1)[1]
-        server = client.servers.get(server_name)
-    else:
-        server = client.servers.create(model, **kwargs)
-    if not server.is_running:
-        server.start()
+    server = prepare_server(model, kwargs or {})
     return server.openai_client(timeout=timeout), server.config.model_name
 
 
-async def async_create_and_start(
-    model: str, timeout: Optional[Union[float, Timeout]] = None, **kwargs: Any
+def create_and_start_async(
+    model: str,
+    timeout: Optional[Union[float, Timeout]] = None,
+    kwargs: Optional[dict] = None,
 ) -> Tuple[openai.AsyncOpenAI, str]:
-    site = kwargs.pop("site", None)
-    domain = kwargs.pop("domain", None)
-    ckwargs = {}
-    if site is not None:
-        ckwargs["site"] = site
-    if domain is not None:
-        ckwargs["domain"] = domain
-    client = AnacondaAIClient(**ckwargs)
-    if model.startswith("server/"):
-        server_name = model.split("/", maxsplit=1)[1]
-        server = client.servers.get(server_name)
-    else:
-        server = client.servers.create(model, **kwargs)
-    if not server.is_running:
-        server.start()
+    server = prepare_server(model, kwargs or {})
     return server.async_openai_client(timeout=timeout), server.config.model_name
 
 
@@ -83,7 +84,7 @@ class AnacondaLLM(CustomLLM):
     ) -> ModelResponse:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start(
-            model=model, timeout=timeout, **optional_kwargs
+            model=model, timeout=timeout, kwargs=optional_kwargs
         )
         response = _client.chat.completions.create(
             messages=messages, model=model_name, **inference_kwargs
@@ -112,7 +113,7 @@ class AnacondaLLM(CustomLLM):
     ) -> Iterator[GenericStreamingChunk]:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start(
-            model=model, timeout=timeout, **optional_kwargs
+            model=model, timeout=timeout, kwargs=optional_kwargs
         )
         response = _client.chat.completions.create(
             messages=messages, model=model_name, stream=True, **inference_kwargs
@@ -151,8 +152,8 @@ class AnacondaLLM(CustomLLM):
         client: Optional[AsyncHTTPHandler] = None,
     ) -> ModelResponse:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
-        _client, model_name = await async_create_and_start(
-            model=model, timeout=timeout, **optional_kwargs
+        _client, model_name = create_and_start_async(
+            model=model, timeout=timeout, kwargs=optional_kwargs
         )
         response = await _client.chat.completions.create(
             messages=messages, model=model_name, **inference_kwargs
@@ -180,8 +181,8 @@ class AnacondaLLM(CustomLLM):
         client: Optional[AsyncHTTPHandler] = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
-        _client, model_name = await async_create_and_start(
-            model=model, timeout=timeout, **optional_kwargs
+        _client, model_name = create_and_start_async(
+            model=model, timeout=timeout, kwargs=optional_kwargs
         )
 
         response = await _client.chat.completions.create(
@@ -200,6 +201,53 @@ class AnacondaLLM(CustomLLM):
                 wrapped.handle_openai_chat_completion_chunk(chunk),
             )
             yield handled
+
+    def embedding(
+        self,
+        model: str,
+        input: list,
+        model_response: EmbeddingResponse,
+        print_verbose: Callable,
+        logging_obj: Any,
+        optional_params: dict,
+        api_key: Optional[str] = None,
+        api_base: Optional[str] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        litellm_params=None,
+    ) -> EmbeddingResponse:
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
+        _client, model_name = create_and_start(
+            model=model, timeout=timeout, kwargs=optional_kwargs
+        )
+        response = _client.embeddings.create(
+            input=input, model=model_name, **inference_kwargs
+        )
+        eresponse = EmbeddingResponse(**response.model_dump())
+        return eresponse
+
+    async def aembedding(
+        self,
+        model: str,
+        input: list,
+        model_response: EmbeddingResponse,
+        print_verbose: Callable,
+        logging_obj: Any,
+        optional_params: dict,
+        api_key: Optional[str] = None,
+        api_base: Optional[str] = None,
+        timeout: Optional[Union[float, Timeout]] = None,
+        litellm_params=None,
+    ) -> EmbeddingResponse:
+        inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
+        _client, model_name = create_and_start_async(
+            model=model, timeout=timeout, kwargs=optional_kwargs
+        )
+
+        response = await _client.embeddings.create(
+            input=input, model=model_name, **inference_kwargs
+        )
+        eresponse = EmbeddingResponse(**response.model_dump())
+        return eresponse
 
 
 # This should be moved to an entrypoint if implemented
