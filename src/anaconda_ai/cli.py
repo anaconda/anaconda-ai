@@ -162,7 +162,9 @@ def download(
     ] = None,
     output: Annotated[
         Optional[Path],
-        typer.Option(help="Hard-link model file to this path after download"),
+        typer.Option(
+            "--output", "-o", help="Hard-link model file to this path after download"
+        ),
     ] = None,
 ) -> None:
     """Download a model"""
@@ -189,9 +191,10 @@ def remove(
 
 @app.command(
     name="launch",
-    # context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def launch(
+    ctx: typer.Context,
     model: str = typer.Argument(
         help="Name of the quantized model, it will download first if needed.",
     ),
@@ -207,14 +210,22 @@ def launch(
     ),
 ) -> None:
     """Launch an inference server for a model"""
+    extra_options = {}
+    for arg in ctx.args:
+        if not arg.startswith("--"):
+            continue
+        key, *value = arg[2:].split("=", maxsplit=1)
+
+        if len(value) > 1:
+            raise ValueError(arg)
+
+        extra_options[key] = True if value[0] is None else value[0]
 
     client = make_client(backend=backend, site=site)
 
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
-        server = client.servers.create(
-            model=model,
-        )
+        server = client.servers.create(model=model, extra_options=extra_options)
         client.servers.start(server)
         status = client.servers.status(server)
         text = f"{model} ({status})"
