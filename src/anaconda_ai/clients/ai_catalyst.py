@@ -15,7 +15,7 @@ from anaconda_auth.token import TokenInfo
 from anaconda_cli_base.console import console
 from anaconda_cli_base.exceptions import register_error_handler
 
-from anaconda_ai.exceptions import QuantizedFileNotFound
+from anaconda_ai.exceptions import AnacondaAIException, QuantizedFileNotFound
 
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
@@ -28,6 +28,9 @@ from .base import (
     Server,
     ServerConfig,
 )
+
+
+class ServerNotFoundError(AnacondaAIException): ...
 
 
 def catalyst_login_required(
@@ -335,6 +338,7 @@ class AICatalystServers(BaseServers):
                 return found_server
             elif server == found_server.id:
                 return found_server
+        raise ServerNotFoundError(f"Server {server} was not found.")
 
     def _create(
         self,
@@ -374,12 +378,6 @@ class AICatalystServers(BaseServers):
             config=server_config,
             client=self._client,
         )
-        # server_entry._client = self._client
-
-        # server_entry = AICatalystServer(
-        #     id=data["id"],
-        #     config=ServerConfig(model_name=model_quantization.identifier),
-        # )
 
         return server_entry
 
