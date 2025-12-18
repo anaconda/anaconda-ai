@@ -378,6 +378,9 @@ class AICatalystServers(BaseServers):
             config=server_config,
             client=self._client,
         )
+        from time import sleep
+
+        sleep(5)
 
         return server_entry
 
