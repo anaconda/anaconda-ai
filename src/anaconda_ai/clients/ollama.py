@@ -4,7 +4,6 @@ from typing import Any, Dict, Optional, Union, List, cast
 
 import gguf
 import requests
-from pydantic import computed_field
 from requests.exceptions import ConnectionError
 from rich.console import Console
 from urllib.parse import urljoin
@@ -93,10 +92,10 @@ class AICatalystModels(_AICatalystModels):
 
 
 class OllamaServer(Server):
-    @computed_field  # type: ignore[misc]
-    @property
-    def url(self) -> str:
-        return AnacondaAIConfig().backends.ollama.ollama_base_url
+    # @computed_field  # type: ignore[misc]
+    # @property
+    # def url(self) -> str:
+    #     return AnacondaAIConfig().backends.ollama.ollama_base_url
 
     def stop(
         self, show_progress: bool = True, console: Optional[Console] = None
@@ -127,6 +126,7 @@ class OllamaServers(BaseServers):
 
     def list(self) -> List[OllamaServer]:
         active_models = self._get_available_ollama_models()
+        ollama_base_url = AnacondaAIConfig().backends.ollama.ollama_base_url
 
         servers = []
         for model in active_models:
@@ -136,6 +136,7 @@ class OllamaServers(BaseServers):
                 server_config = OllamaServer(
                     id=quant.identifier,
                     config=ServerConfig(model_name=quant.identifier),
+                    url=ollama_base_url,
                 )
                 server_config._client = self._client
                 servers.append(server_config)
@@ -195,6 +196,7 @@ class OllamaServers(BaseServers):
         server_entry = OllamaServer(
             id=model_quantization.identifier,
             config=ServerConfig(model_name=model_quantization.identifier),
+            url=AnacondaAIConfig().backends.ollama.ollama_base_url,
         )
         server_entry._client = self._client
 
