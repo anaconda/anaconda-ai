@@ -21,6 +21,7 @@ from rich.status import Status
 from rich.console import Console
 
 from anaconda_auth.client import BaseClient
+from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from ..exceptions import (
     AnacondaAIException,
@@ -45,10 +46,10 @@ def raises(ex: Exception):
 
 
 class GenericClient(BaseClient):
+    _user_agent = f"anaconda-ai/{version}"
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
-    _config: AnacondaAIConfig = PrivateAttr()
 
     def get_version(self) -> str:
         raise NotImplementedError
@@ -99,6 +100,10 @@ class Model(BaseModel):
     quantized_files: List[QuantizedFile]
     _client: GenericClient = PrivateAttr()
 
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(**data)
+        self._client = client
+
     @model_validator(mode="after")
     def refined_quantized_list(self) -> Self:
         for quant in self.quantized_files:
@@ -129,8 +134,10 @@ class Model(BaseModel):
 
 
 class BaseModels:
+    client: GenericClient
+
     def __init__(self, client: GenericClient):
-        self._client = client
+        self.client = client
 
     def list(self) -> List[Model]:
         raise NotImplementedError
@@ -150,7 +157,6 @@ class BaseModels:
         else:
             raise ModelNotFound(f"{model} was not found")
 
-        model_info._client = self._client
         return model_info
 
     def _find_quantization(self, model_quant_identifier: str) -> QuantizedFile:
@@ -340,9 +346,10 @@ class Server(BaseModel):
 class BaseServers:
     always_detach: bool = False
     download_required: bool = True
+    client: GenericClient
 
     def __init__(self, client: GenericClient):
-        self._client = client
+        self.client = client
 
     def _get_server_id(self, server: Union[Server, str]) -> str:
         if isinstance(server, Server):
@@ -392,7 +399,7 @@ class BaseServers:
                     "You must provide a quantization level in the model name as <model>/<quant>"
                 )
 
-            model = self._client.models.get(model_name).get_quantization(quantization)
+            model = self.client.models.get(model_name).get_quantization(quantization)
         elif isinstance(model, QuantizedFile):
             pass
         else:
@@ -405,10 +412,9 @@ class BaseServers:
                 if not download_if_needed:
                     raise ModelNotDownloadedError(f"{model} has not been downloaded")
                 else:
-                    self._client.models.download(model)
+                    self.client.models.download(model)
 
         server = self._create(model, extra_options=extra_options)
-        server._client = self._client
         return server
 
     def _start(self, server_id: str) -> None:
@@ -467,8 +473,10 @@ class TableInfo(BaseModel):
 
 
 class BaseVectorDb:
+    client: GenericClient
+
     def __init__(self, client: GenericClient) -> None:
-        self._client = client
+        self.client = client
 
     def create(
         self,
