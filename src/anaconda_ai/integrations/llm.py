@@ -11,16 +11,20 @@ import openai
 from llm import hookimpl
 from llm.default_plugins.openai_models import Chat
 from llm.default_plugins.openai_models import OpenAIEmbeddingModel
+from pydantic import ConfigDict
 from rich.console import Console
 
-from ..clients import make_client
+from ..clients import AnacondaAIClient
 from ..clients.base import QuantizedFile, Server
 
 console = Console(stderr=True)
 
 
-class ServerOptions(llm.Options):
+class AnacondaOptions(llm.Options):
     backend: Optional[str] = None
+    site: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 class AnacondaModelMixin:
@@ -28,19 +32,20 @@ class AnacondaModelMixin:
     anaconda_model: Optional[QuantizedFile] = None
     server: Optional[Server] = None
 
-    def _create_and_start(self, options: Optional[ServerOptions] = None) -> None:
+    def _create_and_start(self, options: Optional[AnacondaOptions] = None) -> None:
         if self.server is None:
             model_name = self.model_id.split(":", maxsplit=1)[1]
 
             if options is None:
-                options = ServerOptions()
+                options = AnacondaOptions()
 
-            client = make_client(options.backend)
+            client = AnacondaAIClient(site=options.site, backend=options.backend)
 
             self.server = client.servers.create(
-                model=model_name,
+                model=model_name, extra_options=options.model_dump()
             )
-            self.server.start(console=console)
+            if not self.server.is_running:
+                self.server.start(console=console)
 
         self.api_base = self.server.openai_url
 
@@ -49,8 +54,8 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
     model_id: str
     needs_key: str = ""
 
-    class Options(Chat.Options, ServerOptions):
-        pass
+    class Options(Chat.Options, AnacondaOptions):
+        model_config = ConfigDict(extra="allow")
 
     def __init__(self, model_id: str):
         super().__init__(
@@ -59,9 +64,8 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
 
     def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore
         self._create_and_start(options=prompt.options)
-        prompt.options = Chat.Options(
-            **prompt.options.model_dump(exclude=ServerOptions.model_fields.keys())
-        )
+        include = set(Chat.Options.model_fields.keys())
+        prompt.options = Chat.Options(**prompt.options.model_dump(include=include))
         return super().execute(prompt, stream, response, conversation, key)
 
     def __str__(self) -> str:
@@ -95,7 +99,7 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
 
 @llm.hookimpl
 def register_models(register: Callable) -> None:
-    client = make_client()
+    client = AnacondaAIClient()
     for model in client.models.list():
         if model.trained_for != "text-generation":
             continue
@@ -109,7 +113,7 @@ def register_models(register: Callable) -> None:
 
 @hookimpl
 def register_embedding_models(register: Callable) -> None:
-    client = make_client()
+    client = AnacondaAIClient()
     for model in client.models.list():
         if model.trained_for != "sentence-similarity":
             continue

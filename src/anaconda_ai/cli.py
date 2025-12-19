@@ -61,7 +61,9 @@ def _list_models(
                 color = "bright_red"
                 emphasis = "dim"
 
-            method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
+            method = (
+                f"[{emphasis} {color}]{quant.quant_method.upper()}[/{emphasis} {color}]"
+            )
 
             quantizations.append(method)
 
@@ -95,7 +97,7 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         header_style="bold green",
     )
     for quant in info.quantized_files:
-        method = quant.quant_method
+        method = quant.quant_method.upper()
         if not quant.is_allowed:
             method = f"[bright_red]{method}[/bright_red]"
         downloaded = CHECK_MARK if quant.is_downloaded else ""
