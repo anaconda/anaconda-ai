@@ -245,7 +245,7 @@ class Server(BaseModel):
     id: str
     url: str
     config: ServerConfig
-    api_key: Optional[str] = "empty"
+    api_key: str = "empty"
     _client: GenericClient = PrivateAttr()
     _matched: bool = PrivateAttr(default=False)
 
