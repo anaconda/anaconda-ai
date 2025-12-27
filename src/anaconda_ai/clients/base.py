@@ -330,7 +330,8 @@ class Server(BaseModel):
     @computed_field  # type: ignore[misc]
     @property
     def openai_url(self) -> str:
-        return urljoin(self.url, "/v1")
+        base_url = self.url if self.url.endswith("/") else f"{self.url}/"
+        return urljoin(base_url, "v1")
 
     def openai_client(self, **kwargs: Any) -> openai.OpenAI:
         client = openai.OpenAI(base_url=self.openai_url, api_key=self.api_key, **kwargs)
