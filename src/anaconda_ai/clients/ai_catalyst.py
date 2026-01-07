@@ -1,13 +1,12 @@
 import datetime as dt
 from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any, Generator, MutableMapping, ClassVar
+from typing import List, Optional, Union, Dict, Any, Generator, MutableMapping
 from uuid import UUID
 
-import openai
 import json
 import requests
-from pydantic import ValidationError, computed_field, BaseModel
+from pydantic import PrivateAttr, ValidationError, computed_field, BaseModel
 from requests.exceptions import HTTPError
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
@@ -17,7 +16,6 @@ from anaconda_cli_base.exceptions import register_error_handler
 
 from anaconda_ai.exceptions import AnacondaAIException, QuantizedFileNotFound
 
-from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from .base import (
     GenericClient,
@@ -31,6 +29,9 @@ from .base import (
 
 
 class ServerNotFoundError(AnacondaAIException): ...
+
+
+class ModelNotAvailableError(AnacondaAIException): ...
 
 
 def catalyst_login_required(
@@ -94,6 +95,7 @@ class AICatalystQuantizedFile(QuantizedFile):
     context_window_size: Optional[int]
     estimated_n_cpus_req: Optional[int] = None
     policy: Optional[AICatalystQuantizedFilePolicy] = None
+    _model: "AICatalystModel" = PrivateAttr()
 
     @computed_field
     @property
@@ -112,11 +114,6 @@ class AICatalystQuantizedFile(QuantizedFile):
                 return True
         else:
             return False
-
-    @computed_field
-    @property
-    def identifier(self) -> str:
-        return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
     @property
     def local_path(self) -> Path:
@@ -162,23 +159,20 @@ class AICatalystModel(Model):
     tags: List[Tag]
     quantized_files: List[AICatalystQuantizedFile]
     converted_files: List[AICatalystConvertedFiles]
+    _client: "AICatalystClient" = PrivateAttr()
 
 
 class AICatalystModels(BaseModels):
-    def __init__(self, client: GenericClient):
-        super().__init__(client)
-
     @lru_cache
     def list(self) -> List[AICatalystModel]:
-        response = self._client.get("/api/ai/model/org/models/model-data")
+        response = self.client.get("/api/ai/model/org/models/model-data")
         response.raise_for_status()
         data = response.json()["result"]["data"]
 
         models = []
         for model in data:
             try:
-                entry = AICatalystModel(**model)
-                entry._client = self._client
+                entry = AICatalystModel(client=self.client, **model)
                 models.append(entry)
             except ValidationError as e:
                 raise ValueError(
@@ -193,9 +187,9 @@ class AICatalystModels(BaseModels):
         # return deduped_models
 
     def _get_model_by_uuid(self, model_uuid: Union[UUID, str]) -> AICatalystModel:
-        res = self._client.get(f"/api/ai/model/models/{model_uuid}")
+        res = self.client.get(f"/api/ai/model/models/{model_uuid}")
         res.raise_for_status()
-        return AICatalystModel(**res.json()["data"])
+        return AICatalystModel(client=self.client, **res.json()["data"])
 
     def _get_quantization_by_uuid(
         self, model_uuid: Union[UUID, str], file_uuid: Union[str, UUID]
@@ -228,7 +222,13 @@ class AICatalystModels(BaseModels):
                 f"Cannot find download url for {model_quantization.identifier}"
             )
 
-        res = self._client.get(model_quantization.download_url)
+        if not model_quantization.is_allowed:
+            policy = model_quantization.policy.model_dump_json(indent=2)
+            raise ModelNotAvailableError(
+                f"{model_quantization.identifier} cannot be downloaded\nPolicy:\n{policy}"
+            )
+
+        res = self.client.get(model_quantization.download_url)
         res.raise_for_status()
         signed_url = res.json()["download_url"]
         response = requests.get(signed_url, stream=True)
@@ -246,7 +246,6 @@ class AICatalystModels(BaseModels):
         if path is not None:
             path = Path(path)
             path.unlink(missing_ok=True)
-            # model_quantization.local_path.hardlink_to(path)
             path.hardlink_to(model_quantization.local_path)
 
     def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:
@@ -269,43 +268,22 @@ class AICatalystServer(Server):
     uuid: UUID
     owner: str
     config: AICatalystServerConfig
-    api_key: ClassVar[str] = None
-
-    @computed_field  # type: ignore[misc]
-    @property
-    def openai_url(self) -> str:
-        return f"{self.url}/v1"
-
-    def openai_client(self, **kwargs: Any) -> openai.OpenAI:
-        api_key = (
-            self._client.config.api_key
-            or TokenInfo.load(domain=self._client.config.domain).api_key
-        )
-        client = openai.OpenAI(base_url=self.openai_url, api_key=api_key, **kwargs)
-        return client
-
-    def async_openai_client(self, **kwargs: Any) -> openai.AsyncOpenAI:
-        api_key = (
-            self._client.config.api_key
-            or TokenInfo.load(domain=self._client.config.domain).api_key
-        )
-        client = openai.AsyncOpenAI(base_url=self.openai_url, api_key=api_key, **kwargs)
-        return client
+    _client: "AICatalystClient" = PrivateAttr()
 
 
 class AICatalystServers(BaseServers):
-    _client: "AICatalystClient"
+    client: "AICatalystClient"
     download_required: bool = False
 
     @lru_cache
     def list(self) -> List[AICatalystServer]:
-        res = self._client.get("api/ai/inference/servers")
+        res = self.client.get("api/ai/inference/servers")
         res.raise_for_status()
         discovered = res.json().get("data", {}).get("servers", [])
 
         servers = []
         for server in discovered:
-            model = self._client.models._get_quantization_by_uuid(
+            model = self.client.models._get_quantization_by_uuid(
                 server["model_uuid"], server["file_uuid"]
             )
             model_name = model.identifier
@@ -314,7 +292,8 @@ class AICatalystServers(BaseServers):
                 uuid=server["id"],
                 url=server["address"],
                 owner=server["owner"],
-                client=self._client,
+                client=self.client,
+                api_key=self.client.api_key,
                 config=AICatalystServerConfig(
                     model_name=model_name,
                     model_uuid=server["model_uuid"],
@@ -348,7 +327,7 @@ class AICatalystServers(BaseServers):
         file_uuid = model_quantization.file_uuid
         model_uuid = model_quantization.model_uuid
 
-        existing_servers = self._client.servers.list()
+        existing_servers = self.client.servers.list()
         for server in existing_servers:
             config = server.config.model_dump(exclude={"model_name"})
             if {"file_uuid": file_uuid, "model_uuid": model_uuid} == config:
@@ -361,7 +340,7 @@ class AICatalystServers(BaseServers):
             "model_uuid": str(model_uuid),
         }
 
-        res = self._client.post("api/ai/inference/servers/server", json=body)
+        res = self.client.post("api/ai/inference/servers/server", json=body)
         res.raise_for_status()
         data = res.json()["data"]
 
@@ -376,7 +355,8 @@ class AICatalystServers(BaseServers):
             owner=data["owner"],
             url=data["address"],
             config=server_config,
-            client=self._client,
+            client=self.client,
+            api_key=self.client.api_key,
         )
         from time import sleep
 
@@ -395,15 +375,15 @@ class AICatalystServers(BaseServers):
         # return super()._get_server_id(server)
 
     def _start(self, server_id: str) -> None:
-        res = self._client.post(f"api/ai/inference/servers/server/{server_id}/start")
+        res = self.client.post(f"api/ai/inference/servers/server/{server_id}/start")
         res.raise_for_status()
 
     def _stop(self, server_id: str) -> None:
-        res = self._client.post(f"api/ai/inference/servers/server/{server_id}/stop")
+        res = self.client.post(f"api/ai/inference/servers/server/{server_id}/stop")
         res.raise_for_status()
 
     def _status(self, server_id: str) -> str:
-        res = self._client.get("api/ai/inference/servers")
+        res = self.client.get("api/ai/inference/servers")
         res.raise_for_status()
         for server in res.json()["data"]["servers"]:
             if server["id"] == str(server_id):
@@ -414,7 +394,7 @@ class AICatalystServers(BaseServers):
         if server["status"] == "stopped":
             return "stopped"
 
-        res = self._client.get(f"{server['address']}/v1/models")
+        res = self.client.get(f"{server['address']}/v1/models")
         if res.ok:
             return "running"
         else:
@@ -430,12 +410,11 @@ class AICatalystServers(BaseServers):
         # return status
 
     def _delete(self, server_id: str) -> None:
-        res = self._client.get(f"api/ai/inference/servers/server/{server_id}")
+        res = self.client.get(f"api/ai/inference/servers/server/{server_id}")
         res.raise_for_status()
 
 
 class AICatalystClient(GenericClient):
-    _user_agent = f"anaconda-ai/{version}"
     models: AICatalystModels
     servers: AICatalystServers
 
@@ -456,9 +435,6 @@ class AICatalystClient(GenericClient):
         client_cert_key: Optional[str] = None,
     ):
         ai_kwargs: Dict[str, Any] = {}
-        if domain is not None:
-            ai_kwargs["domain"] = domain
-
         if api_version is not None:
             ai_kwargs["api_version"] = api_version
 
@@ -501,3 +477,8 @@ class AICatalystClient(GenericClient):
                 break
         groups = [g["id"] for g in org["groups"]]
         return groups
+
+    @cached_property
+    def api_key(self) -> str:
+        key = self.config.api_key or TokenInfo.load(domain=self.config.domain).api_key
+        return key
