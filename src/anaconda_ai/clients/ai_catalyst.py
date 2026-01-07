@@ -180,12 +180,6 @@ class AICatalystModels(BaseModels):
                 )
         return models
 
-        # Save only the most recently generated model for each unique name
-        # sorted_models = sorted(models, key=lambda m: m.converted_files[0].generated_on, reverse=False)
-        # by_name = {model.name: model for model in sorted_models}
-        # deduped_models = list[AICatalystModel](by_name.values())
-        # return deduped_models
-
     def _get_model_by_uuid(self, model_uuid: Union[UUID, str]) -> AICatalystModel:
         res = self.client.get(f"/api/ai/model/models/{model_uuid}")
         res.raise_for_status()
@@ -253,14 +247,8 @@ class AICatalystModels(BaseModels):
 
 
 class AICatalystServerConfig(ServerConfig):
-    # model: AICatalystModel
-    # id: UUID
-    # owner: str
-    # uuid: UUID
     model_uuid: UUID
     file_uuid: UUID
-    # address: str
-    # status: str
 
 
 class AICatalystServer(Server):
@@ -372,7 +360,6 @@ class AICatalystServers(BaseServers):
             server_id = server_entry.uuid
 
         return server_id
-        # return super()._get_server_id(server)
 
     def _start(self, server_id: str) -> None:
         res = self.client.post(f"api/ai/inference/servers/server/{server_id}/start")
@@ -383,31 +370,31 @@ class AICatalystServers(BaseServers):
         res.raise_for_status()
 
     def _status(self, server_id: str) -> str:
-        res = self.client.get("api/ai/inference/servers")
-        res.raise_for_status()
-        for server in res.json()["data"]["servers"]:
-            if server["id"] == str(server_id):
-                break
-        else:
+        # res = self.client.get("api/ai/inference/servers")
+        # res.raise_for_status()
+        # for server in res.json()["data"]["servers"]:
+        #     if server["id"] == str(server_id):
+        #         break
+        # else:
+        #     return "<unknown>"
+
+        try:
+            res = self.client.get(f"api/ai/inference/servers/server/{server_id}")
+            res.raise_for_status()
+            server = res.json()["data"]
+        except Exception:
             return "<unknown>"
 
-        if server["status"] == "stopped":
+        status = server["status"]
+        if status == "stopped":
             return "stopped"
 
         res = self.client.get(f"{server['address']}/v1/models")
+
         if res.ok:
             return "running"
         else:
             return "starting"
-
-        # not currently working
-        # try:
-        #     res = self._client.get(f"api/ai/inference/servers/server/{server_id}")
-        #     res.raise_for_status()
-        #     status = res.json()["data"]["status"]
-        # except Exception:
-        #     status = "<unknown>"
-        # return status
 
     def _delete(self, server_id: str) -> None:
         res = self.client.get(f"api/ai/inference/servers/server/{server_id}")
