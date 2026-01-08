@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 from typing import Annotated
 from typing import Optional
+from typing import List
 
 import typer
 from requests.exceptions import HTTPError
@@ -133,7 +135,9 @@ def models(
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -158,7 +162,9 @@ def download(
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -180,7 +186,9 @@ def download(
 @app.command(name="remove")
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -200,7 +208,9 @@ def launch(
     model: str = typer.Argument(
         help="Name of the quantized model, it will download first if needed.",
     ),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -262,50 +272,63 @@ def launch(
         return
 
 
+def _servers_list(servers: List[Server]) -> None:
+    table = Table(
+        Column("Server ID", no_wrap=True),
+        "Model Name",
+        "Status",
+        header_style="bold green",
+    )
+
+    for server in servers:
+        table.add_row(
+            str(server.id),
+            str(server.config.model_name),
+            server.status,
+        )
+
+    console.print(table)
+
+
+def _server_info(server: Server):
+    table = Table.grid(padding=1, pad_edge=True)
+    table.title = server.id
+    table.add_column("Metadata", justify="center", style="bold green")
+    table.add_column("Value", justify="left")
+    table.add_row("Model", server.config.model_name)
+    table.add_row("OpenAI Compatible URL", server.openai_url)
+    table.add_row("Status", server.status)
+    table.add_row("Parameters", json.dumps(server.config.params, indent=2))
+    console.print(table)
+
+
 @app.command("servers")
 def servers(
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    server: Annotated[Optional[str], typer.Argument(help="Server ID")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
     """List running servers"""
     client = make_client(backend=backend, site=site)
-    servers = client.servers.list()
 
-    table = Table(
-        Column("Server ID", no_wrap=True),
-        "Model Name",
-        "Status",
-        "OpenAI BaseURL",
-        "Params",
-        header_style="bold green",
-    )
-
-    for server in servers:
-        params = server.config.model_dump_json(
-            indent=2,
-            exclude={
-                "model_name",
-            },
-            exclude_none=True,
-            exclude_defaults=True,
-        )
-        table.add_row(
-            str(server.id),
-            str(server.config.model_name),
-            server.status,
-            server.openai_url,
-            params,
-        )
-
-    console.print(table)
+    if server:
+        server = client.servers.get(server)
+        _server_info(server)
+    else:
+        servers = client.servers.list()
+        _servers_list(servers)
 
 
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,

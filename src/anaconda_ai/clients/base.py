@@ -240,6 +240,17 @@ class BaseModels:
 class ServerConfig(BaseModel):
     model_name: str
 
+    _params_dump: set = {}
+
+    @computed_field
+    @property
+    def params(self) -> dict:
+        return self.model_dump(
+            include=self._params_dump,
+            exclude_none=True,
+            exclude_defaults=True,
+        )
+
 
 class Server(BaseModel):
     id: str
