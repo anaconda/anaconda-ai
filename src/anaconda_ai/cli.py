@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Annotated
 from typing import Optional
-from typing import List
+from typing import Sequence
 
 import typer
 from requests.exceptions import HTTPError
@@ -22,7 +22,7 @@ app = typer.Typer(add_completion=False, help="Actions for Anaconda curated model
 CHECK_MARK = "[bold green]✔︎[/bold green]"
 
 
-def get_running_servers(client: GenericClient) -> list[Server]:
+def get_running_servers(client: GenericClient) -> Sequence[Server]:
     try:
         servers = client.servers.list()
         return servers
@@ -71,7 +71,7 @@ def _list_models(
 
         if quantizations:
             quants = ", ".join(quantizations)
-            parameters = f"{model.num_parameters/1e9:8.2f}"
+            parameters = f"{model.num_parameters / 1e9:8.2f}"
             table.add_row(model.name, parameters, quants, model.trained_for)
     return table
 
@@ -85,7 +85,7 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     table.add_column("Metadata", no_wrap=True, justify="center", style="bold green")
     table.add_column("Value", justify="left")
     table.add_row("Description", info.description)
-    parameters = f"{info.num_parameters/1e9:8.2f}B"
+    parameters = f"{info.num_parameters / 1e9:8.2f}B"
     table.add_row("Parameters", parameters)
     table.add_row("Trained For", info.trained_for)
 
@@ -272,7 +272,7 @@ def launch(
         return
 
 
-def _servers_list(servers: List[Server]) -> None:
+def _servers_list(servers: Sequence[Server]) -> None:
     table = Table(
         Column("Server ID", no_wrap=True),
         "Model Name",
@@ -290,7 +290,7 @@ def _servers_list(servers: List[Server]) -> None:
     console.print(table)
 
 
-def _server_info(server: Server):
+def _server_info(server: Server) -> None:
     table = Table.grid(padding=1, pad_edge=True)
     table.title = server.id
     table.add_column("Metadata", justify="center", style="bold green")
@@ -316,8 +316,8 @@ def servers(
     client = AnacondaAIClient(backend=backend, site=site)
 
     if server:
-        server = client.servers.get(server)
-        _server_info(server)
+        s = client.servers.get(server)
+        _server_info(s)
     else:
         servers = client.servers.list()
         _servers_list(servers)

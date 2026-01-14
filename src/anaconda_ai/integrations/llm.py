@@ -43,7 +43,9 @@ class AnacondaModelMixin:
                 kwargs["api_key"] = key
 
             client = AnacondaAIClient(
-                site=options.site, backend=options.backend, **kwargs
+                site=options.site,
+                backend=options.backend,
+                **kwargs,  # type: ignore
             )
 
             _, model_name = self.model_id.split(":", maxsplit=1)
@@ -77,7 +79,10 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
     def get_key(self, _: Optional[str] = None) -> Optional[str]:
         return None
 
-    def get_client(self, _, *, async_=False):
+    def get_client(
+        self, _: Any, *, async_: bool = False
+    ) -> Union[openai.OpenAI, openai.AsyncOpenAI]:
+        assert self.server is not None
         if async_:
             return self.server.async_openai_client()
         else:
@@ -105,7 +110,10 @@ class AsyncAnacondaQuantizedChat(AsyncChat, AnacondaModelMixin):
             model_id, model_name=model_id.replace("anaconda:", ""), supports_tools=True
         )
 
-    def get_client(self, _, *, async_=False):
+    def get_client(
+        self, _: Any, *, async_: bool = False
+    ) -> Union[openai.OpenAI, openai.AsyncOpenAI]:
+        assert self.server is not None
         if async_:
             return self.server.async_openai_client()
         else:
@@ -146,7 +154,7 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
         return ([float(r) for r in result.embedding] for result in results)
 
 
-def create_and_validate_client() -> AnacondaAIClient:
+def create_and_validate_client() -> Union[AnacondaAIClient, None]:
     client = AnacondaAIClient()
     if not client.online:
         return None

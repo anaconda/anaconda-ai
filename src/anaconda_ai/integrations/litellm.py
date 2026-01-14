@@ -16,6 +16,7 @@ from ..clients.base import GenericClient, Server
 def prepare_server(model: str, options: dict) -> Server:
     kwargs = deepcopy(options)
 
+    client: Union[GenericClient]
     client_kwargs = kwargs.pop("client", {})
     if isinstance(client_kwargs, dict):
         client = AnacondaAIClient(**client_kwargs)
@@ -55,7 +56,7 @@ def create_and_start_async(
 
 
 class AnacondaLLM(CustomLLM):
-    def _prepare_kwargs(self, optional_params: dict) -> dict:
+    def _prepare_kwargs(self, optional_params: dict) -> Tuple[dict, Any]:
         inference_kwargs = optional_params.copy()
         _ = inference_kwargs.pop("stream", None)
         _ = inference_kwargs.pop("stream_options", None)
@@ -213,7 +214,7 @@ class AnacondaLLM(CustomLLM):
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         timeout: Optional[Union[float, Timeout]] = None,
-        litellm_params=None,
+        litellm_params: Optional[Any] = None,
     ) -> EmbeddingResponse:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start(
@@ -236,7 +237,7 @@ class AnacondaLLM(CustomLLM):
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         timeout: Optional[Union[float, Timeout]] = None,
-        litellm_params=None,
+        litellm_params: Optional[Any] = None,
     ) -> EmbeddingResponse:
         inference_kwargs, optional_kwargs = self._prepare_kwargs(optional_params)
         _client, model_name = create_and_start_async(
