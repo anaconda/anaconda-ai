@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 from typing import Annotated
 from typing import Optional
+from typing import List
 
 import typer
 from requests.exceptions import HTTPError
@@ -9,6 +11,7 @@ from rich.status import Status
 from rich.table import Column
 from rich.table import Table
 
+from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
 from .clients import AnacondaAIClient
 from .clients.base import GenericClient, Server, VectorDbTableSchema
@@ -27,7 +30,9 @@ def get_running_servers(client: GenericClient) -> list[Server]:
         return []
 
 
-def _list_models(client: GenericClient) -> RenderableType:
+def _list_models(
+    client: GenericClient, show_blocked: Optional[bool] = None
+) -> RenderableType:
     models = client.models.list()
     servers = get_running_servers(client)
     table = Table(
@@ -37,22 +42,37 @@ def _list_models(client: GenericClient) -> RenderableType:
         "Trained for",
         header_style="bold green",
     )
+
+    if show_blocked is None:
+        show_blocked = AnacondaAIConfig().show_blocked_models
+
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
         for quant in model.quantized_files:
+            if not quant.is_allowed and not show_blocked:
+                continue
+
             matched_servers = [
                 s for s in servers if s.config.model_name.endswith(quant.identifier)
             ]
-            color = "green" if matched_servers else ""
-            emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
-            method = f"[{emphasis} {color}]{quant.quant_method}[/{emphasis} {color}]"
+
+            if quant.is_allowed:
+                color = "green" if matched_servers else ""
+                emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
+            else:
+                color = "bright_red"
+                emphasis = "dim"
+
+            method = (
+                f"[{emphasis} {color}]{quant.quant_method.upper()}[/{emphasis} {color}]"
+            )
 
             quantizations.append(method)
 
-        quants = ", ".join(quantizations)
-
-        parameters = f"{model.num_parameters/1e9:8.2f}"
-        table.add_row(model.name, parameters, quants, model.trained_for)
+        if quantizations:
+            quants = ", ".join(quantizations)
+            parameters = f"{model.num_parameters/1e9:8.2f}"
+            table.add_row(model.name, parameters, quants, model.trained_for)
     return table
 
 
@@ -79,7 +99,9 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         header_style="bold green",
     )
     for quant in info.quantized_files:
-        method = quant.quant_method
+        method = quant.quant_method.upper()
+        if not quant.is_allowed:
+            method = f"[bright_red]{method}[/bright_red]"
         downloaded = CHECK_MARK if quant.is_downloaded else ""
         matched_servers = [
             s for s in servers if s.config.model_name.endswith(quant.identifier)
@@ -113,15 +135,22 @@ def models(
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    show_blocked: Optional[bool] = typer.Option(
+        None,
+        "--show-blocked/--no-show-blocked",
+        help="Show or hide unavailable models.",
+    ),
 ) -> None:
     """Model information"""
     client = AnacondaAIClient(backend=backend, site=site)
     if model_id is None:
-        renderable = _list_models(client)
+        renderable = _list_models(client, show_blocked=show_blocked)
     else:
         renderable = _model_info(client, model_id)
     console.print(renderable)
@@ -133,13 +162,17 @@ def download(
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
     output: Annotated[
         Optional[Path],
-        typer.Option(help="Hard-link model file to this path after download"),
+        typer.Option(
+            "--output", "-o", help="Hard-link model file to this path after download"
+        ),
     ] = None,
 ) -> None:
     """Download a model"""
@@ -153,7 +186,9 @@ def download(
 @app.command(name="remove")
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -166,13 +201,16 @@ def remove(
 
 @app.command(
     name="launch",
-    # context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def launch(
+    ctx: typer.Context,
     model: str = typer.Argument(
         help="Name of the quantized model, it will download first if needed.",
     ),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
@@ -184,14 +222,22 @@ def launch(
     ),
 ) -> None:
     """Launch an inference server for a model"""
+    extra_options = {}
+    for arg in ctx.args:
+        if not arg.startswith("--"):
+            continue
+        key, *value = arg[2:].split("=", maxsplit=1)
+
+        if len(value) > 1:
+            raise ValueError(arg)
+
+        extra_options[key] = True if value[0] is None else value[0]
 
     client = AnacondaAIClient(backend=backend, site=site)
 
     text = f"{model} (creating)"
     with Status(text, console=console) as display:
-        server = client.servers.create(
-            model=model,
-        )
+        server = client.servers.create(model=model, extra_options=extra_options)
         client.servers.start(server)
         status = client.servers.status(server)
         text = f"{model} ({status})"
@@ -226,50 +272,63 @@ def launch(
         return
 
 
+def _servers_list(servers: List[Server]) -> None:
+    table = Table(
+        Column("Server ID", no_wrap=True),
+        "Model Name",
+        "Status",
+        header_style="bold green",
+    )
+
+    for server in servers:
+        table.add_row(
+            str(server.id),
+            str(server.config.model_name),
+            server.status,
+        )
+
+    console.print(table)
+
+
+def _server_info(server: Server):
+    table = Table.grid(padding=1, pad_edge=True)
+    table.title = server.id
+    table.add_column("Metadata", justify="center", style="bold green")
+    table.add_column("Value", justify="left")
+    table.add_row("Model", server.config.model_name)
+    table.add_row("OpenAI Compatible URL", server.openai_url)
+    table.add_row("Status", server.status)
+    table.add_row("Parameters", json.dumps(server.config.params, indent=2))
+    console.print(table)
+
+
 @app.command("servers")
 def servers(
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    server: Annotated[Optional[str], typer.Argument(help="Server ID")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
 ) -> None:
     """List running servers"""
     client = AnacondaAIClient(backend=backend, site=site)
-    servers = client.servers.list()
 
-    table = Table(
-        Column("Server ID", no_wrap=True),
-        "Model Name",
-        "Status",
-        "OpenAI BaseURL",
-        "Params",
-        header_style="bold green",
-    )
-
-    for server in servers:
-        params = server.config.model_dump_json(
-            indent=2,
-            exclude={
-                "model_name",
-            },
-            exclude_none=True,
-            exclude_defaults=True,
-        )
-        table.add_row(
-            str(server.id),
-            str(server.config.model_name),
-            server.status,
-            server.openai_url,
-            params,
-        )
-
-    console.print(table)
+    if server:
+        server = client.servers.get(server)
+        _server_info(server)
+    else:
+        servers = client.servers.list()
+        _servers_list(servers)
 
 
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
-    site: Annotated[Optional[str], typer.Option(help="Site defined in config")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,

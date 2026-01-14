@@ -62,7 +62,7 @@ class AINavigatorModel(Model):
 
 class AINavigatorModels(BaseModels):
     def list(self) -> List[AINavigatorModel]:
-        res = self._client.get("api/models")
+        res = self.client.get("api/models")
         res.raise_for_status()
 
         data = res.json().get("data", [])
@@ -70,8 +70,7 @@ class AINavigatorModels(BaseModels):
         models = []
         for entry in data:
             revised = {"id": entry["id"], "name": entry["name"], **entry["metadata"]}
-            model = AINavigatorModel(**revised)
-            model._client = self._client
+            model = AINavigatorModel(client=self.client, **revised)
             models.append(model)
 
         return models
@@ -81,12 +80,12 @@ class AINavigatorModels(BaseModels):
         model_quantization: AINavigatorQuantizedFile,
         path: Optional[Path] = None,
     ) -> Generator[int, None, None]:
-        res = self._client.patch(model_quantization._url, json={"action": "start"})
+        res = self.client.patch(model_quantization._url, json={"action": "start"})
         res.raise_for_status()
         status = res.json()["data"]
         status_msg = status["status"]
         if status.get("progress", {}).get("paused", False):
-            res = self._client.patch(model_quantization._url, json={"action": "resume"})
+            res = self.client.patch(model_quantization._url, json={"action": "resume"})
             res.raise_for_status()
             status = res.json()["data"]
             status_msg = status["status"]
@@ -97,20 +96,20 @@ class AINavigatorModels(BaseModels):
             )
 
         t0 = time()
-        res = self._client.get(model_quantization._url)
+        res = self.client.get(model_quantization._url)
         res.raise_for_status()
         status = res.json()["data"]
         # Must wait until the download officially
         # starts then we can poll for progress
         elapsed = time() - t0
         while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
-            res = self._client.get(model_quantization._url)
+            res = self.client.get(model_quantization._url)
             res.raise_for_status()
             status = res.json()["data"]
             elapsed = time() - t0
 
         while True:
-            res = self._client.get(model_quantization._url)
+            res = self.client.get(model_quantization._url)
             res.raise_for_status()
             status = res.json()["data"]
 
@@ -133,7 +132,7 @@ class AINavigatorModels(BaseModels):
             model_quantization.local_path.link_to(path)
 
     def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:
-        res = self._client.delete(model_quantization._url)
+        res = self.client.delete(model_quantization._url)
         res.raise_for_status()
 
 
@@ -204,18 +203,26 @@ class AINavigatorServer(Server):
 
 class AINavigatorServers(BaseServers):
     def list(self) -> List[AINavigatorServer]:
-        res = self._client.get("api/servers")
+        res = self.client.get("api/servers")
         res.raise_for_status()
         servers = []
         for s in res.json()["data"]:
             if "id" not in s:
                 continue
-            server = AINavigatorServer(**s, client=self._client)
-            server._client = self._client
+            server = AINavigatorServer(**s, client=self.client)
+            server._client = self.client
             if not server.is_running:
                 continue
             servers.append(server)
         return servers
+
+    def get(self, server: str) -> AINavigatorServer:
+        res = self.client.get(f"api/servers/{server}")
+        res.raise_for_status()
+
+        s = res.json()["data"]
+        server = AINavigatorServer(**s, client=self.client)
+        return server
 
     def match(
         self,
@@ -266,22 +273,22 @@ class AINavigatorServers(BaseServers):
 
         body = {"serverConfig": server_config.model_dump(exclude={"id"})}
 
-        res = self._client.post("api/servers", json=body)
+        res = self.client.post("api/servers", json=body)
         res.raise_for_status()
-        server = AINavigatorServer(**res.json()["data"], client=self._client)
+        server = AINavigatorServer(**res.json()["data"], client=self.client)
         return server
 
     def _status(self, server_id: str) -> str:
-        res = self._client.get(f"api/servers/{server_id}")
+        res = self.client.get(f"api/servers/{server_id}")
         res.raise_for_status()
         return res.json()["data"]["status"]
 
     def _start(self, server_id: str) -> None:
-        res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
+        res = self.client.patch(f"api/servers/{server_id}", json={"action": "start"})
         res.raise_for_status()
 
     def _stop(self, server_id: str) -> None:
-        res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
+        res = self.client.patch(f"api/servers/{server_id}", json={"action": "stop"})
         res.raise_for_status()
 
     def _delete(self, server_id: str) -> None:

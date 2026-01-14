@@ -69,3 +69,4 @@ class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backend: Literal["ai-navigator"] = "ai-navigator"
     stop_server_on_exit: bool = True
     server_operations_timeout: int = 30
+    show_blocked_models: bool = False

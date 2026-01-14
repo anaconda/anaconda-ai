@@ -10,10 +10,10 @@ from litellm.types.utils import ModelResponse, GenericStreamingChunk, EmbeddingR
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
 from ..clients import AnacondaAIClient
-from ..clients.base import GenericClient
+from ..clients.base import GenericClient, Server
 
 
-def prepare_server(model: str, options: dict):
+def prepare_server(model: str, options: dict) -> Server:
     kwargs = deepcopy(options)
 
     client_kwargs = kwargs.pop("client", {})
@@ -29,6 +29,7 @@ def prepare_server(model: str, options: dict):
         server = client.servers.get(server_name)
     else:
         server = client.servers.create(model, extra_options=server_params)
+
     if not server.is_running:
         server.start()
 
