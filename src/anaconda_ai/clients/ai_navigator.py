@@ -366,3 +366,8 @@ class AINavigatorClient(GenericClient):
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
+
+    @property
+    def online(self) -> bool:
+        res = self.get("/api")
+        return res.status_code < 400

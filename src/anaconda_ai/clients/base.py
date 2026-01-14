@@ -54,6 +54,10 @@ class GenericClient(BaseClient):
     def get_version(self) -> str:
         raise NotImplementedError
 
+    @property
+    def online(self) -> bool:
+        raise NotImplementedError
+
 
 class QuantizedFile(BaseModel):
     sha256: str
@@ -62,6 +66,11 @@ class QuantizedFile(BaseModel):
     format: str
     max_ram_usage: int
     _model: "Model" = PrivateAttr()
+
+    @computed_field
+    @property
+    def local_path(self) -> Path:
+        raise NotImplementedError
 
     @computed_field
     @property
@@ -131,6 +140,13 @@ class Model(BaseModel):
     ) -> None:
         quant = self.get_quantization(method)
         quant.download(show_progress=show_progress, console=console, path=path)
+
+    def delete(
+        self,
+        method: str,
+    ) -> None:
+        quant = self.get_quantization(method)
+        quant.delete()
 
 
 class BaseModels:
