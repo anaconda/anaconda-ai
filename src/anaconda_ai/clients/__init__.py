@@ -32,11 +32,11 @@ class AnacondaAIClient(GenericClient):
     ):
         if backend is None:
             config = AnacondaAIConfig()
-            self.__class__ = clients[config.backend]
+            self.__class__ = clients[config.backend]  # type: ignore
         else:
-            self.__class__ = clients[backend]
+            self.__class__ = clients[backend]  # type: ignore
 
-        self.__init__(
+        self.__init__(  # type: ignore
             site=site,
             base_uri=base_uri,
             domain=domain,

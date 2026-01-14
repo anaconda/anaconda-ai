@@ -10,13 +10,14 @@ from typing import List
 from typing import Optional
 from typing import Type
 from typing import Union
+from typing import Set
+from typing import Sequence
 from typing_extensions import Self
 from urllib.parse import urljoin
 
 import openai
 import rich.progress
 from pydantic import BaseModel, computed_field, model_validator, Field, PrivateAttr
-from pydantic.types import UUID4
 from rich.status import Status
 from rich.console import Console
 
@@ -38,11 +39,6 @@ MODEL_NAME = re.compile(
     r"$",
     flags=re.IGNORECASE,
 )
-
-
-def raises(ex: Exception):
-    """Raises and exception"""
-    raise ex
 
 
 class GenericClient(BaseClient):
@@ -67,18 +63,18 @@ class QuantizedFile(BaseModel):
     max_ram_usage: int
     _model: "Model" = PrivateAttr()
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def local_path(self) -> Path:
         raise NotImplementedError
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def is_allowed(self) -> bool:
         return True
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def identifier(self) -> str:
         return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
@@ -106,7 +102,7 @@ class Model(BaseModel):
     num_parameters: int
     trained_for: str
     context_window_size: int
-    quantized_files: List[QuantizedFile]
+    quantized_files: Sequence[QuantizedFile]
     _client: GenericClient = PrivateAttr()
 
     def __init__(self, client: GenericClient, **data: Any) -> None:
@@ -155,7 +151,7 @@ class BaseModels:
     def __init__(self, client: GenericClient):
         self.client = client
 
-    def list(self) -> List[Model]:
+    def list(self) -> Sequence[Model]:
         raise NotImplementedError
 
     def get(self, model: str) -> Model:
@@ -256,10 +252,10 @@ class BaseModels:
 class ServerConfig(BaseModel):
     model_name: str
 
-    _params_dump: set = {}
+    _params_dump: Set[str] = set()
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def params(self) -> dict:
         return self.model_dump(
             include=self._params_dump,
@@ -280,8 +276,8 @@ class Server(BaseModel):
         super().__init__(**data)
         self._client = client
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def status(self) -> str:
         return self._client.servers.status(self.id)
 
@@ -356,8 +352,8 @@ class Server(BaseModel):
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def openai_url(self) -> str:
         base_url = self.url if self.url.endswith("/") else f"{self.url}/"
         return urljoin(base_url, "v1")
@@ -391,7 +387,7 @@ class BaseServers:
 
         return server_id
 
-    def list(self) -> List[Server]:
+    def list(self) -> Sequence[Server]:
         raise NotImplementedError
 
     def get(self, server: str) -> Server:
@@ -465,14 +461,14 @@ class BaseServers:
     def _stop(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def stop(self, server: Union[UUID4, Server, str]) -> None:
+    def stop(self, server: Union[Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._stop(server_id)
 
     def _delete(self, server_id: str) -> None:
         raise NotImplementedError
 
-    def delete(self, server: Union[UUID4, Server, str]) -> None:
+    def delete(self, server: Union[Server, str]) -> None:
         server_id = self._get_server_id(server)
         self._delete(server_id)
 

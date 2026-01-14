@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import time, sleep
-from typing import Dict, List, Optional, Any, Union, Generator
+from typing import Dict, List, Optional, Any, Union, Generator, Sequence
 from typing_extensions import Self
 from urllib.parse import quote
 
@@ -36,8 +36,8 @@ class AINavigatorQuantizedFile(QuantizedFile):
     format: str = "gguf"
     _model: "AINavigatorModel"
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def local_path(self) -> Path:
         return (
             AnacondaAIConfig().backends.ai_navigator.models_path
@@ -63,11 +63,14 @@ class AINavigatorModel(Model):
     num_parameters: int = Field(alias="numParameters")
     context_window_size: int = Field(alias="contextWindowSize")
     trained_for: str = Field(alias="trainedFor")
-    quantized_files: List[AINavigatorQuantizedFile] = Field(alias="files")
+    quantized_files: Sequence[AINavigatorQuantizedFile] = Field(alias="files")
+
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(client, **data)
 
 
 class AINavigatorModels(BaseModels):
-    def list(self) -> List[AINavigatorModel]:
+    def list(self) -> Sequence[AINavigatorModel]:
         res = self.client.get("api/models")
         res.raise_for_status()
 
@@ -83,7 +86,7 @@ class AINavigatorModels(BaseModels):
 
     def _download(
         self,
-        model_quantization: AINavigatorQuantizedFile,
+        model_quantization: AINavigatorQuantizedFile,  # type: ignore
         path: Optional[Path] = None,
     ) -> Generator[int, None, None]:
         res = self.client.patch(model_quantization._url, json={"action": "start"})
@@ -135,9 +138,9 @@ class AINavigatorModels(BaseModels):
         if path is not None:
             path = Path(path)
             path.unlink(missing_ok=True)
-            model_quantization.local_path.link_to(path)
+            path.hardlink_to(model_quantization.local_path)
 
-    def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:
+    def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:  # type: ignore
         res = self.client.delete(model_quantization._url)
         res.raise_for_status()
 
@@ -154,10 +157,8 @@ class AINavigatorServerParams(BaseModel, extra="ignore"):
     jinja: Optional[bool] = None
     cont_batching: Optional[bool] = None
     ctx_size: Optional[int] = None
-    main_gpu: Optional[int] = None
     memory_f32: Optional[bool] = None
     mlock: Optional[bool] = None
-    n_gpu_layers: Optional[int] = None
     rope_freq_base: Optional[int] = None
     rope_freq_scale: Optional[int] = None
     seed: Optional[int] = None
@@ -195,11 +196,14 @@ class AINavigatorServerConfig(ServerConfig):
 
 class AINavigatorServer(Server):
     config: AINavigatorServerConfig = Field(alias="serverConfig")
-    url: Optional[str] = None
+    url: str = ""
+
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(client, **data)
 
     @model_validator(mode="after")
     def generate_url(self) -> Self:
-        if self.url is None:
+        if not self.url:
             host = self.config.api_params.host
             port = self.config.api_params.port
             if host and port:
@@ -208,7 +212,7 @@ class AINavigatorServer(Server):
 
 
 class AINavigatorServers(BaseServers):
-    def list(self) -> List[AINavigatorServer]:
+    def list(self) -> Sequence[AINavigatorServer]:
         res = self.client.get("api/servers")
         res.raise_for_status()
         servers = []
@@ -226,15 +230,15 @@ class AINavigatorServers(BaseServers):
         res = self.client.get(f"api/servers/{server}")
         res.raise_for_status()
 
-        s = res.json()["data"]
-        server = AINavigatorServer(**s, client=self.client)
-        return server
+        data: dict = res.json()["data"]
+        s = AINavigatorServer(**data, client=self.client)
+        return s
 
     def match(
         self,
         server_config: AINavigatorServerConfig,
     ) -> Union[AINavigatorServer, None]:
-        match_excludes = {
+        match_excludes: Dict[str, Any] = {
             "id": True,
             "start_server_on_create": True,
             "logs_dir": True,
@@ -253,7 +257,7 @@ class AINavigatorServers(BaseServers):
 
     def _create(
         self,
-        model_quantization: AINavigatorQuantizedFile,
+        model_quantization: AINavigatorQuantizedFile,  # type: ignore
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> AINavigatorServer:
         server_config = AINavigatorServerConfig(
