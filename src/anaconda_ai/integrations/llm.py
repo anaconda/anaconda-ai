@@ -147,14 +147,11 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
 
 
 def create_and_validate_client() -> AnacondaAIClient:
-    from requests import HTTPError
-
     client = AnacondaAIClient()
-    try:
-        client.account
-        return client
-    except HTTPError:
+    if not client.online:
         return None
+    else:
+        return client
 
 
 @llm.hookimpl
@@ -166,6 +163,8 @@ def register_models(register: Callable) -> None:
         if model.trained_for != "text-generation":
             continue
         for quant in model.quantized_files:
+            if not quant.is_allowed:
+                continue
             alias = f"anaconda:{quant.identifier}"
             quant_chat = AnacondaQuantizedChat(model_id=alias)
             async_quant_chat = AsyncAnacondaQuantizedChat(model_id=alias)
