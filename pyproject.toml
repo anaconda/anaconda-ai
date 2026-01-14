@@ -20,7 +20,7 @@ dynamic = ["version"]
 license = {text = "BSD-3-Clause"}
 name = "anaconda-ai"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [project.entry-points."anaconda_cli.subcommand"]
 ai = "anaconda_ai.cli:app"
@@ -134,15 +134,16 @@ norecursedirs = ["env", "envs", ".tox"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py39,py310,py311,py312,mypy
+envlist = py310,py311,py312,py313,py314,mypy
 isolated_build = True
 
 [gh-actions]
 python =
-    3.9: py39
     3.10: py310, mypy
     3.11: py311, mypy
-    3.12: py312
+    3.12: py312, mypy
+    3.13: py313, mypy
+    3.14: py314, mypy
 
 [testenv]
 deps = pytest
