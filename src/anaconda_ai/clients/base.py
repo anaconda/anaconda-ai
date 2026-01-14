@@ -67,18 +67,18 @@ class QuantizedFile(BaseModel):
     max_ram_usage: int
     _model: "Model" = PrivateAttr()
 
-    @computed_field
     @property
+    @computed_field
     def local_path(self) -> Path:
         raise NotImplementedError
 
-    @computed_field
     @property
+    @computed_field
     def is_allowed(self) -> bool:
         return True
 
-    @computed_field
     @property
+    @computed_field
     def identifier(self) -> str:
         return f"{self._model.name}_{self.quant_method}.{self.format.lower()}"
 
@@ -258,8 +258,8 @@ class ServerConfig(BaseModel):
 
     _params_dump: set = {}
 
-    @computed_field
     @property
+    @computed_field
     def params(self) -> dict:
         return self.model_dump(
             include=self._params_dump,
@@ -280,8 +280,8 @@ class Server(BaseModel):
         super().__init__(**data)
         self._client = client
 
-    @computed_field
     @property
+    @computed_field
     def status(self) -> str:
         return self._client.servers.status(self.id)
 
@@ -356,8 +356,8 @@ class Server(BaseModel):
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
-    @computed_field  # type: ignore[misc]
     @property
+    @computed_field
     def openai_url(self) -> str:
         base_url = self.url if self.url.endswith("/") else f"{self.url}/"
         return urljoin(base_url, "v1")

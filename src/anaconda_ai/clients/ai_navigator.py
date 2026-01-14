@@ -36,8 +36,8 @@ class AINavigatorQuantizedFile(QuantizedFile):
     format: str = "gguf"
     _model: "AINavigatorModel"
 
-    @computed_field
     @property
+    @computed_field
     def local_path(self) -> Path:
         return (
             AnacondaAIConfig().backends.ai_navigator.models_path

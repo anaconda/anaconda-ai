@@ -12,8 +12,8 @@ from anaconda_cli_base.config import AnacondaBaseSettings
 class AINavigatorConfig(BaseModel):
     app_name: str = "ai-navigator"
 
-    @computed_field
     @property
+    @computed_field
     def models_path(self) -> Path:
         path = self.get_config("downloadLocation")
         if path is None:
