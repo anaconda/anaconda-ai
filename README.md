@@ -26,9 +26,10 @@ conda install -c anaconda-cloud anaconda-ai
 
 ## Backend
 
-The backend for anaconda-ai is [Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator). This package
-package utilizes the backend API to list and download models and manage running servers. All activities performed
-by the CLI, SDK, and integrations here are visible within Anaconda AI Navigator.
+The backend service for anaconda-ai is the [Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)
+application. This package package utilizes the backend API to list and download models and manage running servers.
+All activities performed by the CLI, SDK, and integrations here are visible within the Anaconda AI Navigator
+application.
 
 ## Configuration
 
@@ -38,6 +39,8 @@ Anaconda AI supports configuration management in the `~/.anaconda/config.toml` f
 |Parameter|Environment variable|Description|Default value|
 |---------|--------------------|-----------|-------------|
 |`stop_server_on_exit`|`ANACONDA_AI_STOP_SERVER_ON_EXIT`|For any server started during a Python interpreter session stop the server when the interpreter stops. Does not affect servers that were previously running|`true`|
+|`server_operations_timeout`|`ANACONDA_AI_SERVER_OPERATIONS_TIMEOUT`|Timeout waiting for a server to start or stop|`30`|
+|`show_blocked_models`|`ANACONDA_AI_SHOW_BLOCKED_MODELS`|Toggle display of blocked models if backend supports it|`false`|
 
 ## Declaring model quantization files
 
@@ -78,9 +81,9 @@ See the `--help` for each command for more details.
 The SDK actions are initiated by creating a client connection to the backend.
 
 ```python
-from anaconda_ai import get_default_client
+from anaconda_ai import AnacondaAIClient
 
-client = get_default_client()
+client = AnacondaAIClient()
 ```
 
 The client provides two top-level accessors `.models` and `.servers`.
@@ -92,47 +95,46 @@ The `.models` attribute provides actions to list available models and download s
 |Method|Return|Description|
 |-----|-----|------|
 |`.list()`|`List[ModelSummary]`|List all available and downloaded models|
-|`.get('<model-name>')`|`ModelSummary`|retrieve metadata about a model|
+|`.get('<model-name>')`|`Model`|retrieve metadata about a model|
 |`.download('<model>/<quantization>')`|None|Download a model quantization file|
+|`.delete('<model>/<quantization>')`|None|Delete a downloaded model quantization file|
 
-The `ModelSummary` class holds metadata for each available model
+The `Model` class holds metadata for each available model
 
 |Attribute/Method|Return|Description|
 |---------|-------|--------|
-|`.id`|string|The id of the model in the format `<author>/<model-name>`|
 |`.name`|string|The name of the model|
-|`.metadata`|`ModelMetadata`|Metadata about the model and quantization files|
-
-The `ModelMetadata` holds
-
-|Attribute/Method|Return|Description|
-|---------|-------|--------|
-|`.numParameters`|int|Number of parameters for the model|
-|`.contextWindowSize`|int|Length of the context window for the model|
-|`.trainedFor`|str|Either `'sentence-similarity'` or `'text-generation'`|
 |`.description`|str|Description of the model provided by the original author|
-|`.files`|`List[ModelQuantization]`|List of available quantization files|
+|`.num_parameters`|int|Number of parameters for the model|
+|`.trained_for`|str|Either `'sentence-similarity'` or `'text-generation'`|
+|`.context_window_size`|int|Length of the context window for the model|
+|`.quantized_files`|`List[ModelQuantization]`|List of available quantization files|
 |`.get_quantization('<method>')`|`ModelQuantization`|Retrieve metadata for a single quantization file|
+|`.download('<method>')`|None|Direct call to download a quantization file|
+|`.delete('<method>')`|None|Delete a downloaded quantization file|
 
 Each `ModelQuantization` object provides
 
 |Attribute/Method|Return|Description|
 |---------|-------|--------|
+|`.identifier`|str|The file name as it will appear on disk|
+|`.sha256`|str|The sha256 checksum of the model file|
+|`.quant_method`|str|The quantization method|
+|`.size_bytes`|int|Size of the model file in bytes|
+|`.max_ram_usage`|int|The total amount of ram needed to load the model in bytes|
+|`.is_downloaded`|bool|True if the model file has been downloaded|
+|`.local_path`|str|Will be non-null if the model file has been downloaded|
 |`.download()`|None|Direct call to download the quantization file|
-|`id`|str|The sha256 checksum of the model file|
-|`modelFileName`|str|The file name as it will appear on disk|
-|`method`|str|The quantization method|
-|`sizeBytes`|int|Size of the model file in bytes|
-|`maxRamUsage`|int|The total amount of ram needed to load the model in bytes|
-|`isDownloaded`|bool|True if the model file has been downloaded|
-|`localPath`|str|Will be non-null if the model file has been downloaded|
+|`.delete()`|None|Delete the downloaded quantization file|
 
 #### Downloading models
 
-There are two methods to download a quantization file:
+There are three methods to download a quantization file:
 
 1. Calling `.download()` from a `ModelQuantization` object
     * For example: `client.models.get('<model>').get_quantization('<method>').download()`
+1. Calling `.download('<method>')` from a `Model` object
+    * For example: `client.models.get('<model>').download('<method>')`
 1. `client.models.download('quantized-file-name')`
     * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `ModelQuantization` object
 
@@ -148,6 +150,7 @@ start new servers, and stop servers.
 |Method|Return|Description|
 |-----|-----|------|
 |`.list`|`List[Server]`|List all running servers|
+|`.get('<server-id>')`|`Server`|Lookup server object by identifier|
 |`.match`|Server|Find a running server that matches supplied configuration|
 |`.create`|Server|Create a new server configuration with supplied model file and API parameters|
 |`.start('<server-id>')`|None|Start the API server|
@@ -166,58 +169,12 @@ The `.create` function has the following inputs
 |Argument|Type|Description|
 |---|---|---|
 |model|str or ModelQuantization|The string name for the quantized model or a ModelQuantization object|
-|api_params|APIParams or dict|Parameters for how the server is configured, like host and port|
-|load_params|LoadParams or dict|Control how the model is loaded, like n_gpu_layers, batch_size, or to enable embeddings|
-|infer_params|InferParams or dict|Control inference configuration like sampling parameters, number of threads, or default temperature|
+|extra_options|dict|Control server configuration supported by the backend|
 
-The three server parameters Pydantic classes are shown here.
-If the value `None` is used for any parameter the server
-will utilize the backend default value.
+By default creating a server configuration will
 
-Note: If you wish to use tool calling with a model that has been trained to to so you must enabled Jinja with `load_params={'jinja': True}`.
-
-```python
-class APIParams(BaseModel, extra="forbid"):
-    host: str = "127.0.0.1"
-    port: int = 0            # 0 means find a random unused port
-    api_key: str | None = None
-    log_disable: bool | None = None
-    mmproj: str | None = None
-    timeout: int | None = None
-    verbose: bool | None = None
-    n_gpu_layers: int | None = None
-    main_gpu: int | None = None
-    metrics: bool | None = None
-
-
-class LoadParams(BaseModel, extra="forbid"):
-    batch_size: int | None = None
-    jinja: bool | None = None
-    cont_batching: bool | None = None
-    ctx_size: int | None = None
-    main_gpu: int | None = None
-    memory_f32: bool | None = None
-    mlock: bool | None = None
-    n_gpu_layers: int | None = None
-    rope_freq_base: int | None = None
-    rope_freq_scale: int | None = None
-    seed: int | None = None
-    tensor_split: list[int] | None = None
-    use_mmap: bool | None = None
-    embedding: bool | None = None
-
-
-class InferParams(BaseModel, extra="forbid"):
-    threads: int | None = None
-    n_predict: int | None = None
-    top_k: int | None = None
-    top_p: float | None = None
-    min_p: float | None = None
-    repeat_last: int | None = None
-    repeat_penalty: float | None = None
-    temp: float | None = None
-    parallel: int | None = None
-```
+* download the model file if required by the backend
+* run the server API
 
 For example to create a server with the OpenHermes model with
 default values
@@ -228,24 +185,6 @@ from anaconda_ai import get_default_client
 client = get_default_client()
 server = client.servers.create(
   'OpenHermes-2.5-Mistral-7B/Q4_K_M',
-)
-```
-
-By default creating a server configuration will
-
-* download the model file if needed
-* run the server API on a random unused port
-
-The optional server parameters listed above can be passed as dictionaries
-as well as avoiding automatic model downloads. For example
-
-```python
-server = client.servers.create(
-  'OpenHermes-2.5-Mistral-7B/Q4_K_M',
-  api_params={"main_gpu": 1, "port": 9999},
-  load_params={"ctx_size": 512, "n_gpu_layers": 10},
-  infer_params={"temp": 0.1},
-  download_if_needed=False
 )
 ```
 
@@ -277,15 +216,47 @@ with client.servers.create('OpenHermes-2.5-Mistral-7B/Q4_K_M') as server:
     # make requests to the server
 ```
 
-### Server attributes
+#### Server attributes
 
+* `.status`: Text status of the server
+* `.is_running`: Boolean status, True if the server is in the 'running' state
+* `.start()`: Start the server, optional can be used as a context manager to auto stop
+* `.stop()`: Stop the server
 * `.url`: is the full url to the running server
-* `.openai_url`: is the url with `/v1` appended to utilize the OpenAI compatibility endpoints
+* `.openai_url`: OpenAI compatibility url
 * `.openai_client()`: creates a pre-configured OpenAI client for this url
-* `.openai_async_client()`: creates a pre-configured Async OpenAI client for this url
+* `.async_openai_client()`: creates a pre-configured Async OpenAI client for this url
 
-Each of  `.openai_client()` and `opeanai_async_client()` allow extra keyword parameters to pass to the
+Each of  `.openai_client()` and `async_openai_client()` allow extra keyword parameters to pass to the
 client initialization.
+
+#### AI Navigator Server Configuration Options
+
+The AI Navigator backend supports [llama-server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
+passed as snake-case dictionary keys to `client.servers.create()` with the `extra_options` kwarg.
+To enable flags set the value to `True`.
+
+Here are some notes on specific server parameter behavior
+
+|Dict key|Notes|
+|--------|-----|
+|`port`|Start server on specific port, 0 or missing means start on random port|
+|`jinja`|Set to `True` to enable tool calling for models trained to do so|
+
+For example:
+
+```python
+from anaconda_ai import AnacondaAIClient
+
+client = AnacondaAIClient()
+server = client.servers.create(
+  'OpenHermes-2.5-Mistral-7B/Q4_K_M',
+  extra_options={
+    "ctx_size": 512,
+    "jinja": True
+  }
+)
+```
 
 ### Vector Db
 
@@ -322,10 +293,10 @@ Standard OpenAI parameters are supported.
 llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 'what is pi?'
 ```
 
-Standard OpenAI and the above server options are available for Anaconda AI models, to see the parameter names run
+Additionally, server configuration parameters like `ctx_size` can be passed
 
 ```text
-llm models list -q anaconda --options
+llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 -o ctx_size 512 'what is pi?'
 ```
 
 ## Langchain
@@ -347,9 +318,7 @@ message = chain.invoke({'topic': 'python'})
 
 The following keyword arguments are supported:
 
-* `api_params`: Dict or APIParams class above
-* `load_params`: Dict or LoadParams class above
-* `infer_params`: Dict or InferParams class above (excluding AnacondaQuantizedEmbedding)
+* `extra_options`: Dict, see create servers above
 
 ## LlamaIndex
 
@@ -369,9 +338,7 @@ The `AnacondaModel` class supports the following arguments
 * `system_prompt`: Optional system prompt to apply to completions and chats
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
-* `api_params`: Optional dict or APIParams object
-* `load_params`: Optional dict or LoadParams object
-* `infer_params`: Optional dict or InferParams object
+* `extra_options`: Optional dict, see server creation above
 
 ## LiteLLM
 
@@ -395,8 +362,8 @@ Supported usage:
 * acompletion (with and without stream=True)
 * Most OpenAI [inference parameters](https://docs.litellm.ai/docs/completion/input)
   * `n`: number of completions is not supported
-* Server parameters (api_params, load_params, infer_params) can be passed as dictionaries to the `optional_params` keyword argument
-  * `optional_params={"load_params": {"ctx_size": 512}}`
+* Server parameters can be passed as dictionaries to the `optional_params` keyword argument in the key "server"
+  * `optional_params={"server": {"ctx_size": 512}}`
 
 ## DSPy
 
