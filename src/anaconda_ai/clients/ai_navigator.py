@@ -5,6 +5,8 @@ from typing_extensions import Self
 from urllib.parse import quote
 
 from pydantic import Field, computed_field, ConfigDict, model_validator, BaseModel
+from rich.console import Console
+from rich.status import Status
 
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
@@ -16,6 +18,10 @@ from .base import (
     Server,
     BaseServers,
     ServerConfig,
+    VectorDbServerResponse,
+    BaseVectorDb,
+    VectorDbTableSchema,
+    TableInfo,
 )
 from ..utils import find_free_port
 
@@ -295,6 +301,54 @@ class AINavigatorServers(BaseServers):
         return
 
 
+class AINavigatorVectorDbServer(BaseVectorDb):
+    def create(
+        self,
+        show_progress: bool = True,
+        leave_running: Optional[bool] = None,  # TODO: Implement this
+        console: Optional[Console] = None,
+    ) -> VectorDbServerResponse:
+        """Create a vector database service.
+
+        Returns:
+            dict: The vector database service information.
+        """
+
+        text = "Starting pg vector database"
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        with Status(text, console=console) as display:
+            res = self.client.post("api/vector-db")
+            text = "pg vector database started"
+            display.update(text)
+
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+
+        data = res.json()["data"]
+        vectordb = VectorDbServerResponse(**data)
+        return vectordb
+
+    def delete(self) -> None:
+        self.client.delete("api/vector-db")
+
+    def stop(self) -> VectorDbServerResponse:
+        res = self.client.patch("api/vector-db", json={"running": False})
+        return VectorDbServerResponse(**res.json()["data"])
+
+    def get_tables(self) -> list[TableInfo]:
+        res = self.client.get("api/vector-db/tables")
+        return [TableInfo(**t) for t in res.json()["data"]]
+
+    def drop_table(self, table: str) -> None:
+        self.client.delete(f"api/vector-db/tables/{table}")
+
+    def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        res = self.client.post(
+            "api/vector-db/tables", json={"schema": schema.model_dump(), "name": table}
+        )
+        res.raise_for_status()
+
+
 class AINavigatorClient(GenericClient):
     def __init__(
         self,
@@ -311,3 +365,4 @@ class AINavigatorClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
+        self.vector_db = AINavigatorVectorDbServer(self)
