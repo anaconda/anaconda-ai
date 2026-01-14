@@ -141,4 +141,4 @@ class AnacondaEmbeddingModel(OpenAIEmbedding):
             **kwargs,
         )
 
-        self._server_config = server.serverConfig
+        self._server_config = server.config
