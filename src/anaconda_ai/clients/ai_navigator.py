@@ -145,7 +145,7 @@ class AINavigatorModels(BaseModels):
         res.raise_for_status()
 
 
-class AINavigatorServerParams(BaseModel, extra="ignore"):
+class AINavigatorServerParams(BaseModel, extra="allow"):
     host: Optional[str] = None
     port: Optional[int] = None
     mmproj: Optional[str] = None
