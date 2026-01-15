@@ -7,7 +7,6 @@ from typing import Sequence
 import typer
 from requests.exceptions import HTTPError
 from rich.console import RenderableType
-from rich.status import Status
 from rich.table import Column
 from rich.table import Table
 
@@ -235,20 +234,9 @@ def launch(
 
     client = AnacondaAIClient(backend=backend, site=site)
 
-    text = f"{model} (creating)"
-    with Status(text, console=console) as display:
-        server = client.servers.create(model=model, extra_options=extra_options)
-        client.servers.start(server)
-        status = client.servers.status(server)
-        text = f"{model} ({status})"
-        display.update(text)
-
-        while status != "running":
-            status = client.servers.status(server)
-            text = f"{model} ({status})"
-            display.update(text)
-    console.print(f"[bold green]✓[/] {text}", highlight=False)
-    console.print(f"URL: [link='{server.url}']{server.url}[/link]")
+    server = client.servers.create(model=model, extra_options=extra_options)
+    server.start(show_progress=True, leave_running=True)
+    _server_info(server)
     if show:
         import webbrowser
 
@@ -266,9 +254,7 @@ def launch(
         if server._matched:
             return
 
-        with Status(f"{model} (stopping)", console=console) as display:
-            client.servers.stop(server)
-            display.update(f"{model} (stopped)")
+        server.stop(show_progress=True)
         return
 
 
