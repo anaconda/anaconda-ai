@@ -312,6 +312,9 @@ def servers(
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
+    remove: bool = typer.Argument(
+        default=False, help="Delete server on stop. Not supported by all backends."
+    ),
     site: Annotated[
         Optional[str], "--at", typer.Option(help="Site defined in config")
     ] = None,
@@ -320,8 +323,11 @@ def stop(
     ] = None,
 ) -> None:
     client = AnacondaAIClient(backend=backend, site=site)
-    client.servers.stop(server)
-    client.servers.delete(server)
+    s = client.servers.get(server)
+    s.stop(show_progress=True)
+
+    if remove:
+        client.servers.delete(server)
 
 
 @app.command("launch-vectordb")
