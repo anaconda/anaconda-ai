@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import time, sleep
-from typing import Dict, List, Optional, Any, Union, Generator, Sequence
+from typing import Dict, List, Optional, Any, Union, Generator, Sequence, Set
 from typing_extensions import Self
 from urllib.parse import quote
 
@@ -192,6 +192,8 @@ class AINavigatorServerConfig(ServerConfig):
     start_server_on_create: bool = Field(default=True, alias="startServerOnCreate")
 
     model_config = ConfigDict(serialize_by_alias=True)
+
+    _params_dump: Set[str] = {"api_params", "load_params", "infer_params"}
 
 
 class AINavigatorServer(Server):
