@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, MutableMapping
+from typing import Any, Optional, Union, MutableMapping, Sequence
 from warnings import warn
 
 from anaconda_auth.config import AnacondaAuthSite
@@ -51,6 +51,11 @@ class AnacondaAIClient(GenericClient):
             client_cert=client_cert,
             client_cert_key=client_cert_key,
         )
+
+
+def get_backends() -> Sequence[str]:
+    """Return a list of all available backends"""
+    return list(clients.keys())
 
 
 def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
