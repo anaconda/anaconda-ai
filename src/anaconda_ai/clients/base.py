@@ -327,11 +327,18 @@ class Server(BaseModel):
         if not self._matched:
             kwargs = {}
             if leave_running is not None:
-                kwargs["stop_server_on_exit"] = leave_running
+                kwargs["stop_server_on_exit"] = not leave_running
 
             config = AnacondaAIConfig(**kwargs)  # type: ignore
             if config.stop_server_on_exit:
-                atexit.register(self.stop, console=console)
+
+                def safe_stop(console: Console) -> None:
+                    try:
+                        self.stop(console=console)
+                    except Exception:
+                        pass
+
+                atexit.register(safe_stop, console=console)
 
     @property
     def is_running(self) -> bool:
