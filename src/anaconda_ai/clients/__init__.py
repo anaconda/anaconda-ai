@@ -61,16 +61,3 @@ def get_backends() -> Sequence[str]:
 def get_default_client(*args: Any, **kwargs: Any) -> GenericClient:
     warn("get_default_client is deprecated, use AnacondaAIClient(...) instead")
     return AnacondaAIClient(*args, **kwargs)
-
-
-def make_client(
-    backend: Optional[str] = None, site: Optional[str] = None, **kwargs: Any
-) -> GenericClient:
-    if backend is None:
-        config = AnacondaAIConfig()
-        return clients[config.backend](site=site, **kwargs)
-    else:
-        return clients[backend](site=site, **kwargs)
-
-
-__all__ = ["make_client"]
