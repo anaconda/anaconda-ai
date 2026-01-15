@@ -481,6 +481,11 @@ class VectorDbServerResponse(BaseModel):
     user: str
     password: str
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def uri(self) -> str:
+        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
 
 class VectorDbTableColumn(BaseModel):
     name: str
