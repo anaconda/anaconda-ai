@@ -30,7 +30,7 @@ anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-ai[langchain,litellm,llm,llama-index,panel]"
+  "anaconda-ai[langchain,litellm,llm,llama-index,pydantic-ai,panel]"
 ]
 dev = [
   "mypy",
@@ -54,6 +54,7 @@ publish = [
   "twine",
   "wheel"
 ]
+pydantic-ai = ["pydantic-ai"]
 
 [tool.distutils.bdist_wheel]
 universal = true
