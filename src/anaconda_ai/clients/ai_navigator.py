@@ -245,6 +245,7 @@ class AINavigatorServers(BaseServers):
             "start_server_on_create": True,
             "logs_dir": True,
             "api_params": {"port": True, "host": True},
+            "params": True,
         }
 
         config_dump = server_config.model_dump(exclude=match_excludes)
