@@ -1,72 +1,92 @@
+import json
+from pathlib import Path
 from typing import Annotated
 from typing import Optional
+from typing import Sequence
 
 import typer
+from requests.exceptions import HTTPError
 from rich.console import RenderableType
-from rich.status import Status
 from rich.table import Column
 from rich.table import Table
 
+from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
-from .clients import get_default_client
-from .clients.base import GenericClient, ModelQuantization, Server, VectorDbTableSchema
+from .clients import AnacondaAIClient
+from .clients.base import GenericClient, Server, VectorDbTableSchema
 from ._version import __version__
+
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
 
 
-def get_running_servers(
-    client: GenericClient, quantization: ModelQuantization
-) -> list[Server]:
-    servers = [
-        s
-        for s in client.servers.list()
-        if s.serverConfig.modelFileName.endswith(quantization.modelFileName)
-        and s.status == "running"
-    ]
-    return servers
+def get_running_servers(client: GenericClient) -> Sequence[Server]:
+    try:
+        servers = client.servers.list()
+        return servers
+    except (HTTPError, AttributeError):
+        return []
 
 
-def _list_models(client: GenericClient) -> RenderableType:
+def _list_models(
+    client: GenericClient, show_blocked: Optional[bool] = None
+) -> RenderableType:
     models = client.models.list()
+    servers = get_running_servers(client)
     table = Table(
         Column("Model", no_wrap=True),
         "Params (B)",
-        "Quantizations\ndownloaded in bold\ngreen when running",
+        "Quantizations\ndownloaded in bold\ngreen for active servers",
         "Trained for",
         header_style="bold green",
     )
-    for model in sorted(models, key=lambda m: m.id):
+
+    if show_blocked is None:
+        show_blocked = AnacondaAIConfig().show_blocked_models
+
+    for model in sorted(models, key=lambda m: m.name):
         quantizations = []
-        for quant in model.metadata.files:
-            if quant.isDownloaded:
-                servers = get_running_servers(client, quant)
-                color = "green" if servers else ""
-                method = f"[bold {color}]{quant.method}[/bold {color}]"
+        for quant in model.quantized_files:
+            if not quant.is_allowed and not show_blocked:
+                continue
+
+            matched_servers = [
+                s for s in servers if s.config.model_name.endswith(quant.identifier)
+            ]
+
+            if quant.is_allowed:
+                color = "green" if matched_servers else ""
+                emphasis = "bold" if (quant.is_downloaded or matched_servers) else "dim"
             else:
-                method = f"[dim]{quant.method}[/dim]"
+                color = "bright_red"
+                emphasis = "dim"
+
+            method = (
+                f"[{emphasis} {color}]{quant.quant_method.upper()}[/{emphasis} {color}]"
+            )
 
             quantizations.append(method)
 
-        quants = ", ".join(quantizations)
-
-        parameters = f"{model.metadata.numParameters/1e9:8.2f}"
-        table.add_row(model.id, parameters, quants, model.metadata.trainedFor)
+        if quantizations:
+            quants = ", ".join(quantizations)
+            parameters = f"{model.num_parameters / 1e9:8.2f}"
+            table.add_row(model.name, parameters, quants, model.trained_for)
     return table
 
 
 def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     info = client.models.get(model_id)
+    servers = get_running_servers(client)
 
     table = Table.grid(padding=1, pad_edge=True)
     table.title = model_id
     table.add_column("Metadata", no_wrap=True, justify="center", style="bold green")
     table.add_column("Value", justify="left")
-    table.add_row("Description", info.metadata.description)
-    parameters = f"{info.metadata.numParameters/1e9:8.2f}B"
+    table.add_row("Description", info.description)
+    parameters = f"{info.num_parameters / 1e9:8.2f}B"
     table.add_row("Parameters", parameters)
-    table.add_row("Trained For", info.metadata.trainedFor)
+    table.add_row("Trained For", info.trained_for)
 
     quantized = Table(
         Column("Filename", no_wrap=True),
@@ -74,21 +94,26 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         "Downloaded",
         "Max Ram (GB)",
         "Size (GB)",
-        "Running",
+        "Server(s)",
         header_style="bold green",
     )
-    for quant in info.metadata.files:
-        method = quant.method
-        downloaded = CHECK_MARK if quant.isDownloaded else ""
-        servers = get_running_servers(client, quant)
-        running = CHECK_MARK if servers else ""
+    for quant in info.quantized_files:
+        method = quant.quant_method.upper()
+        if not quant.is_allowed:
+            method = f"[bright_red]{method}[/bright_red]"
+        downloaded = CHECK_MARK if quant.is_downloaded else ""
+        matched_servers = [
+            s for s in servers if s.config.model_name.endswith(quant.identifier)
+        ]
+        running = CHECK_MARK if matched_servers else ""
 
-        ram = f"{quant.maxRamUsage / 1024 / 1024 / 1024:.2f}"
-        size = f"{quant.sizeBytes / 1024 / 1024 / 1024:.2f}"
-        quantized.add_row(quant.modelFileName, method, downloaded, ram, size, running)
+        ram = f"{quant.max_ram_usage / 1024 / 1024 / 1024:.2f}"
+        size = f"{quant.size_bytes / 1024 / 1024 / 1024:.2f}"
+        quantized.add_row(quant.identifier, method, downloaded, ram, size, running)
 
     table.add_row("Quantized Files", quantized)
     return table
+
 
 @app.command(name="version")
 def version() -> None:
@@ -96,11 +121,12 @@ def version() -> None:
     console.print(f"SDK: {__version__}")
 
     try:
-        client = get_default_client()
+        client = AnacondaAIClient()
         version = client.get_version()
         console.print(version)
-    except Exception as e:
+    except Exception:
         console.print("AI Navigator not found. Is it running?")
+
 
 @app.command(name="models")
 def models(
@@ -108,11 +134,22 @@ def models(
         Optional[str],
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    show_blocked: Optional[bool] = typer.Option(
+        None,
+        "--show-blocked/--no-show-blocked",
+        help="Show or hide unavailable models.",
+    ),
 ) -> None:
     """Model information"""
-    client = get_default_client()
+    client = AnacondaAIClient(backend=backend, site=site)
     if model_id is None:
-        renderable = _list_models(client)
+        renderable = _list_models(client, show_blocked=show_blocked)
     else:
         renderable = _model_info(client, model_id)
     console.print(renderable)
@@ -124,149 +161,90 @@ def download(
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output", "-o", help="Hard-link model file to this path after download"
+        ),
+    ] = None,
 ) -> None:
     """Download a model"""
-    client = get_default_client()
-    client.models.download(model, show_progress=True, force=force, console=console)
+    client = AnacondaAIClient(backend=backend, site=site)
+    client.models.download(
+        model, show_progress=True, force=force, console=console, path=output
+    )
     console.print("[green]Success[/green]")
 
 
 @app.command(name="remove")
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
 ) -> None:
     """Remove a downloaded a model"""
-    client = get_default_client()
+    client = AnacondaAIClient(backend=backend, site=site)
     client.models.delete(model)
     console.print("[green]Success[/green]")
 
 
 @app.command(
     name="launch",
-    # context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def launch(
+    ctx: typer.Context,
     model: str = typer.Argument(
         help="Name of the quantized model, it will download first if needed.",
     ),
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
     detach: bool = typer.Option(
         default=False, help="Start model server and leave it running."
     ),
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
     ),
-    port: Optional[int] = typer.Option(
-        0,
-        help="Port number for the server. Default is to find a free open port",
-    ),
-    force_download: bool = typer.Option(
-        False, help="Download the model file even if it is already cached"
-    ),
-    api_key: Optional[str] = None,
-    log_disable: Optional[bool] = None,
-    mmproj: Optional[str] = None,
-    timeout: Optional[int] = None,
-    verbose: Optional[bool] = None,
-    main_gpu: Optional[int] = None,
-    metrics: Optional[bool] = None,
-    batch_size: Optional[int] = None,
-    cont_batching: Optional[bool] = None,
-    ctx_size: Optional[int] = None,
-    memory_f32: Optional[bool] = None,
-    mlock: Optional[bool] = None,
-    n_gpu_layers: Optional[int] = None,
-    rope_freq_base: Optional[int] = None,
-    rope_freq_scale: Optional[int] = None,
-    seed: Optional[int] = None,
-    tensor_split: Optional[str] = None,
-    use_mmap: Optional[bool] = None,
-    embedding: Optional[bool] = None,
-    threads: Optional[int] = None,
-    n_predict: Optional[int] = None,
-    top_k: Optional[int] = None,
-    top_p: Optional[float] = None,
-    min_p: Optional[float] = None,
-    repeat_last: Optional[int] = None,
-    repeat_penalty: Optional[float] = None,
-    temp: Optional[float] = None,
-    parallel: Optional[int] = None,
 ) -> None:
     """Launch an inference server for a model"""
+    extra_options = {}
+    for arg in ctx.args:
+        if not arg.startswith("--"):
+            continue
+        key, *value = arg[2:].split("=", maxsplit=1)
 
-    client = get_default_client()
-    client.models.download(model, force=force_download)
+        if len(value) > 1:
+            raise ValueError(arg)
 
-    api_params = {
-        "port": port,
-        "api_key": api_key,
-        "log_disable": log_disable,
-        "mmproj": mmproj,
-        "timeout": timeout,
-        "verbose": verbose,
-        "metrics": metrics,
-    }
+        extra_options[key] = True if value[0] is None else value[0]
 
-    if tensor_split:
-        try:
-            split_tensors = [float(i) for i in tensor_split.split(",")]
-        except ValueError:
-            raise ValueError("--split-tensors must be a comma separated lit of floats")
-    else:
-        split_tensors = None
+    client = AnacondaAIClient(backend=backend, site=site)
 
-    load_params = {
-        "batch_size": batch_size,
-        "cont_batching": cont_batching,
-        "ctx_size": ctx_size,
-        "main_gpu": main_gpu,
-        "memory_f32": memory_f32,
-        "mlock": mlock,
-        "n_gpu_layers": n_gpu_layers,
-        "rope_freq_base": rope_freq_base,
-        "rope_freq_scale": rope_freq_scale,
-        "seed": seed,
-        "tensor_split": split_tensors,
-        "use_mmap": use_mmap,
-        "embedding": embedding,
-    }
-
-    infer_params = {
-        "threads": threads,
-        "n_predict": n_predict,
-        "top_k": top_k,
-        "top_p": top_p,
-        "min_p": min_p,
-        "repeat_last": repeat_last,
-        "repeat_penalty": repeat_penalty,
-        "temp": temp,
-        "parallel": parallel,
-    }
-
-    text = f"{model} (creating)"
-    with Status(text, console=console) as display:
-        server = client.servers.create(
-            model=model,
-            api_params=api_params,
-            load_params=load_params,
-            infer_params=infer_params,
-        )
-        client.servers.start(server)
-        status = client.servers.status(server)
-        text = f"{model} ({status})"
-        display.update(text)
-
-        while status != "running":
-            status = client.servers.status(server)
-            text = f"{model} ({status})"
-            display.update(text)
-    console.print(f"[bold green]✓[/] {text}", highlight=False)
-    console.print(f"URL: [link='{server.url}']{server.url}[/link]")
+    server = client.servers.create(model=model, extra_options=extra_options)
+    server.start(show_progress=True, leave_running=True)
+    _server_info(server)
     if show:
         import webbrowser
 
         webbrowser.open(server.url)
 
-    if detach:
+    if client.servers.always_detach:
+        return
+    elif detach:
         return
 
     try:
@@ -276,93 +254,121 @@ def launch(
         if server._matched:
             return
 
-        with Status(f"{model} (stopping)", console=console) as display:
-            client.servers.stop(server)
-            display.update(f"{model} (stopped)")
+        server.stop(show_progress=True)
         return
 
 
-@app.command("servers")
-def servers() -> None:
-    """List running servers"""
-    client = get_default_client()
-    servers = client.servers.list()
-
+def _servers_list(servers: Sequence[Server]) -> None:
     table = Table(
-        Column("ID", no_wrap=True),
-        "Model",
-        "URL",
-        "Params",
+        Column("Server ID", no_wrap=True),
+        "Model Name",
+        "Status",
         header_style="bold green",
     )
 
     for server in servers:
-        if not server.is_running:
-            continue
-
-        params = server.serverConfig.model_dump_json(
-            indent=2,
-            exclude={"modelFileName", "logsDir", "apiParams"},
-            exclude_none=True,
-            exclude_defaults=True,
-        )
         table.add_row(
             str(server.id),
-            str(server.serverConfig.modelFileName),
-            server.openai_url,
-            params,
+            str(server.config.model_name),
+            server.status,
         )
 
     console.print(table)
 
 
+def _server_info(server: Server) -> None:
+    table = Table.grid(padding=1, pad_edge=True)
+    table.title = server.id
+    table.add_column("Metadata", justify="center", style="bold green")
+    table.add_column("Value", justify="left")
+    table.add_row("Model", server.config.model_name)
+    table.add_row("OpenAI Compatible URL", server.openai_url)
+    table.add_row("Status", server.status)
+    table.add_row("Parameters", json.dumps(server.config.params, indent=2))
+    console.print(table)
+
+
+@app.command("servers")
+def servers(
+    server: Annotated[Optional[str], typer.Argument(help="Server ID")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+) -> None:
+    """List running servers"""
+    client = AnacondaAIClient(backend=backend, site=site)
+
+    if server:
+        s = client.servers.get(server)
+        _server_info(s)
+    else:
+        servers = client.servers.list()
+        _servers_list(servers)
+
+
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
+    remove: bool = typer.Argument(
+        default=False, help="Delete server on stop. Not supported by all backends."
+    ),
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
 ) -> None:
-    client = get_default_client()
-    client.servers.stop(server)
+    client = AnacondaAIClient(backend=backend, site=site)
+    s = client.servers.get(server)
+    s.stop(show_progress=True)
+
+    if remove:
+        client.servers.delete(server)
 
 
 @app.command("launch-vectordb")
-def launch_vector_db(
-) -> None:
+def launch_vector_db() -> None:
     """
     Starts a vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     result = client.vector_db.create()
     console.print(result)
 
+
 @app.command("delete-vectordb")
-def delete_vector_db(
-) -> None:
+def delete_vector_db() -> None:
     """
     Deletes the vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     client.vector_db.delete()
     console.print("Vector db deleted")
 
+
 @app.command("stop-vectordb")
-def stop_vector_db(
-) -> None:
+def stop_vector_db() -> None:
     """
     Stops the vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     result = client.vector_db.stop()
     console.print(result)
 
+
 @app.command("list-tables")
-def list_tables(
-) -> None:
+def list_tables() -> None:
     """
     Lists all tables in the vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     tables = client.vector_db.get_tables()
     console.print(tables)
+
 
 @app.command("drop-table")
 def drop_table(
@@ -371,9 +377,10 @@ def drop_table(
     """
     Drops a table from the vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     client.vector_db.drop_table(table)
     console.print(f"Table {table} dropped")
+
 
 @app.command("create-table")
 def create_table(
@@ -383,7 +390,7 @@ def create_table(
     """
     Creates a table in the vector db
     """
-    client = get_default_client()
+    client = AnacondaAIClient()
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
     console.print(f"Table {table} created")

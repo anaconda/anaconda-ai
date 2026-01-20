@@ -1,206 +1,311 @@
-from time import sleep, time
-from pydantic import ValidationError
-from typing import Optional, Any, Union
-from packaging.version import parse
-from requests import PreparedRequest, Response
-from requests.auth import AuthBase
-from requests.exceptions import ConnectionError
-from rich.console import Console
-import rich.progress
-from rich.status import Status
+from pathlib import Path
+from time import time, sleep
+from typing import Dict, List, Optional, Any, Union, Generator, Sequence, Set
+from typing_extensions import Self
 from urllib.parse import quote
 
-from .. import __version__ as version
+from pydantic import Field, computed_field, ConfigDict, model_validator, BaseModel
+from rich.console import Console
+from rich.status import Status
+
+from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
 from .base import (
-    AiNavigatorVersion,
-    BaseVectorDb,
-    IncompatibleVersionError,
-    VectorDbServerResponse,
-    TableInfo,
-    GenericClient,
-    ModelSummary,
-    ModelQuantization,
+    Model,
+    QuantizedFile,
     BaseModels,
+    GenericClient,
+    Server,
     BaseServers,
     ServerConfig,
-    Server,
+    VectorDbServerResponse,
+    BaseVectorDb,
     VectorDbTableSchema,
+    TableInfo,
 )
-from ..exceptions import AnacondaAIException
 from ..utils import find_free_port
 
 DOWNLOAD_START_DELAY = 8
-MIN_AI_NAV_VERSION = "1.14.2"
 
 
-class ModelDownloadCancelledError(AnacondaAIException): ...
+class AINavigatorQuantizedFile(QuantizedFile):
+    sha256: str = Field(alias="id")
+    size_bytes: int = Field(alias="sizeBytes")
+    quant_method: str = Field(alias="quantization")
+    max_ram_usage: int = Field(alias="maxRamUsage")
+    format: str = "gguf"
+    _model: "AINavigatorModel"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def local_path(self) -> Path:
+        return (
+            AnacondaAIConfig().backends.ai_navigator.models_path
+            / self._model.id
+            / self.identifier
+        )
+
+    @property
+    def _url(self) -> str:
+        model_id = quote(self._model.id, safe="")
+        url = f"/api/models/{model_id}/files/{self.sha256}"
+        return url
+
+    @property
+    def is_downloaded(self) -> bool:
+        res = self._model._client.get(self._url)
+        res.raise_for_status()
+        return res.json()["data"]["isDownloaded"]
+
+
+class AINavigatorModel(Model):
+    id: str
+    num_parameters: int = Field(alias="numParameters")
+    context_window_size: int = Field(alias="contextWindowSize")
+    trained_for: str = Field(alias="trainedFor")
+    quantized_files: Sequence[AINavigatorQuantizedFile] = Field(alias="files")
+
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(client, **data)
 
 
 class AINavigatorModels(BaseModels):
-    def list(self) -> list[ModelSummary]:
-        res = self._client.get("api/models")
+    def list(self) -> Sequence[AINavigatorModel]:
+        res = self.client.get("api/models")
         res.raise_for_status()
-        model_catalog = res.json()["data"]
+
+        data = res.json().get("data", [])
 
         models = []
-        for model in model_catalog:
-            quoted = quote(model["id"], safe="")
-            res = self._client.get(f"api/models/{quoted}/files")
-            res.raise_for_status()
-            files = res.json()["data"]
-            model["metadata"]["files"] = files
+        for entry in data:
+            revised = {"id": entry["id"], "name": entry["name"], **entry["metadata"]}
+            model = AINavigatorModel(client=self.client, **revised)
+            models.append(model)
 
-            model_summary = ModelSummary(**model)
-            models.append(model_summary)
         return models
 
     def _download(
         self,
-        model_summary: ModelSummary,
-        quantization: ModelQuantization,
-        show_progress: bool = True,
-        console: Optional[Console] = None,
-    ) -> None:
-        model_id = quote(model_summary.id, safe="")
-        url = f"api/models/{model_id}/files/{quantization.id}"
-
-        size = quantization.sizeBytes
-        console = Console() if console is None else console
-        stream_progress = rich.progress.Progress(
-            rich.progress.TextColumn("[progress.description]{task.description}"),
-            rich.progress.BarColumn(),
-            rich.progress.DownloadColumn(),
-            rich.progress.TransferSpeedColumn(),
-            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
-            console=console,
-            refresh_per_second=10,
-        )
-        description = f"Downloading {quantization.modelFileName}"
-        task = stream_progress.add_task(
-            description=description,
-            total=int(size),
-            visible=show_progress,
-        )
-
-        res = self._client.patch(url, json={"action": "start"})
+        model_quantization: AINavigatorQuantizedFile,  # type: ignore
+        path: Optional[Path] = None,
+    ) -> Generator[int, None, None]:
+        res = self.client.patch(model_quantization._url, json={"action": "start"})
         res.raise_for_status()
         status = res.json()["data"]
         status_msg = status["status"]
         if status.get("progress", {}).get("paused", False):
-            res = self._client.patch(url, json={"action": "resume"})
+            res = self.client.patch(model_quantization._url, json={"action": "resume"})
             res.raise_for_status()
             status = res.json()["data"]
             status_msg = status["status"]
 
         if status_msg != "in_progress":
             raise RuntimeError(
-                f"Cannot initiate download of {quantization.modelFileName}"
+                f"Cannot initiate download of {model_quantization.identifier}"
             )
 
-        with stream_progress as progress_bar:
-            t0 = time()
-            res = self._client.get(url)
+        t0 = time()
+        res = self.client.get(model_quantization._url)
+        res.raise_for_status()
+        status = res.json()["data"]
+        # Must wait until the download officially
+        # starts then we can poll for progress
+        elapsed = time() - t0
+        while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
+            res = self.client.get(model_quantization._url)
             res.raise_for_status()
             status = res.json()["data"]
-            # Must wait until the download officially
-            # starts then we can poll for progress
             elapsed = time() - t0
-            while "downloadStatus" not in status and elapsed <= DOWNLOAD_START_DELAY:
-                res = self._client.get(url)
-                res.raise_for_status()
-                status = res.json()["data"]
-                elapsed = time() - t0
 
-            while True:
-                res = self._client.get(url)
-                res.raise_for_status()
-                status = res.json()["data"]
+        while True:
+            res = self.client.get(model_quantization._url)
+            res.raise_for_status()
+            status = res.json()["data"]
 
-                download_status = status.get("downloadStatus", {})
-                if download_status.get("status", "") == "in_progress":
-                    downloaded = download_status.get("progress", {}).get(
-                        "transferredBytes", 0
-                    )
-                    progress_bar.update(task, completed=downloaded)
-                    sleep(0.1)
+            download_status = status.get("downloadStatus", {})
+            if download_status.get("status", "") == "in_progress":
+                downloaded = download_status.get("progress", {}).get(
+                    "transferredBytes", 0
+                )
+                yield downloaded
+                sleep(0.1)
+            else:
+                if not status["isDownloaded"]:
+                    raise ModelDownloadCancelledError("The download process stopped.")
                 else:
-                    if not status["isDownloaded"]:
-                        raise ModelDownloadCancelledError(
-                            "The download process stopped."
-                        )
-                    else:
-                        break
+                    break
 
-    def _delete(
-        self, model_summary: ModelSummary, quantization: ModelQuantization
-    ) -> None:
-        model_id = quote(model_summary.id, safe="")
-        url = f"api/models/{model_id}/files/{quantization.id}"
-        res = self._client.delete(url)
+        if path is not None:
+            path = Path(path)
+            path.unlink(missing_ok=True)
+            path.hardlink_to(model_quantization.local_path)
+
+    def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:  # type: ignore
+        res = self.client.delete(model_quantization._url)
         res.raise_for_status()
 
 
+class AINavigatorServerParams(BaseModel, extra="allow"):
+    host: Optional[str] = None
+    port: Optional[int] = None
+    mmproj: Optional[str] = None
+    timeout: Optional[int] = None
+    n_gpu_layers: Optional[int] = None
+    main_gpu: Optional[int] = None
+    metrics: Optional[bool] = None
+    batch_size: Optional[int] = None
+    jinja: Optional[bool] = None
+    cont_batching: Optional[bool] = None
+    ctx_size: Optional[int] = None
+    memory_f32: Optional[bool] = None
+    mlock: Optional[bool] = None
+    rope_freq_base: Optional[int] = None
+    rope_freq_scale: Optional[int] = None
+    seed: Optional[int] = None
+    tensor_split: Optional[List[Union[int, float]]] = None
+    use_mmap: Optional[bool] = None
+    embedding: Optional[bool] = None
+    threads: Optional[int] = None
+    n_predict: Optional[int] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    min_p: Optional[float] = None
+    repeat_last: Optional[int] = None
+    repeat_penalty: Optional[float] = None
+    temp: Optional[float] = None
+    parallel: Optional[int] = None
+
+
+class AINavigatorServerConfig(ServerConfig):
+    model_name: str = Field(alias="modelFileName")
+    id: Optional[str] = None
+    api_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="apiParams"
+    )
+    load_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="loadParams"
+    )
+    infer_params: AINavigatorServerParams = Field(
+        default_factory=AINavigatorServerParams, alias="inferParams"
+    )
+    logs_dir: str = Field(default="./logs", alias="logsDir")
+    start_server_on_create: bool = Field(default=True, alias="startServerOnCreate")
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    _params_dump: Set[str] = {"api_params", "load_params", "infer_params"}
+
+
+class AINavigatorServer(Server):
+    config: AINavigatorServerConfig = Field(alias="serverConfig")
+    url: str = ""
+
+    def __init__(self, client: GenericClient, **data: Any) -> None:
+        super().__init__(client, **data)
+
+    @model_validator(mode="after")
+    def generate_url(self) -> Self:
+        if not self.url:
+            host = self.config.api_params.host
+            port = self.config.api_params.port
+            if host and port:
+                self.url = f"http://{host}:{port}"
+        return self
+
+
 class AINavigatorServers(BaseServers):
-    def list(self) -> list[Server]:
-        res = self._client.get("api/servers")
+    def list(self) -> Sequence[AINavigatorServer]:
+        res = self.client.get("api/servers")
         res.raise_for_status()
         servers = []
         for s in res.json()["data"]:
             if "id" not in s:
                 continue
-            try:
-                server = Server(**s)
-            except ValidationError:
-                pass
-            server._client = self._client
+            server = AINavigatorServer(**s, client=self.client)
+            server._client = self.client
+            if not server.is_running:
+                continue
             servers.append(server)
         return servers
 
-    def _create(
+    def get(self, server: str) -> AINavigatorServer:
+        res = self.client.get(f"api/servers/{server}")
+        res.raise_for_status()
+
+        data: dict = res.json()["data"]
+        s = AINavigatorServer(**data, client=self.client)
+        return s
+
+    def match(
         self,
-        server_config: ServerConfig,
-    ) -> Server:
-        if not server_config.apiParams.port or server_config.apiParams.port == 0:
-            port = find_free_port()
-            server_config.apiParams.port = port
-
-        if not server_config.apiParams.host:
-            server_config.apiParams.host = "127.0.0.1"
-
-        body = {
-            "serverConfig": server_config.model_dump(exclude={"id"}),
+        server_config: AINavigatorServerConfig,
+    ) -> Union[AINavigatorServer, None]:
+        match_excludes: Dict[str, Any] = {
+            "id": True,
+            "start_server_on_create": True,
+            "logs_dir": True,
+            "api_params": {"port": True, "host": True},
+            "params": True,
         }
 
-        res = self._client.post("api/servers", json=body)
+        config_dump = server_config.model_dump(exclude=match_excludes)
+        servers = self.list()
+        for server in servers:
+            server_dump = server.config.model_dump(exclude=match_excludes)
+            if server.is_running and (config_dump == server_dump):
+                server._matched = True
+                return server
+        else:
+            return None
+
+    def _create(
+        self,
+        model_quantization: AINavigatorQuantizedFile,  # type: ignore
+        extra_options: Optional[Dict[str, Any]] = None,
+    ) -> AINavigatorServer:
+        server_config = AINavigatorServerConfig(
+            modelFileName=model_quantization.identifier,
+            loadParams=AINavigatorServerParams(**(extra_options or {})),
+        )
+
+        requested_port = server_config.api_params.port or 0
+        if not requested_port:
+            port = find_free_port()
+            server_config.api_params.port = port
+
+        server_config.api_params.host = "127.0.0.1"
+
+        if model_quantization._model.trained_for == "sentence-similarity":
+            server_config.load_params.embedding = True
+
+        matched = self.match(
+            server_config,
+        )
+        if matched is not None:
+            return matched
+
+        body = {"serverConfig": server_config.model_dump(exclude={"id"})}
+
+        res = self.client.post("api/servers", json=body)
         res.raise_for_status()
-        server = Server(**res.json()["data"])
+        server = AINavigatorServer(**res.json()["data"], client=self.client)
         return server
 
-    def _start(self, server_id: str) -> None:
-        res = self._client.patch(f"api/servers/{server_id}", json={"action": "start"})
-        res.raise_for_status()
-
     def _status(self, server_id: str) -> str:
-        res = self._client.get(f"api/servers/{server_id}")
+        res = self.client.get(f"api/servers/{server_id}")
         res.raise_for_status()
-        status = res.json()["data"]["status"]
-        return status
+        return res.json()["data"]["status"]
+
+    def _start(self, server_id: str) -> None:
+        res = self.client.patch(f"api/servers/{server_id}", json={"action": "start"})
+        res.raise_for_status()
 
     def _stop(self, server_id: str) -> None:
-        res = self._client.patch(f"api/servers/{server_id}", json={"action": "stop"})
-        if not res.ok:
-            if (
-                res.status_code == 400
-                and res.json().get("error", {}).get("code", "") == "SERVER_NOT_RUNNING"
-            ):
-                return
-            else:
-                res.raise_for_status()
+        res = self.client.patch(f"api/servers/{server_id}", json={"action": "stop"})
+        res.raise_for_status()
 
     def _delete(self, server_id: str) -> None:
-        res = self._client.delete(f"api/servers/{server_id}")
-        res.raise_for_status()
+        return
 
 
 class AINavigatorVectorDbServer(BaseVectorDb):
@@ -220,132 +325,56 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         console = Console() if console is None else console
         console.quiet = not show_progress
         with Status(text, console=console) as display:
-            res = self._client.post("api/vector-db")
+            res = self.client.post("api/vector-db")
             text = "pg vector database started"
             display.update(text)
 
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
-        return VectorDbServerResponse(**res.json()["data"])
+        data = res.json()["data"]
+        vectordb = VectorDbServerResponse(**data)
+        return vectordb
 
     def delete(self) -> None:
-        self._client.delete("api/vector-db")
+        self.client.delete("api/vector-db")
 
     def stop(self) -> VectorDbServerResponse:
-        res = self._client.patch("api/vector-db", json={"running": False})
+        res = self.client.patch("api/vector-db", json={"running": False})
         return VectorDbServerResponse(**res.json()["data"])
 
     def get_tables(self) -> list[TableInfo]:
-        res = self._client.get("api/vector-db/tables")
+        res = self.client.get("api/vector-db/tables")
         return [TableInfo(**t) for t in res.json()["data"]]
 
     def drop_table(self, table: str) -> None:
-        self._client.delete(f"api/vector-db/tables/{table}")
+        self.client.delete(f"api/vector-db/tables/{table}")
 
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
-        res = self._client.post(
+        res = self.client.post(
             "api/vector-db/tables", json={"schema": schema.model_dump(), "name": table}
         )
         res.raise_for_status()
 
 
-class AINavigatorAPIKey(AuthBase):
-    def __init__(self, config: AnacondaAIConfig) -> None:
-        self.config = config
-        super().__init__()
-
-    def __call__(self, r: PreparedRequest) -> PreparedRequest:
-        api_key = self.config.backends.ai_navigator.api_key
-        r.headers["Authorization"] = f"Bearer {api_key}"
-        return r
-
-
 class AINavigatorClient(GenericClient):
-    _user_agent = f"anaconda-ai/{version}"
-    auth: AuthBase
+    def __init__(
+        self,
+        domain: Optional[str] = None,
+        api_key: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        self._ai_config = AnacondaAIConfig()
+        domain = domain or f"localhost:{self._ai_config.backends.ai_navigator.port}"
+        api_key = api_key or self._ai_config.backends.ai_navigator.api_key
 
-    def __init__(self, port: Optional[int] = None, app_name: Optional[str] = None):
-        kwargs: dict[str, Any] = {"backends": {"ai_navigator": {}}}
-        if port is not None:
-            kwargs["backends"]["ai_navigator"]["port"] = port
-        if app_name is not None:
-            kwargs["backends"]["ai_navigator"]["app_name"] = app_name
-
-        self._config = AnacondaAIConfig(**kwargs)
-
-        domain = f"localhost:{self._config.backends.ai_navigator.port}"
-
-        super().__init__(domain=domain, ssl_verify=False)
-
+        super().__init__(domain=domain, api_key=api_key)
         self._base_uri = f"http://{domain}"
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
-        self.auth = AINavigatorAPIKey(self._config)
 
-    def request(
-        self,
-        method: Union[str, bytes],
-        url: Union[str, bytes],
-        *args: Any,
-        **kwargs: Any,
-    ) -> Response:
-        try:
-            # to avoid recursive calls to the version check
-            if url != "api":
-                self.version_check()
-
-            response = super().request(method, url, *args, **kwargs)
-            self.raise_for_status(response)
-
-        except ConnectionError:
-            raise RuntimeError(
-                f"Could not connect to AI Navigator. It may not be running. Please ensure you have at least version {MIN_AI_NAV_VERSION} installed."
-            )
-
-        return response
-
-    def version_check(self) -> None:
-        # ignore version check for ai-navigator-alpha
-        if self._config.backends.ai_navigator.app_name == "ai-navigator-alpha":
-            return
-
-        ai_navigator_versions = self.get_ai_navigator_version()
-        if parse(ai_navigator_versions.version) < parse(MIN_AI_NAV_VERSION):
-            raise IncompatibleVersionError(
-                f"Version {MIN_AI_NAV_VERSION} of AI Navigator is required, you have version {ai_navigator_versions.version}"
-            )
-
-    def get_ai_navigator_version(self) -> AiNavigatorVersion:
-        res = self.get("api")
-        return AiNavigatorVersion(**res.json()["data"])
-
-    def get_version(self) -> str:
-        ai_navigator_versions = self.get_ai_navigator_version()
-
-        warning = ""
-        try:
-            self.version_check()
-        except IncompatibleVersionError as e:
-            warning = f"Warning: {e}"
-
-        version_str = (
-            f"AI Navigator: {ai_navigator_versions.version}\n"
-            f"Mamba Version: {ai_navigator_versions.mambaVersion}\n"
-            f"LlamaCpp Version: {ai_navigator_versions.llamaCppVersion}\n"
-            f"{warning}"
-        )
-        return version_str
-
-    def raise_for_status(self, response: Response) -> None:
-        if response.ok:
-            return
-
-        error = None
-        try:
-            error = response.json()["error"]
-        except Exception:
-            response.raise_for_status()
-
-        raise AnacondaAIException(error)
+    @property
+    def online(self) -> bool:
+        res = self.get("/api")
+        return res.status_code < 400

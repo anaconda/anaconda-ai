@@ -9,113 +9,56 @@ from typing import Union
 import llm
 import openai
 from llm import hookimpl
-from llm.default_plugins.openai_models import Chat
+from llm.default_plugins.openai_models import Chat, AsyncChat
 from llm.default_plugins.openai_models import OpenAIEmbeddingModel
+from pydantic import ConfigDict
 from rich.console import Console
 
-from ..clients import get_default_client
-from ..clients.base import ModelQuantization, Server
+from ..clients import AnacondaAIClient
+from ..clients.base import QuantizedFile, Server
 
-client = get_default_client()
 console = Console(stderr=True)
 
 
-class ServerOptions(llm.Options):
-    api_key: Optional[str] = None
-    log_disable: Optional[bool] = None
-    mmproj: Optional[str] = None
-    timeout: Optional[int] = None
-    verbose: Optional[bool] = None
-    main_gpu: Optional[int] = None
-    metrics: Optional[bool] = None
-    batch_size: Optional[int] = None
-    cont_batching: Optional[bool] = None
-    ctx_size: Optional[int] = None
-    memory_f32: Optional[bool] = None
-    mlock: Optional[bool] = None
-    n_gpu_layers: Optional[int] = None
-    rope_freq_base: Optional[int] = None
-    rope_freq_scale: Optional[int] = None
-    seed: Optional[int] = None
-    tensor_split: Optional[List[int]] = None
-    use_mmap: Optional[bool] = None
-    embedding: Optional[bool] = None
-    threads: Optional[int] = None
-    n_predict: Optional[int] = None
-    top_k: Optional[int] = None
-    top_p: Optional[float] = None
-    min_p: Optional[float] = None
-    repeat_last: Optional[int] = None
-    repeat_penalty: Optional[float] = None
-    temp: Optional[float] = None
-    parallel: Optional[int] = None
+class AnacondaOptions(llm.Options):
+    backend: Optional[str] = None
+    site: Optional[str] = None
 
-    @property
-    def api_params(self) -> dict:
-        return {
-            "api_key": self.api_key,
-            "log_disable": self.log_disable,
-            "mmproj": self.mmproj,
-            "timeout": self.timeout,
-            "verbose": self.verbose,
-            "metrics": self.metrics,
-        }
-
-    @property
-    def load_params(self) -> dict:
-        return {
-            "batch_size": self.batch_size,
-            "cont_batching": self.cont_batching,
-            "ctx_size": self.ctx_size,
-            "main_gpu": self.main_gpu,
-            "memory_f32": self.memory_f32,
-            "mlock": self.mlock,
-            "n_gpu_layers": self.n_gpu_layers,
-            "rope_freq_base": self.rope_freq_base,
-            "rope_freq_scale": self.rope_freq_scale,
-            "seed": self.seed,
-            "tensor_split": self.tensor_split,
-            "use_mmap": self.use_mmap,
-            "embedding": self.embedding,
-        }
-
-    @property
-    def infer_params(self) -> dict:
-        return {
-            "threads": self.threads,
-            "n_predict": self.n_predict,
-            "top_k": self.top_k,
-            "top_p": self.top_p,
-            "min_p": self.min_p,
-            "repeat_last": self.repeat_last,
-            "repeat_penalty": self.repeat_penalty,
-            "temp": self.temp,
-            "parallel": self.parallel,
-        }
+    model_config = ConfigDict(extra="allow")
 
 
 class AnacondaModelMixin:
     model_id: str
-    anaconda_model: Optional[ModelQuantization] = None
+    anaconda_model: Optional[QuantizedFile] = None
     server: Optional[Server] = None
 
     def _create_and_start(
-        self, embedding: bool, options: Optional[ServerOptions] = None
+        self, options: Optional[AnacondaOptions] = None, key: Optional[str] = None
     ) -> None:
         if self.server is None:
-            model_name = self.model_id.split(":", maxsplit=1)[1]
+            options = options or AnacondaOptions()
 
-            if options is None:
-                options = ServerOptions()
+            kwargs = {}
+            if key is not None:
+                kwargs["api_key"] = key
 
-            load_params = options.load_params
-            load_params["embedding"] = embedding
-            self.server = client.servers.create(
-                model=model_name,
-                api_params=options.api_params,
-                load_params=options.load_params,
-                infer_params=options.infer_params,
+            client = AnacondaAIClient(
+                site=options.site,
+                backend=options.backend,
+                **kwargs,  # type: ignore
             )
+
+            _, model_name = self.model_id.split(":", maxsplit=1)
+
+            if model_name.startswith("server/"):
+                _, server_name = model_name.split("server/", maxsplit=1)
+                self.server = client.servers.get(server_name)
+            else:
+                self.server = client.servers.create(
+                    model=model_name, extra_options=options.model_dump()
+                )
+
+        if not self.server.is_running:
             self.server.start(console=console)
 
         self.api_base = self.server.openai_url
@@ -125,19 +68,61 @@ class AnacondaQuantizedChat(Chat, AnacondaModelMixin):
     model_id: str
     needs_key: str = ""
 
-    class Options(Chat.Options, ServerOptions):
-        pass
+    class Options(Chat.Options, AnacondaOptions):
+        model_config = ConfigDict(extra="allow")
 
     def __init__(self, model_id: str):
         super().__init__(
-            model_id, key="none", model_name=model_id.replace("anaconda:", "")
+            model_id, model_name=model_id.replace("anaconda:", ""), supports_tools=True
         )
 
+    def get_key(self, _: Optional[str] = None) -> Optional[str]:
+        return None
+
+    def get_client(
+        self, _: Any, *, async_: bool = False
+    ) -> Union[openai.OpenAI, openai.AsyncOpenAI]:
+        assert self.server is not None
+        if async_:
+            return self.server.async_openai_client()
+        else:
+            return self.server.openai_client()
+
     def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore
-        self._create_and_start(embedding=False, options=prompt.options)
-        prompt.options = Chat.Options(
-            **prompt.options.model_dump(exclude=ServerOptions().model_fields.keys())
+        self._create_and_start(options=prompt.options, key=key)
+        include = set(Chat.Options.model_fields.keys())
+        prompt.options = Chat.Options(**prompt.options.model_dump(include=include))
+        return super().execute(prompt, stream, response, conversation, key)
+
+    def __str__(self) -> str:
+        return f"Anaconda Model Chat: {self.model_id}"
+
+
+class AsyncAnacondaQuantizedChat(AsyncChat, AnacondaModelMixin):
+    model_id: str
+    needs_key: str = ""
+
+    class Options(Chat.Options, AnacondaOptions):
+        model_config = ConfigDict(extra="allow")
+
+    def __init__(self, model_id: str):
+        super().__init__(
+            model_id, model_name=model_id.replace("anaconda:", ""), supports_tools=True
         )
+
+    def get_client(
+        self, _: Any, *, async_: bool = False
+    ) -> Union[openai.OpenAI, openai.AsyncOpenAI]:
+        assert self.server is not None
+        if async_:
+            return self.server.async_openai_client()
+        else:
+            return self.server.openai_client()
+
+    async def execute(self, prompt, stream, response, conversation=None, key=None):  # type: ignore
+        self._create_and_start(options=prompt.options, key=key)
+        include = set(Chat.Options.model_fields.keys())
+        prompt.options = Chat.Options(**prompt.options.model_dump(include=include))
         return super().execute(prompt, stream, response, conversation, key)
 
     def __str__(self) -> str:
@@ -150,10 +135,14 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
     batch_size: int = 100
 
     def __init__(self, model_id: str, dimensions: Optional[Any] = None) -> None:
-        super().__init__(model_id, openai_model_id=model_id, dimensions=dimensions)
+        super().__init__(
+            model_id,
+            openai_model_id=model_id.replace("anaconda:", ""),
+            dimensions=dimensions,
+        )
 
     def embed_batch(self, items: Iterable[Union[str, bytes]]) -> Iterator[List[float]]:
-        self._create_and_start(embedding=True)
+        self._create_and_start()
         kwargs = {
             "input": items,
             "model": self.openai_model_id,
@@ -165,31 +154,46 @@ class AnacondaQuantizedEmbedding(OpenAIEmbeddingModel, AnacondaModelMixin):
         return ([float(r) for r in result.embedding] for result in results)
 
 
+def create_and_validate_client() -> Union[AnacondaAIClient, None]:
+    client = AnacondaAIClient()
+    if not client.online:
+        return None
+    else:
+        return client
+
+
 @llm.hookimpl
 def register_models(register: Callable) -> None:
+    client = create_and_validate_client()
+    if client is None:
+        return
     for model in client.models.list():
-        if model.metadata.trainedFor != "text-generation":
+        if model.trained_for != "text-generation":
             continue
-        for quant in model.metadata.files:
-            if not quant.isDownloaded:
+        for quant in model.quantized_files:
+            if not quant.is_allowed:
                 continue
-
-            quant_chat = AnacondaQuantizedChat(
-                model_id=f"anaconda:{quant.modelFileName}"
-            )
-            register(quant_chat)
+            alias = f"anaconda:{quant.identifier}"
+            quant_chat = AnacondaQuantizedChat(model_id=alias)
+            async_quant_chat = AsyncAnacondaQuantizedChat(model_id=alias)
+            register(quant_chat, async_quant_chat)
+    for server in client.servers.list():
+        alias = f"anaconda:server/{server.id}"
+        server_chat = AnacondaQuantizedChat(model_id=alias)
+        async_server_chat = AsyncAnacondaQuantizedChat(model_id=alias)
+        register(server_chat, async_server_chat)
 
 
 @hookimpl
 def register_embedding_models(register: Callable) -> None:
+    client = create_and_validate_client()
+    if client is None:
+        return
     for model in client.models.list():
-        if model.metadata.trainedFor != "sentence-similarity":
+        if model.trained_for != "sentence-similarity":
             continue
-        for quant in model.metadata.files:
-            if not quant.isDownloaded:
-                continue
-
+        for quant in model.quantized_files:
             quant_chat = AnacondaQuantizedEmbedding(
-                model_id=f"anaconda:{quant.modelFileName}"
+                model_id=f"anaconda:{quant.identifier}"
             )
             register(quant_chat)
