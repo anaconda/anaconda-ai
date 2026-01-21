@@ -306,13 +306,17 @@ def launch(
         return
 
 
-def _servers_list(servers: Sequence[Server]) -> None:
+def _servers_list(
+    servers: Sequence[Server],
+) -> Tuple[RenderableType, List[MutableMapping[str, Any]]]:
     table = Table(
         Column("Server ID", no_wrap=True),
         "Model Name",
         "Status",
         header_style="bold green",
     )
+
+    data = []
 
     for server in servers:
         table.add_row(
@@ -321,10 +325,18 @@ def _servers_list(servers: Sequence[Server]) -> None:
             server.status,
         )
 
-    console.print(table)
+        data.append(
+            {
+                "server_id": server.id,
+                "model": server.config.model_name,
+                "status": server.status,
+            }
+        )
+
+    return table, data
 
 
-def _server_info(server: Server) -> None:
+def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     table = Table.grid(padding=1, pad_edge=True)
     table.title = server.id
     table.add_column("Metadata", justify="center", style="bold green")
@@ -333,7 +345,15 @@ def _server_info(server: Server) -> None:
     table.add_row("OpenAI Compatible URL", server.openai_url)
     table.add_row("Status", server.status)
     table.add_row("Parameters", json.dumps(server.config.params, indent=2))
-    console.print(table)
+
+    data = {
+        "model": server.config.model_name,
+        "openai_url": server.openai_url,
+        "status": server.status,
+        "parameters": server.config.params,
+    }
+
+    return table, data
 
 
 @app.command("servers")
@@ -345,16 +365,24 @@ def servers(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print output as JSON")
+    ] = False,
 ) -> None:
     """List running servers"""
     client = AnacondaAIClient(backend=backend, site=site)
 
     if server:
         s = client.servers.get(server)
-        _server_info(s)
+        renderable, data = _server_info(s)
     else:
         servers = client.servers.list()
-        _servers_list(servers)
+        renderable, data = _servers_list(servers)
+
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(renderable)
 
 
 @app.command("stop")
