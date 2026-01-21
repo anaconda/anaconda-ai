@@ -1,8 +1,12 @@
 import json
 from pathlib import Path
 from typing import Annotated
+from typing import Any
 from typing import Optional
 from typing import Sequence
+from typing import List
+from typing import MutableMapping
+from typing import Tuple
 
 import typer
 from requests.exceptions import HTTPError
@@ -31,7 +35,7 @@ def get_running_servers(client: GenericClient) -> Sequence[Server]:
 
 def _list_models(
     client: GenericClient, show_blocked: Optional[bool] = None
-) -> RenderableType:
+) -> Tuple[RenderableType, Sequence[MutableMapping[str, Any]]]:
     models = client.models.list()
     servers = get_running_servers(client)
     table = Table(
@@ -42,11 +46,14 @@ def _list_models(
         header_style="bold green",
     )
 
+    data: List[MutableMapping[str, Any]] = []
+
     if show_blocked is None:
         show_blocked = AnacondaAIConfig().show_blocked_models
 
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
+        quant_data = []
         for quant in model.quantized_files:
             if not quant.is_allowed and not show_blocked:
                 continue
@@ -66,16 +73,34 @@ def _list_models(
                 f"[{emphasis} {color}]{quant.quant_method.upper()}[/{emphasis} {color}]"
             )
 
+            quant_dict = {
+                "method": quant.quant_method,
+                "running": bool(matched_servers),
+                "downloaded": quant.is_downloaded,
+                "blocked": not quant.is_allowed,
+            }
+            quant_data.append(quant_dict)
+
             quantizations.append(method)
 
         if quantizations:
             quants = ", ".join(quantizations)
             parameters = f"{model.num_parameters / 1e9:8.2f}"
             table.add_row(model.name, parameters, quants, model.trained_for)
-    return table
+            data.append(
+                {
+                    "model": model.name,
+                    "parameters": model.num_parameters,
+                    "quantizations": quant_data,
+                    "trained_for": model.trained_for,
+                }
+            )
+    return table, data
 
 
-def _model_info(client: GenericClient, model_id: str) -> RenderableType:
+def _model_info(
+    client: GenericClient, model_id: str
+) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     info = client.models.get(model_id)
     servers = get_running_servers(client)
 
@@ -87,6 +112,14 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     parameters = f"{info.num_parameters / 1e9:8.2f}B"
     table.add_row("Parameters", parameters)
     table.add_row("Trained For", info.trained_for)
+
+    data: MutableMapping[str, Any] = {
+        "name": model_id,
+        "description": info.description,
+        "parameters": info.num_parameters,
+        "trained_for": info.trained_for,
+        "quantizations": [],
+    }
 
     quantized = Table(
         Column("Filename", no_wrap=True),
@@ -111,8 +144,18 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         size = f"{quant.size_bytes / 1024 / 1024 / 1024:.2f}"
         quantized.add_row(quant.identifier, method, downloaded, ram, size, running)
 
+        data["quantizations"].append(
+            {
+                "filename": quant.identifier,
+                "downloaded": quant.is_downloaded,
+                "running": bool(matched_servers),
+                "ram": quant.max_ram_usage,
+                "size": quant.size_bytes,
+            }
+        )
+
     table.add_row("Quantized Files", quantized)
-    return table
+    return table, data
 
 
 @app.command(name="version")
@@ -145,14 +188,19 @@ def models(
         "--show-blocked/--no-show-blocked",
         help="Show or hide unavailable models.",
     ),
+    as_json: bool = typer.Option(False, "--json", is_flag=True),
 ) -> None:
     """Model information"""
     client = AnacondaAIClient(backend=backend, site=site)
     if model_id is None:
-        renderable = _list_models(client, show_blocked=show_blocked)
+        renderable, data = _list_models(client, show_blocked=show_blocked)
     else:
-        renderable = _model_info(client, model_id)
-    console.print(renderable)
+        renderable, data = _model_info(client, model_id)
+
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(renderable)
 
 
 @app.command(name="download")
