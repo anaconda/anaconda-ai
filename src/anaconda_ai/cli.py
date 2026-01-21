@@ -23,6 +23,9 @@ from ._version import __version__
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
+AS_JSON = Annotated[
+    bool, typer.Option("--json", is_flag=True, help="Print output as JSON")
+]
 
 
 def get_running_servers(client: GenericClient) -> Sequence[Server]:
@@ -188,7 +191,7 @@ def models(
         "--show-blocked/--no-show-blocked",
         help="Show or hide unavailable models.",
     ),
-    as_json: bool = typer.Option(False, "--json", is_flag=True),
+    as_json: AS_JSON = False,
 ) -> None:
     """Model information"""
     client = AnacondaAIClient(backend=backend, site=site)
@@ -365,9 +368,7 @@ def servers(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
-    as_json: Annotated[
-        bool, typer.Option("--json", help="Print output as JSON")
-    ] = False,
+    as_json: AS_JSON = False,
 ) -> None:
     """List running servers"""
     client = AnacondaAIClient(backend=backend, site=site)
@@ -407,13 +408,29 @@ def stop(
 
 
 @app.command("launch-vectordb")
-def launch_vector_db() -> None:
+def launch_vector_db(as_json: AS_JSON = False) -> None:
     """
     Starts a vector db
     """
     client = AnacondaAIClient()
-    result = client.vector_db.create()
-    console.print(result)
+    result = client.vector_db.create(show_progress=not as_json)
+
+    table = Table.grid(padding=1, pad_edge=True)
+    table.title = "Vector DB"
+    table.add_column("Field", justify="center", style="bold green")
+    table.add_column("Value", justify="left")
+    table.add_row("Running", CHECK_MARK)
+    table.add_row("Host", result.host)
+    table.add_row("Port", str(result.port))
+    table.add_row("User", result.user)
+    table.add_row("Password", result.password)
+    table.add_row("Database", result.database)
+    table.add_row("URI", result.uri)
+
+    if as_json:
+        console.print_json(data=result.model_dump())
+    else:
+        console.print(table)
 
 
 @app.command("delete-vectordb")
@@ -432,18 +449,29 @@ def stop_vector_db() -> None:
     Stops the vector db
     """
     client = AnacondaAIClient()
-    result = client.vector_db.stop()
-    console.print(result)
+    _ = client.vector_db.stop()
+    console.print("Vector db stopped")
 
 
 @app.command("list-tables")
-def list_tables() -> None:
+def list_tables(as_json: AS_JSON = False) -> None:
     """
     Lists all tables in the vector db
     """
     client = AnacondaAIClient()
     tables = client.vector_db.get_tables()
-    console.print(tables)
+
+    if as_json:
+        console.print_json(data=[t.model_dump() for t in tables])
+    else:
+        db_table = Table.grid(padding=1, pad_edge=True)
+        for table in tables:
+            columns = Table("Name", "Type", "Constraints", header_style="bold green")
+            columns.title = table.name
+            for column in table.table_schema.columns:
+                columns.add_row(column.name, column.type, ",".join(column.constraints))
+            db_table.add_row(columns)
+        console.print(db_table)
 
 
 @app.command("drop-table")

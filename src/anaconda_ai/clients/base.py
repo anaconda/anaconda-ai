@@ -497,7 +497,7 @@ class VectorDbServerResponse(BaseModel):
 class VectorDbTableColumn(BaseModel):
     name: str
     type: str
-    constraints: Optional[List[str]] = None
+    constraints: List[str] = Field(default_factory=list)
 
 
 class VectorDbTableSchema(BaseModel):
