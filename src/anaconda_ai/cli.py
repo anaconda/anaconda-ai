@@ -8,6 +8,7 @@ from typing import Sequence
 from typing import List
 from typing import MutableMapping
 from typing import Tuple
+from typing import Union
 
 import typer
 from requests.exceptions import HTTPError
@@ -212,6 +213,7 @@ def models(
 ) -> None:
     """Model information"""
     client = AnacondaAIClient(backend=backend, site=site)
+    data: Union[Sequence[MutableMapping[str, Any]], MutableMapping[str, Any]]
     if model_id is None:
         renderable, data = _list_models(client, show_blocked=show_blocked)
     else:
@@ -342,7 +344,7 @@ def launch(
 
 def _servers_list(
     servers: Sequence[Server],
-) -> Tuple[RenderableType, List[MutableMapping[str, Any]]]:
+) -> Tuple[RenderableType, Sequence[MutableMapping[str, Any]]]:
     table = Table(
         Column("Server ID", no_wrap=True),
         "Model Name",
@@ -404,6 +406,7 @@ def servers(
     """List running servers"""
     client = AnacondaAIClient(backend=backend, site=site)
 
+    data: Union[Sequence[MutableMapping[str, Any]], MutableMapping[str, Any]]
     if server:
         s = client.servers.get(server)
         renderable, data = _server_info(s)
