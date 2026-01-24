@@ -47,7 +47,7 @@ class GenericClient(BaseClient):
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
 
-    def get_version(self) -> str:
+    def get_version(self) -> Dict[str, str]:
         raise NotImplementedError
 
     @property

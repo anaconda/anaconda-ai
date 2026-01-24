@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Annotated
 from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Sequence
 from typing import List
@@ -162,16 +163,32 @@ def _model_info(
 
 
 @app.command(name="version")
-def version() -> None:
-    """Version information of SDK and AI Navigator"""
-    console.print(f"SDK: {__version__}")
+def version(
+    backend: Annotated[Optional[str], typer.Option(help="Select backend")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
+    """Version information of SDK and Backend"""
+    versions: Dict[str, str] = {}
+
+    versions["anaconda-ai"] = __version__
 
     try:
-        client = AnacondaAIClient()
-        version = client.get_version()
-        console.print(version)
+        client = AnacondaAIClient(backend=backend, site=site)
+        backend_version = client.get_version()
+        versions.update(backend_version)
     except Exception:
-        console.print("AI Navigator not found. Is it running?")
+        console.print(f"Backend {client.name} not reachable.")
+
+    if as_json:
+        console.print_json(data=versions)
+    else:
+        table = Table("Component", "Version", header_style="bold green")
+        for component, version in versions.items():
+            table.add_row(component, version)
+        console.print(table)
 
 
 @app.command(name="models")
