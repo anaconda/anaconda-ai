@@ -296,6 +296,7 @@ def launch(
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
     ),
+    as_json: AS_JSON = False,
 ) -> None:
     """Launch an inference server for a model"""
     extra_options = {}
@@ -312,8 +313,12 @@ def launch(
     client = AnacondaAIClient(backend=backend, site=site)
 
     server = client.servers.create(model=model, extra_options=extra_options)
-    server.start(show_progress=True, leave_running=True)
-    _server_info(server)
+    server.start(show_progress=not as_json, leave_running=True)
+    table, data = _server_info(server)
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(table)
     if show:
         import webbrowser
 
@@ -331,7 +336,7 @@ def launch(
         if server._matched:
             return
 
-        server.stop(show_progress=True)
+        server.stop(show_progress=not as_json)
         return
 
 
@@ -424,6 +429,7 @@ def stop(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     client = AnacondaAIClient(backend=backend, site=site)
     s = client.servers.get(server)
@@ -431,6 +437,11 @@ def stop(
 
     if remove:
         client.servers.delete(server)
+
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("launch-vectordb")
@@ -460,23 +471,29 @@ def launch_vector_db(as_json: AS_JSON = False) -> None:
 
 
 @app.command("delete-vectordb")
-def delete_vector_db() -> None:
+def delete_vector_db(as_json: AS_JSON = False) -> None:
     """
     Deletes the vector db
     """
     client = AnacondaAIClient()
     client.vector_db.delete()
-    console.print("Vector db deleted")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("stop-vectordb")
-def stop_vector_db() -> None:
+def stop_vector_db(as_json: AS_JSON = False) -> None:
     """
     Stops the vector db
     """
     client = AnacondaAIClient()
     _ = client.vector_db.stop()
-    console.print("Vector db stopped")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("list-tables")
@@ -503,19 +520,24 @@ def list_tables(as_json: AS_JSON = False) -> None:
 @app.command("drop-table")
 def drop_table(
     table: str = typer.Argument(help="Name of the table to drop"),
+    as_json: AS_JSON = False,
 ) -> None:
     """
     Drops a table from the vector db
     """
     client = AnacondaAIClient()
     client.vector_db.drop_table(table)
-    console.print(f"Table {table} dropped")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("create-table")
 def create_table(
     table: str = typer.Argument(help="Name of the table to create"),
     schema: str = typer.Argument(help="Schema of the table to create"),
+    as_json: AS_JSON = False,
 ) -> None:
     """
     Creates a table in the vector db
@@ -523,4 +545,7 @@ def create_table(
     client = AnacondaAIClient()
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
-    console.print(f"Table {table} created")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
