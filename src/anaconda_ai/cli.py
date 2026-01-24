@@ -241,13 +241,18 @@ def download(
             "--output", "-o", help="Hard-link model file to this path after download"
         ),
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     """Download a model"""
     client = AnacondaAIClient(backend=backend, site=site)
     client.models.download(
-        model, show_progress=True, force=force, console=console, path=output
+        model, show_progress=not as_json, force=force, console=console, path=output
     )
-    console.print("[green]Success[/green]")
+
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command(name="remove")
@@ -259,11 +264,15 @@ def remove(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     """Remove a downloaded a model"""
     client = AnacondaAIClient(backend=backend, site=site)
     client.models.delete(model)
-    console.print("[green]Success[/green]")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command(
