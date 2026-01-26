@@ -1,8 +1,14 @@
 import json
 from pathlib import Path
 from typing import Annotated
+from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Sequence
+from typing import List
+from typing import MutableMapping
+from typing import Tuple
+from typing import Union
 
 import typer
 from requests.exceptions import HTTPError
@@ -19,6 +25,9 @@ from ._version import __version__
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
+AS_JSON = Annotated[
+    bool, typer.Option("--json", is_flag=True, help="Print output as JSON")
+]
 
 
 def get_running_servers(client: GenericClient) -> Sequence[Server]:
@@ -31,7 +40,7 @@ def get_running_servers(client: GenericClient) -> Sequence[Server]:
 
 def _list_models(
     client: GenericClient, show_blocked: Optional[bool] = None
-) -> RenderableType:
+) -> Tuple[RenderableType, Sequence[MutableMapping[str, Any]]]:
     models = client.models.list()
     servers = get_running_servers(client)
     table = Table(
@@ -42,11 +51,14 @@ def _list_models(
         header_style="bold green",
     )
 
+    data: List[MutableMapping[str, Any]] = []
+
     if show_blocked is None:
         show_blocked = AnacondaAIConfig().show_blocked_models
 
     for model in sorted(models, key=lambda m: m.name):
         quantizations = []
+        quant_data = []
         for quant in model.quantized_files:
             if not quant.is_allowed and not show_blocked:
                 continue
@@ -66,16 +78,34 @@ def _list_models(
                 f"[{emphasis} {color}]{quant.quant_method.upper()}[/{emphasis} {color}]"
             )
 
+            quant_dict = {
+                "method": quant.quant_method,
+                "running": bool(matched_servers),
+                "downloaded": quant.is_downloaded,
+                "blocked": not quant.is_allowed,
+            }
+            quant_data.append(quant_dict)
+
             quantizations.append(method)
 
         if quantizations:
             quants = ", ".join(quantizations)
             parameters = f"{model.num_parameters / 1e9:8.2f}"
             table.add_row(model.name, parameters, quants, model.trained_for)
-    return table
+            data.append(
+                {
+                    "model": model.name,
+                    "parameters": model.num_parameters,
+                    "quantizations": quant_data,
+                    "trained_for": model.trained_for,
+                }
+            )
+    return table, data
 
 
-def _model_info(client: GenericClient, model_id: str) -> RenderableType:
+def _model_info(
+    client: GenericClient, model_id: str
+) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     info = client.models.get(model_id)
     servers = get_running_servers(client)
 
@@ -87,6 +117,14 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
     parameters = f"{info.num_parameters / 1e9:8.2f}B"
     table.add_row("Parameters", parameters)
     table.add_row("Trained For", info.trained_for)
+
+    data: MutableMapping[str, Any] = {
+        "name": model_id,
+        "description": info.description,
+        "parameters": info.num_parameters,
+        "trained_for": info.trained_for,
+        "quantizations": [],
+    }
 
     quantized = Table(
         Column("Filename", no_wrap=True),
@@ -111,21 +149,47 @@ def _model_info(client: GenericClient, model_id: str) -> RenderableType:
         size = f"{quant.size_bytes / 1024 / 1024 / 1024:.2f}"
         quantized.add_row(quant.identifier, method, downloaded, ram, size, running)
 
+        data["quantizations"].append(
+            {
+                "filename": quant.identifier,
+                "downloaded": quant.is_downloaded,
+                "running": bool(matched_servers),
+                "ram": quant.max_ram_usage,
+                "size": quant.size_bytes,
+            }
+        )
+
     table.add_row("Quantized Files", quantized)
-    return table
+    return table, data
 
 
 @app.command(name="version")
-def version() -> None:
-    """Version information of SDK and AI Navigator"""
-    console.print(f"SDK: {__version__}")
+def version(
+    backend: Annotated[Optional[str], typer.Option(help="Select backend")] = None,
+    site: Annotated[
+        Optional[str], "--at", typer.Option(help="Site defined in config")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
+    """Version information of SDK and Backend"""
+    versions: Dict[str, str] = {}
+
+    versions["anaconda-ai"] = __version__
 
     try:
-        client = AnacondaAIClient()
-        version = client.get_version()
-        console.print(version)
+        client = AnacondaAIClient(backend=backend, site=site)
+        backend_version = client.get_version()
+        versions.update(backend_version)
     except Exception:
-        console.print("AI Navigator not found. Is it running?")
+        console.print(f"Backend {client.name} not reachable.")
+
+    if as_json:
+        console.print_json(data=versions)
+    else:
+        table = Table("Component", "Version", header_style="bold green")
+        for component, version in versions.items():
+            table.add_row(component, version)
+        console.print(table)
 
 
 @app.command(name="models")
@@ -145,14 +209,20 @@ def models(
         "--show-blocked/--no-show-blocked",
         help="Show or hide unavailable models.",
     ),
+    as_json: AS_JSON = False,
 ) -> None:
     """Model information"""
     client = AnacondaAIClient(backend=backend, site=site)
+    data: Union[Sequence[MutableMapping[str, Any]], MutableMapping[str, Any]]
     if model_id is None:
-        renderable = _list_models(client, show_blocked=show_blocked)
+        renderable, data = _list_models(client, show_blocked=show_blocked)
     else:
-        renderable = _model_info(client, model_id)
-    console.print(renderable)
+        renderable, data = _model_info(client, model_id)
+
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(renderable)
 
 
 @app.command(name="download")
@@ -173,13 +243,18 @@ def download(
             "--output", "-o", help="Hard-link model file to this path after download"
         ),
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     """Download a model"""
     client = AnacondaAIClient(backend=backend, site=site)
     client.models.download(
-        model, show_progress=True, force=force, console=console, path=output
+        model, show_progress=not as_json, force=force, console=console, path=output
     )
-    console.print("[green]Success[/green]")
+
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command(name="remove")
@@ -191,11 +266,15 @@ def remove(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     """Remove a downloaded a model"""
     client = AnacondaAIClient(backend=backend, site=site)
     client.models.delete(model)
-    console.print("[green]Success[/green]")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command(
@@ -219,6 +298,7 @@ def launch(
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
     ),
+    as_json: AS_JSON = False,
 ) -> None:
     """Launch an inference server for a model"""
     extra_options = {}
@@ -235,8 +315,12 @@ def launch(
     client = AnacondaAIClient(backend=backend, site=site)
 
     server = client.servers.create(model=model, extra_options=extra_options)
-    server.start(show_progress=True, leave_running=True)
-    _server_info(server)
+    server.start(show_progress=not as_json, leave_running=True)
+    table, data = _server_info(server)
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(table)
     if show:
         import webbrowser
 
@@ -254,17 +338,21 @@ def launch(
         if server._matched:
             return
 
-        server.stop(show_progress=True)
+        server.stop(show_progress=not as_json)
         return
 
 
-def _servers_list(servers: Sequence[Server]) -> None:
+def _servers_list(
+    servers: Sequence[Server],
+) -> Tuple[RenderableType, Sequence[MutableMapping[str, Any]]]:
     table = Table(
         Column("Server ID", no_wrap=True),
         "Model Name",
         "Status",
         header_style="bold green",
     )
+
+    data = []
 
     for server in servers:
         table.add_row(
@@ -273,10 +361,18 @@ def _servers_list(servers: Sequence[Server]) -> None:
             server.status,
         )
 
-    console.print(table)
+        data.append(
+            {
+                "server_id": server.id,
+                "model": server.config.model_name,
+                "status": server.status,
+            }
+        )
+
+    return table, data
 
 
-def _server_info(server: Server) -> None:
+def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     table = Table.grid(padding=1, pad_edge=True)
     table.title = server.id
     table.add_column("Metadata", justify="center", style="bold green")
@@ -285,7 +381,15 @@ def _server_info(server: Server) -> None:
     table.add_row("OpenAI Compatible URL", server.openai_url)
     table.add_row("Status", server.status)
     table.add_row("Parameters", json.dumps(server.config.params, indent=2))
-    console.print(table)
+
+    data = {
+        "model": server.config.model_name,
+        "openai_url": server.openai_url,
+        "status": server.status,
+        "parameters": server.config.params,
+    }
+
+    return table, data
 
 
 @app.command("servers")
@@ -297,16 +401,23 @@ def servers(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     """List running servers"""
     client = AnacondaAIClient(backend=backend, site=site)
 
+    data: Union[Sequence[MutableMapping[str, Any]], MutableMapping[str, Any]]
     if server:
         s = client.servers.get(server)
-        _server_info(s)
+        renderable, data = _server_info(s)
     else:
         servers = client.servers.list()
-        _servers_list(servers)
+        renderable, data = _servers_list(servers)
+
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(renderable)
 
 
 @app.command("stop")
@@ -321,6 +432,7 @@ def stop(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
+    as_json: AS_JSON = False,
 ) -> None:
     client = AnacondaAIClient(backend=backend, site=site)
     s = client.servers.get(server)
@@ -329,63 +441,106 @@ def stop(
     if remove:
         client.servers.delete(server)
 
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
+
 
 @app.command("launch-vectordb")
-def launch_vector_db() -> None:
+def launch_vector_db(as_json: AS_JSON = False) -> None:
     """
     Starts a vector db
     """
     client = AnacondaAIClient()
-    result = client.vector_db.create()
-    console.print(result)
+    result = client.vector_db.create(show_progress=not as_json)
+
+    table = Table.grid(padding=1, pad_edge=True)
+    table.title = "Vector DB"
+    table.add_column("Field", justify="center", style="bold green")
+    table.add_column("Value", justify="left")
+    table.add_row("Running", CHECK_MARK)
+    table.add_row("Host", result.host)
+    table.add_row("Port", str(result.port))
+    table.add_row("User", result.user)
+    table.add_row("Password", result.password)
+    table.add_row("Database", result.database)
+    table.add_row("URI", result.uri)
+
+    if as_json:
+        console.print_json(data=result.model_dump())
+    else:
+        console.print(table)
 
 
 @app.command("delete-vectordb")
-def delete_vector_db() -> None:
+def delete_vector_db(as_json: AS_JSON = False) -> None:
     """
     Deletes the vector db
     """
     client = AnacondaAIClient()
     client.vector_db.delete()
-    console.print("Vector db deleted")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("stop-vectordb")
-def stop_vector_db() -> None:
+def stop_vector_db(as_json: AS_JSON = False) -> None:
     """
     Stops the vector db
     """
     client = AnacondaAIClient()
-    result = client.vector_db.stop()
-    console.print(result)
+    _ = client.vector_db.stop()
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("list-tables")
-def list_tables() -> None:
+def list_tables(as_json: AS_JSON = False) -> None:
     """
     Lists all tables in the vector db
     """
     client = AnacondaAIClient()
     tables = client.vector_db.get_tables()
-    console.print(tables)
+
+    if as_json:
+        console.print_json(data=[t.model_dump() for t in tables])
+    else:
+        db_table = Table.grid(padding=1, pad_edge=True)
+        for table in tables:
+            columns = Table("Name", "Type", "Constraints", header_style="bold green")
+            columns.title = table.name
+            for column in table.table_schema.columns:
+                columns.add_row(column.name, column.type, ",".join(column.constraints))
+            db_table.add_row(columns)
+        console.print(db_table)
 
 
 @app.command("drop-table")
 def drop_table(
     table: str = typer.Argument(help="Name of the table to drop"),
+    as_json: AS_JSON = False,
 ) -> None:
     """
     Drops a table from the vector db
     """
     client = AnacondaAIClient()
     client.vector_db.drop_table(table)
-    console.print(f"Table {table} dropped")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")
 
 
 @app.command("create-table")
 def create_table(
     table: str = typer.Argument(help="Name of the table to create"),
     schema: str = typer.Argument(help="Schema of the table to create"),
+    as_json: AS_JSON = False,
 ) -> None:
     """
     Creates a table in the vector db
@@ -393,4 +548,7 @@ def create_table(
     client = AnacondaAIClient()
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
-    console.print(f"Table {table} created")
+    if as_json:
+        console.print_json(data={"status": "success"})
+    else:
+        console.print("[green]Success[/green]")

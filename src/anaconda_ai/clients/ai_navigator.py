@@ -356,6 +356,12 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         res.raise_for_status()
 
 
+class AiNavigatorVersion(BaseModel):
+    AINavigator: str = Field(validation_alias="version")
+    mambaVersion: str
+    llamaCppVersion: str
+
+
 class AINavigatorClient(GenericClient):
     def __init__(
         self,
@@ -378,3 +384,7 @@ class AINavigatorClient(GenericClient):
     def online(self) -> bool:
         res = self.get("/api")
         return res.status_code < 400
+
+    def get_version(self) -> Dict[str, str]:
+        res = self.get("api")
+        return AiNavigatorVersion(**res.json()["data"]).model_dump()

@@ -47,7 +47,7 @@ class GenericClient(BaseClient):
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
 
-    def get_version(self) -> str:
+    def get_version(self) -> Dict[str, str]:
         raise NotImplementedError
 
     @property
@@ -497,7 +497,7 @@ class VectorDbServerResponse(BaseModel):
 class VectorDbTableColumn(BaseModel):
     name: str
     type: str
-    constraints: Optional[List[str]] = None
+    constraints: List[str] = Field(default_factory=list)
 
 
 class VectorDbTableSchema(BaseModel):
