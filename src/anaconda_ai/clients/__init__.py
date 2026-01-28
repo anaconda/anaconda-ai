@@ -29,6 +29,8 @@ class AnacondaAIClient(GenericClient):
         client_cert: Optional[str] = None,
         client_cert_key: Optional[str] = None,
         backend: Optional[str] = None,
+        stop_server_on_exit: Optional[bool] = None,
+        server_operations_timeout: Optional[int] = None,
         **kwargs: Any,
     ):
         if backend is None:
