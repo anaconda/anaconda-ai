@@ -365,13 +365,16 @@ class AiNavigatorVersion(BaseModel):
 class AINavigatorClient(GenericClient):
     def __init__(
         self,
-        domain: Optional[str] = None,
-        api_key: Optional[str] = None,
+        app_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        self._ai_config = AnacondaAIConfig()
-        domain = domain or f"localhost:{self._ai_config.backends.ai_navigator.port}"
-        api_key = api_key or self._ai_config.backends.ai_navigator.api_key
+        ai_kwargs = {}
+        if app_name is not None:
+            ai_kwargs["app_name"] = app_name
+        self._ai_config = AnacondaAIConfig(**{"backends": {"ai_navigator": ai_kwargs}})
+
+        domain = f"localhost:{self._ai_config.backends.ai_navigator.port}"
+        api_key = self._ai_config.backends.ai_navigator.api_key
 
         super().__init__(domain=domain, api_key=api_key)
         self._base_uri = f"http://{domain}"

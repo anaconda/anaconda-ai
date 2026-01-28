@@ -29,6 +29,7 @@ class AnacondaAIClient(GenericClient):
         client_cert: Optional[str] = None,
         client_cert_key: Optional[str] = None,
         backend: Optional[str] = None,
+        **kwargs: Any,
     ):
         if backend is None:
             config = AnacondaAIConfig()
@@ -50,6 +51,7 @@ class AnacondaAIClient(GenericClient):
             proxy_servers=proxy_servers,
             client_cert=client_cert,
             client_cert_key=client_cert_key,
+            **kwargs,
         )
 
 
