@@ -12,6 +12,7 @@ from typing import Type
 from typing import Union
 from typing import Set
 from typing import Sequence
+from typing import MutableMapping
 from typing_extensions import Self
 from urllib.parse import urljoin
 
@@ -22,6 +23,7 @@ from rich.status import Status
 from rich.console import Console
 
 from anaconda_auth.client import BaseClient
+from anaconda_auth.config import AnacondaAuthSite
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from ..exceptions import (
@@ -46,6 +48,47 @@ class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
+
+    def __init__(
+        self,
+        site: Optional[Union[str, AnacondaAuthSite]] = None,
+        base_uri: Optional[str] = None,
+        domain: Optional[str] = None,
+        auth_domain_override: Optional[str] = None,
+        api_key: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        api_version: Optional[str] = None,
+        ssl_verify: Optional[Union[bool, str]] = None,
+        extra_headers: Optional[Union[str, dict]] = None,
+        hash_hostname: Optional[bool] = None,
+        proxy_servers: Optional[MutableMapping[str, str]] = None,
+        client_cert: Optional[str] = None,
+        client_cert_key: Optional[str] = None,
+        stop_server_on_exit: Optional[bool] = None,
+        server_operations_timeout: Optional[int] = None,
+    ):
+        super().__init__(
+            site=site,
+            base_uri=base_uri,
+            domain=domain,
+            auth_domain_override=auth_domain_override,
+            api_key=api_key,
+            user_agent=user_agent,
+            api_version=api_version,
+            ssl_verify=ssl_verify,
+            extra_headers=extra_headers,
+            hash_hostname=hash_hostname,
+            proxy_servers=proxy_servers,
+            client_cert=client_cert,
+            client_cert_key=client_cert_key,
+        )
+
+        ai_kwargs = {}
+        if stop_server_on_exit is not None:
+            ai_kwargs["stop_server_on_exit"] = stop_server_on_exit
+        if server_operations_timeout is not None:
+            ai_kwargs["server_operations_timeout"] = server_operations_timeout
+        self.ai_config = AnacondaAIConfig().model_copy(update=ai_kwargs, deep=True)
 
     def get_version(self) -> Dict[str, str]:
         raise NotImplementedError
@@ -310,7 +353,7 @@ class Server(BaseModel):
             display.update(text)
 
             t0 = time()
-            start_timeout = AnacondaAIConfig().server_operations_timeout
+            start_timeout = self._client.ai_config.server_operations_timeout
             while status != "running":
                 status = self._client.servers.status(self)
                 if status == "errored":
@@ -329,7 +372,7 @@ class Server(BaseModel):
             if leave_running is not None:
                 kwargs["stop_server_on_exit"] = not leave_running
 
-            config = AnacondaAIConfig(**kwargs)  # type: ignore
+            config = self._client.ai_config.model_copy(update=kwargs)
             if config.stop_server_on_exit:
 
                 def safe_stop(console: Console) -> None:
