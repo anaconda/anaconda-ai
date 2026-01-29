@@ -6,8 +6,9 @@ from anaconda_auth.config import AnacondaAuthSite
 from ..config import AnacondaAIConfig
 from .base import GenericClient
 from .ai_navigator import AINavigatorClient
+from .ai_catalyst import AICatalystClient
 
-clients = {"ai-navigator": AINavigatorClient}
+clients = {"ai-navigator": AINavigatorClient, "ai-catalyst": AICatalystClient}
 
 
 class AnacondaAIClient(GenericClient):
