@@ -88,7 +88,7 @@ class GenericClient(BaseClient):
             ai_kwargs["stop_server_on_exit"] = stop_server_on_exit
         if server_operations_timeout is not None:
             ai_kwargs["server_operations_timeout"] = server_operations_timeout
-        self.ai_config = AnacondaAIConfig().model_copy(update=ai_kwargs, deep=True)
+        self.ai_config = AnacondaAIConfig(**ai_kwargs)
 
     def get_version(self) -> Dict[str, str]:
         raise NotImplementedError
@@ -402,6 +402,18 @@ class Server(BaseModel):
                 display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
+    def delete(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        text = f"{self.config.model_name} (stopping)"
+        with Status(text, console=console) as display:
+            self._client.servers.delete(self.id)
+            text = f"{self.config.model_name} (deleted)"
+            display.update(text)
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def openai_url(self) -> str:
@@ -455,6 +467,8 @@ class BaseServers:
         model: Union[str, QuantizedFile],
         download_if_needed: bool = True,
         extra_options: Optional[Dict[str, Any]] = None,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
     ) -> Server:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -490,7 +504,14 @@ class BaseServers:
                 else:
                     self.client.models.download(model)
 
-        server = self._create(model, extra_options=extra_options)
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        text = f"{model.identifier} (creating)"
+        with Status(text, console=console) as display:
+            server = self._create(model, extra_options=extra_options)
+            text = f"{model.identifier} (created)"
+            display.update(text)
+
         return server
 
     def _start(self, server_id: str) -> None:

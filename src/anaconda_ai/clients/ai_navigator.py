@@ -40,7 +40,7 @@ class AINavigatorQuantizedFile(QuantizedFile):
     @property
     def local_path(self) -> Path:
         return (
-            AnacondaAIConfig().backends.ai_navigator.models_path
+            self._model._client.ai_config.backends.ai_navigator.models_path
             / self._model.id
             / self.identifier
         )
@@ -368,16 +368,19 @@ class AINavigatorClient(GenericClient):
         app_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        ai_kwargs = {}
+        ai_kwargs = {"backends": {"ai_navigator": {}}}
         if app_name is not None:
-            ai_kwargs["app_name"] = app_name
-        self._ai_config = AnacondaAIConfig(**{"backends": {"ai_navigator": ai_kwargs}})
+            ai_kwargs["backends"]["ai_navigator"]["app_name"] = app_name
 
-        domain = f"localhost:{self._ai_config.backends.ai_navigator.port}"
-        api_key = self._ai_config.backends.ai_navigator.api_key
+        config = AnacondaAIConfig.model_validate(ai_kwargs)
+        domain = f"localhost:{config.backends.ai_navigator.port}"
+        api_key = config.backends.ai_navigator.api_key
 
         super().__init__(domain=domain, api_key=api_key)
         self._base_uri = f"http://{domain}"
+
+        if app_name is not None:
+            self.ai_config.backends.ai_navigator.app_name = app_name
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
