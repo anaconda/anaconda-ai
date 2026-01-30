@@ -293,7 +293,13 @@ def launch(
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
     detach: bool = typer.Option(
-        default=False, help="Start model server and leave it running."
+        False, "-d", "--detach", help="Start model server and leave it running."
+    ),
+    remove: bool = typer.Option(
+        False,
+        "--rm",
+        "--remove",
+        help="Remove server after stopped. This is ignored when using --detach.",
     ),
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
@@ -314,13 +320,18 @@ def launch(
 
     client = AnacondaAIClient(backend=backend, site=site)
 
-    server = client.servers.create(model=model, extra_options=extra_options)
-    server.start(show_progress=not as_json, leave_running=True)
+    server = client.servers.create(
+        model=model,
+        extra_options=extra_options,
+        show_progress=not as_json,
+        console=console,
+    )
+    server.start(show_progress=not as_json, leave_running=True, console=console)
     table, data = _server_info(server)
     if as_json:
         console.print_json(data=data)
     else:
-        console.print(table)
+        console.print(table, soft_wrap=True)
     if show:
         import webbrowser
 
@@ -338,7 +349,9 @@ def launch(
         if server._matched:
             return
 
-        server.stop(show_progress=not as_json)
+        if remove:
+            server.stop(show_progress=not as_json, console=console)
+            server.delete(show_progress=not as_json, console=console)
         return
 
 
@@ -374,9 +387,9 @@ def _servers_list(
 
 def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     table = Table.grid(padding=1, pad_edge=True)
-    table.title = server.id
     table.add_column("Metadata", justify="center", style="bold green")
-    table.add_column("Value", justify="left")
+    table.add_column("Value", justify="left", no_wrap=False)
+    table.add_row("Server", server.id)
     table.add_row("Model", server.config.model_name)
     table.add_row("OpenAI Compatible URL", server.openai_url)
     table.add_row("Status", server.status)
@@ -423,8 +436,11 @@ def servers(
 @app.command("stop")
 def stop(
     server: str = typer.Argument(help="ID of the server to stop"),
-    remove: bool = typer.Argument(
-        default=False, help="Delete server on stop. Not supported by all backends."
+    remove: bool = typer.Option(
+        False,
+        "--remove",
+        "--rm",
+        help="Delete server on stop. Not supported by all backends.",
     ),
     site: Annotated[
         Optional[str], "--at", typer.Option(help="Site defined in config")
@@ -436,10 +452,11 @@ def stop(
 ) -> None:
     client = AnacondaAIClient(backend=backend, site=site)
     s = client.servers.get(server)
-    s.stop(show_progress=True)
+    if s.is_running:
+        s.stop(show_progress=not as_json)
 
     if remove:
-        client.servers.delete(server)
+        s.delete(show_progress=not as_json)
 
     if as_json:
         console.print_json(data={"status": "success"})

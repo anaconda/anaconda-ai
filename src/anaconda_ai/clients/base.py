@@ -12,6 +12,7 @@ from typing import Type
 from typing import Union
 from typing import Set
 from typing import Sequence
+from typing import MutableMapping
 from typing_extensions import Self
 from urllib.parse import urljoin
 
@@ -22,6 +23,7 @@ from rich.status import Status
 from rich.console import Console
 
 from anaconda_auth.client import BaseClient
+from anaconda_auth.config import AnacondaAuthSite
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
 from ..exceptions import (
@@ -42,10 +44,52 @@ MODEL_NAME = re.compile(
 
 
 class GenericClient(BaseClient):
+    name: str
     _user_agent = f"anaconda-ai/{version}"
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
+
+    def __init__(
+        self,
+        site: Optional[Union[str, AnacondaAuthSite]] = None,
+        base_uri: Optional[str] = None,
+        domain: Optional[str] = None,
+        auth_domain_override: Optional[str] = None,
+        api_key: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        api_version: Optional[str] = None,
+        ssl_verify: Optional[Union[bool, str]] = None,
+        extra_headers: Optional[Union[str, dict]] = None,
+        hash_hostname: Optional[bool] = None,
+        proxy_servers: Optional[MutableMapping[str, str]] = None,
+        client_cert: Optional[str] = None,
+        client_cert_key: Optional[str] = None,
+        stop_server_on_exit: Optional[bool] = None,
+        server_operations_timeout: Optional[int] = None,
+    ):
+        super().__init__(
+            site=site,
+            base_uri=base_uri,
+            domain=domain,
+            auth_domain_override=auth_domain_override,
+            api_key=api_key,
+            user_agent=user_agent,
+            api_version=api_version,
+            ssl_verify=ssl_verify,
+            extra_headers=extra_headers,
+            hash_hostname=hash_hostname,
+            proxy_servers=proxy_servers,
+            client_cert=client_cert,
+            client_cert_key=client_cert_key,
+        )
+
+        ai_kwargs: Dict[str, Any] = {}
+        if stop_server_on_exit is not None:
+            ai_kwargs["stop_server_on_exit"] = stop_server_on_exit
+        if server_operations_timeout is not None:
+            ai_kwargs["server_operations_timeout"] = server_operations_timeout
+        self.ai_config = AnacondaAIConfig(**ai_kwargs)
 
     def get_version(self) -> Dict[str, str]:
         raise NotImplementedError
@@ -65,7 +109,7 @@ class QuantizedFile(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def local_path(self) -> Path:
+    def local_path(self) -> Optional[Path]:
         raise NotImplementedError
 
     @computed_field  # type: ignore[prop-decorator]
@@ -310,7 +354,7 @@ class Server(BaseModel):
             display.update(text)
 
             t0 = time()
-            start_timeout = AnacondaAIConfig().server_operations_timeout
+            start_timeout = self._client.ai_config.server_operations_timeout
             while status != "running":
                 status = self._client.servers.status(self)
                 if status == "errored":
@@ -329,7 +373,7 @@ class Server(BaseModel):
             if leave_running is not None:
                 kwargs["stop_server_on_exit"] = not leave_running
 
-            config = AnacondaAIConfig(**kwargs)  # type: ignore
+            config = self._client.ai_config.model_copy(update=kwargs)
             if config.stop_server_on_exit:
 
                 def safe_stop(console: Console) -> None:
@@ -357,6 +401,18 @@ class Server(BaseModel):
                 status = self._client.servers.status(self)
                 text = f"{self.config.model_name} ({status})"
                 display.update(text)
+        console.print(f"[bold green]✓[/] {text}", highlight=False)
+
+    def delete(
+        self, show_progress: bool = True, console: Optional[Console] = None
+    ) -> None:
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        text = f"{self.config.model_name} (stopping)"
+        with Status(text, console=console) as display:
+            self._client.servers.delete(self.id)
+            text = f"{self.config.model_name} (deleted)"
+            display.update(text)
         console.print(f"[bold green]✓[/] {text}", highlight=False)
 
     @computed_field  # type: ignore[prop-decorator]
@@ -412,6 +468,8 @@ class BaseServers:
         model: Union[str, QuantizedFile],
         download_if_needed: bool = True,
         extra_options: Optional[Dict[str, Any]] = None,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
     ) -> Server:
         if isinstance(model, str):
             match = MODEL_NAME.match(model)
@@ -447,7 +505,14 @@ class BaseServers:
                 else:
                     self.client.models.download(model)
 
-        server = self._create(model, extra_options=extra_options)
+        console = Console() if console is None else console
+        console.quiet = not show_progress
+        text = f"{model.identifier} (creating)"
+        with Status(text, console=console) as display:
+            server = self._create(model, extra_options=extra_options)
+            text = f"{model.identifier} (created)"
+            display.update(text)
+
         return server
 
     def _start(self, server_id: str) -> None:

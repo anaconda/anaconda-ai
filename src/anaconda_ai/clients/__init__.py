@@ -13,6 +13,8 @@ clients = {"ai-navigator": AINavigatorClient}
 class AnacondaAIClient(GenericClient):
     """Client for Anaconda AI models and servers"""
 
+    name: str
+
     def __init__(
         self,
         site: Optional[Union[str, AnacondaAuthSite]] = None,
@@ -29,6 +31,9 @@ class AnacondaAIClient(GenericClient):
         client_cert: Optional[str] = None,
         client_cert_key: Optional[str] = None,
         backend: Optional[str] = None,
+        stop_server_on_exit: Optional[bool] = None,
+        server_operations_timeout: Optional[int] = None,
+        **kwargs: Any,
     ):
         if backend is None:
             config = AnacondaAIConfig()
@@ -50,6 +55,7 @@ class AnacondaAIClient(GenericClient):
             proxy_servers=proxy_servers,
             client_cert=client_cert,
             client_cert_key=client_cert_key,
+            **kwargs,
         )
 
 

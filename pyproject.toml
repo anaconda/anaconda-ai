@@ -4,16 +4,15 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
-  "anaconda-auth >=0.8",
-  "anaconda-cli-base >=0.5",
+  "anaconda-auth >=0.13.0rc3",
+  "anaconda-cli-base >=0.8",
   "rich",
   "pydantic >=2",
   "typer",
   "ruamel.yaml",
   "openai",
   "platformdirs",
-  "packaging",
-  "click <8.2"
+  "packaging"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
@@ -30,7 +29,7 @@ anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-ai[langchain,litellm,llm,llama-index,panel]"
+  "anaconda-ai[langchain,dspy,instructor,litellm,llm,llama-index,panel,pydantic-ai]"
 ]
 dev = [
   "mypy",
@@ -40,6 +39,8 @@ dev = [
   "tox",
   "types-requests"
 ]
+dspy = ["dspy"]
+instructor = ["instructor"]
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
 llama-index = ["llama-index-llms-openai", "llama-index-embeddings-openai"]
@@ -54,6 +55,7 @@ publish = [
   "twine",
   "wheel"
 ]
+pydantic-ai = ["pydantic-ai>=1.50"]
 
 [tool.distutils.bdist_wheel]
 universal = true
@@ -143,12 +145,14 @@ python =
     3.11: py311, mypy
     3.12: py312, mypy
     3.13: py313, mypy
-    3.14: py314, mypy
+    3.14: py314
 
 [testenv]
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"
+set_env =
+    PIP_EXTRA_INDEX_URL = https://pypi.anaconda.org/anaconda-cloud/label/dev/simple
 
 [testenv:mypy]
 deps = mypy

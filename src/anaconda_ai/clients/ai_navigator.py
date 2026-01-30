@@ -38,12 +38,14 @@ class AINavigatorQuantizedFile(QuantizedFile):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def local_path(self) -> Path:
-        return (
-            AnacondaAIConfig().backends.ai_navigator.models_path
-            / self._model.id
-            / self.identifier
-        )
+    def local_path(self) -> Path | None:
+        res = self._model._client.get(self._url)
+        res.raise_for_status()
+        path = res.json()["data"]["localPath"]
+        if path is not None:
+            return Path(path)
+        else:
+            return path
 
     @property
     def _url(self) -> str:
@@ -51,6 +53,7 @@ class AINavigatorQuantizedFile(QuantizedFile):
         url = f"/api/models/{model_id}/files/{self.sha256}"
         return url
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_downloaded(self) -> bool:
         res = self._model._client.get(self._url)
@@ -138,7 +141,9 @@ class AINavigatorModels(BaseModels):
         if path is not None:
             path = Path(path)
             path.unlink(missing_ok=True)
-            path.hardlink_to(model_quantization.local_path)
+            local_path = model_quantization.local_path
+            if local_path is not None:
+                path.hardlink_to(local_path)
 
     def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:  # type: ignore
         res = self.client.delete(model_quantization._url)
@@ -195,6 +200,11 @@ class AINavigatorServerConfig(ServerConfig):
 
     _params_dump: Set[str] = {"api_params", "load_params", "infer_params"}
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def serverParams(self) -> AINavigatorServerParams:
+        return self.api_params
+
 
 class AINavigatorServer(Server):
     config: AINavigatorServerConfig = Field(alias="serverConfig")
@@ -245,6 +255,7 @@ class AINavigatorServers(BaseServers):
             "start_server_on_create": True,
             "logs_dir": True,
             "api_params": {"port": True, "host": True},
+            "serverParams": {"port": True, "host": True},
             "params": True,
         }
 
@@ -263,8 +274,11 @@ class AINavigatorServers(BaseServers):
         model_quantization: AINavigatorQuantizedFile,  # type: ignore
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> AINavigatorServer:
+        local_path = model_quantization.local_path
+        if local_path is None:
+            raise ValueError("Model has not been downloaded yet")
         server_config = AINavigatorServerConfig(
-            modelFileName=model_quantization.identifier,
+            modelFileName=local_path.name,
             loadParams=AINavigatorServerParams(**(extra_options or {})),
         )
 
@@ -284,7 +298,9 @@ class AINavigatorServers(BaseServers):
         if matched is not None:
             return matched
 
-        body = {"serverConfig": server_config.model_dump(exclude={"id"})}
+        body = {
+            "serverConfig": server_config.model_dump(exclude={"id"}, exclude_none=True)
+        }
 
         res = self.client.post("api/servers", json=body)
         res.raise_for_status()
@@ -363,18 +379,26 @@ class AiNavigatorVersion(BaseModel):
 
 
 class AINavigatorClient(GenericClient):
+    name: str = "ai-navigator"
+
     def __init__(
         self,
-        domain: Optional[str] = None,
-        api_key: Optional[str] = None,
+        app_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        self._ai_config = AnacondaAIConfig()
-        domain = domain or f"localhost:{self._ai_config.backends.ai_navigator.port}"
-        api_key = api_key or self._ai_config.backends.ai_navigator.api_key
+        ai_kwargs: Dict[str, Any] = {"backends": {"ai_navigator": {}}}
+        if app_name is not None:
+            ai_kwargs["backends"]["ai_navigator"]["app_name"] = app_name
+
+        config = AnacondaAIConfig.model_validate(ai_kwargs)
+        domain = f"localhost:{config.backends.ai_navigator.port}"
+        api_key = config.backends.ai_navigator.api_key
 
         super().__init__(domain=domain, api_key=api_key)
         self._base_uri = f"http://{domain}"
+
+        if app_name is not None:
+            self.ai_config.backends.ai_navigator.app_name = app_name
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
