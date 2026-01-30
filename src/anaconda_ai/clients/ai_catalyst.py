@@ -468,3 +468,10 @@ class AICatalystClient(GenericClient):
     def api_key(self) -> str:
         key = self.config.api_key or TokenInfo.load(domain=self.config.domain).api_key
         return key
+
+    @property
+    def online(self) -> bool:
+        res = self.get("api/ai/model/healthz")
+        if not res.ok:
+            return False
+        return res.json().get("success", False)
