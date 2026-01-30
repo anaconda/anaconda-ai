@@ -53,7 +53,7 @@ class AINavigatorQuantizedFile(QuantizedFile):
         url = f"/api/models/{model_id}/files/{self.sha256}"
         return url
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_downloaded(self) -> bool:
         res = self._model._client.get(self._url)
@@ -141,7 +141,9 @@ class AINavigatorModels(BaseModels):
         if path is not None:
             path = Path(path)
             path.unlink(missing_ok=True)
-            path.hardlink_to(model_quantization.local_path)
+            local_path = model_quantization.local_path
+            if local_path is not None:
+                path.hardlink_to(local_path)
 
     def _delete(self, model_quantization: AINavigatorQuantizedFile) -> None:  # type: ignore
         res = self.client.delete(model_quantization._url)
@@ -198,7 +200,7 @@ class AINavigatorServerConfig(ServerConfig):
 
     _params_dump: Set[str] = {"api_params", "load_params", "infer_params"}
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def serverParams(self) -> AINavigatorServerParams:
         return self.api_params
@@ -272,8 +274,11 @@ class AINavigatorServers(BaseServers):
         model_quantization: AINavigatorQuantizedFile,  # type: ignore
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> AINavigatorServer:
+        local_path = model_quantization.local_path
+        if local_path is None:
+            raise ValueError("Model has not been downloaded yet")
         server_config = AINavigatorServerConfig(
-            modelFileName=model_quantization.local_path.name,
+            modelFileName=local_path.name,
             loadParams=AINavigatorServerParams(**(extra_options or {})),
         )
 
@@ -381,7 +386,7 @@ class AINavigatorClient(GenericClient):
         app_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        ai_kwargs = {"backends": {"ai_navigator": {}}}
+        ai_kwargs: Dict[str, Any] = {"backends": {"ai_navigator": {}}}
         if app_name is not None:
             ai_kwargs["backends"]["ai_navigator"]["app_name"] = app_name
 

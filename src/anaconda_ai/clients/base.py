@@ -84,7 +84,7 @@ class GenericClient(BaseClient):
             client_cert_key=client_cert_key,
         )
 
-        ai_kwargs = {}
+        ai_kwargs: Dict[str, Any] = {}
         if stop_server_on_exit is not None:
             ai_kwargs["stop_server_on_exit"] = stop_server_on_exit
         if server_operations_timeout is not None:
@@ -109,7 +109,7 @@ class QuantizedFile(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def local_path(self) -> Path:
+    def local_path(self) -> Optional[Path]:
         raise NotImplementedError
 
     @computed_field  # type: ignore[prop-decorator]

@@ -43,10 +43,10 @@ def from_anaconda(
     )
 
     if async_client:
-        client = server.openai_client()
-        create = client.chat.completions.create
-        return instructor.Instructor(
-            client=client,
+        openai_async_client = server.async_openai_client()
+        create = openai_async_client.chat.completions.create
+        return instructor.AsyncInstructor(
+            client=openai_async_client,
             create=instructor.patch(create=create, mode=mode),
             provider=instructor.Provider.UNKNOWN,
             mode=mode,
@@ -54,10 +54,10 @@ def from_anaconda(
             **kwargs,
         )
     else:
-        client = server.async_openai_client()
-        create = client.chat.completions.create
-        return instructor.AsyncInstructor(
-            client=client,
+        openai_client = server.openai_client()
+        create = openai_client.chat.completions.create  # type: ignore[assignment]
+        return instructor.Instructor(
+            client=openai_client,
             create=instructor.patch(create=create, mode=mode),
             provider=instructor.Provider.UNKNOWN,
             mode=mode,
@@ -77,7 +77,7 @@ def from_provider(
 
 @overload
 def from_provider(
-    model: str,
+    model: KnownModelName,
     async_client: Literal[False] = False,
     cache: BaseCache | None = None,  # noqa: ARG001
     **kwargs: Any,
@@ -106,7 +106,7 @@ def from_provider(
     model: str | KnownModelName,  # noqa: UP007
     async_client: bool = False,
     cache: BaseCache | None = None,
-    mode: instructor.Mode | None = None,  # noqa: ARG001, UP007
+    mode: instructor.Mode | None = None,  # noqa: UP007
     **kwargs: Any,
 ) -> instructor.Instructor | instructor.AsyncInstructor:  # noqa: UP007
     provider, model_name = model.split("/", maxsplit=1)
@@ -114,7 +114,11 @@ def from_provider(
         return from_anaconda(model_name, async_client=async_client, mode=mode, **kwargs)
     else:
         return original_from_provider(
-            model=model, async_client=async_client, cache=cache, mode=mode, **kwargs
+            model=model,
+            async_client=async_client,
+            cache=cache,
+            mode=mode,
+            **kwargs,  # type: ignore[call-overload]
         )
 
 

@@ -10,7 +10,7 @@ from ..clients import AnacondaAIClient
 from ..clients.base import Server
 
 
-class AnacondaChatModelSettings(OpenAIChatModelSettings):
+class AnacondaChatModelSettings(OpenAIChatModelSettings, total=False):
     extra_options: Dict[str, Any]
 
 
@@ -40,9 +40,11 @@ class AnacondaProvider(Provider[AsyncOpenAI]):
 
 
 class AnacondaMixin:
+    _server: Optional[Server] = None
+
     def _get_openai_client(
         self, model_name: str, extra_options: dict, client: AnacondaAIClient
-    ) -> None:
+    ) -> AsyncOpenAI:
         if self._server is None:
             if model_name.startswith("server/"):
                 _, server_name = model_name.split("server/", maxsplit=1)
@@ -76,16 +78,18 @@ class AnacondaChatModel(OpenAIChatModel, AnacondaMixin):
 
         anaconda_client = client or AnacondaAIClient(backend=backend, site=site)
 
-        settings = settings or {}
+        extra_options: Dict[str, Any] = (
+            settings.get("extra_options", {}) if settings else {}
+        )
         openai_client = self._get_openai_client(
-            model_name, settings.get("extra_options", {}), anaconda_client
+            model_name, extra_options, anaconda_client
         )
         self.client = openai_client
 
         self.profile = AnacondaModelProfile().update(self.profile)
 
 
-class AnacondaEmbeddingSettings(OpenAIEmbeddingSettings):
+class AnacondaEmbeddingSettings(OpenAIEmbeddingSettings, total=False):
     extra_options: Dict[str, Any]
 
 
@@ -105,9 +109,11 @@ class AnacondaEmbeddingModel(OpenAIEmbeddingModel, AnacondaMixin):
 
         anaconda_client = client or AnacondaAIClient(backend=backend, site=site)
 
-        settings = settings or {}
+        extra_options: Dict[str, Any] = (
+            settings.get("extra_options", {}) if settings else {}
+        )
         openai_client = self._get_openai_client(
-            model_name, settings.get("extra_options", {}), anaconda_client
+            model_name, extra_options, anaconda_client
         )
         self._client = openai_client
 
