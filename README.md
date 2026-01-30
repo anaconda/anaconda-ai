@@ -16,6 +16,8 @@ Below you will find documentation for
 * [LlamaIndex](#llamaindex)
 * [LiteLLM](#litellm)
 * [DSPy](#dspy)
+* [Pydantic AI](#pydanticai)
+* [Instructor](#instructor)
 * [Panel ChatInterface](#panel)
 
 ## Install
@@ -384,6 +386,59 @@ chain(question="Who are you?")
 ```
 
 `dspy.LM` supports `optional_params=` keyword argument as explained in the previous section.
+
+## PydanticAI
+
+The [Pydantic AI](https://ai.pydantic.dev/) integration provides ChatModel and EmbeddingModel support.
+Here's an example using a chat model in an agent.
+
+```python
+from anaconda_ai.integrations.pydantic_ai import (
+    AnacondaChatModel,
+    AnacondaChatModelSettings,
+)
+settings = AnacondaChatModelSettings(temperature=0.1, extra_options={"ctx_size": 1024})
+
+model = AnacondaChatModel(
+    "OpenHermes-2.5-Mistral-7B/q4_k_m",
+    settings=settings,
+)
+```
+
+And embedding
+
+```python
+embed = AnacondaEmbeddingModel(
+    "bge-small-en-v1.5/q4_k_m"
+)
+
+result = await embed.embed("cat", input_type="document")
+```
+
+## Instructor
+
+Until the provider is added to the upstream [Instructor](https://python.useinstructor.com/) package clients can be
+prepared by importing the `AnacondaProvider`. Currently available models and backends only support JSON mode, which
+is the default for `from_anaconda()`.
+
+```python
+from pydantic import BaseModel
+from anaconda_ai.integrations.instructor import AnacondaProvider
+
+client = AnacondaProvider.from_anaconda(
+    "OpenHermes-2.5-Mistral-7B/Q4_K_M", extra_options={"ctx_size": 512}
+)
+
+class UserInfo(BaseModel):
+    name: str
+    age: int
+
+
+user_info = await client.create(
+    response_model=UserInfo,
+    messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+)
+```
 
 ## Panel
 
