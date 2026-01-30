@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 
 from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
+from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel, OpenAIEmbeddingSettings
 from pydantic_ai.profiles.openai import OpenAIModelProfile, OpenAIJsonSchemaTransformer
 from pydantic_ai.providers import Provider
 
@@ -38,9 +39,7 @@ class AnacondaProvider(Provider[AsyncOpenAI]):
         )
 
 
-class AnacondaChatModel(OpenAIChatModel):
-    _server: Optional[Server] = None
-
+class AnacondaMixin:
     def _get_openai_client(
         self, model_name: str, extra_options: dict, client: AnacondaAIClient
     ) -> None:
@@ -57,6 +56,10 @@ class AnacondaChatModel(OpenAIChatModel):
             self._server.start()
 
         return self._server.async_openai_client()
+
+
+class AnacondaChatModel(OpenAIChatModel, AnacondaMixin):
+    _server: Optional[Server] = None
 
     def __init__(
         self,
@@ -80,3 +83,35 @@ class AnacondaChatModel(OpenAIChatModel):
         self.client = openai_client
 
         self.profile = AnacondaModelProfile().update(self.profile)
+
+
+class AnacondaEmbeddingSettings(OpenAIEmbeddingSettings):
+    extra_options: Dict[str, Any]
+
+
+class AnacondaEmbeddingModel(OpenAIEmbeddingModel, AnacondaMixin):
+    _server: Optional[Server] = None
+
+    def __init__(
+        self,
+        model_name: str,
+        *,
+        backend: Optional[str] = None,
+        site: Optional[str] = None,
+        client: Optional[AnacondaAIClient] = None,
+        settings: AnacondaEmbeddingSettings | None = None,
+    ):
+        super().__init__(model_name, provider=AnacondaProvider(), settings=settings)
+
+        anaconda_client = client or AnacondaAIClient(backend=backend, site=site)
+
+        settings = settings or {}
+        openai_client = self._get_openai_client(
+            model_name, settings.get("extra_options", {}), anaconda_client
+        )
+        self._client = openai_client
+
+    @property
+    def model_name(self) -> str:
+        """The embedding model name."""
+        return self._model_name
