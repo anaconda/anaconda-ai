@@ -152,7 +152,7 @@ deps = pytest
 extras = dev
 commands = pytest -m "not integration"
 set_env =
-    PIP_EXTRA_INDEX_URL = https://pypi.anaconda.org/anaconda-cloud/simple
+    PIP_EXTRA_INDEX_URL = https://pypi.anaconda.org/anaconda-cloud/label/dev/simple
 
 [testenv:mypy]
 deps = mypy
