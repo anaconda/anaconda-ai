@@ -4,10 +4,12 @@ from warnings import warn
 from anaconda_auth.config import AnacondaAuthSite
 
 from ..config import AnacondaAIConfig
+from ..exceptions import UnknownBackendError
 from .base import GenericClient
 from .ai_navigator import AINavigatorClient
+from .ai_catalyst import AICatalystClient
 
-clients = {"ai-navigator": AINavigatorClient}
+clients = {"ai-navigator": AINavigatorClient, "ai-catalyst": AICatalystClient}
 
 
 class AnacondaAIClient(GenericClient):
@@ -35,11 +37,10 @@ class AnacondaAIClient(GenericClient):
         server_operations_timeout: Optional[int] = None,
         **kwargs: Any,
     ):
-        if backend is None:
-            config = AnacondaAIConfig()
-            self.__class__ = clients[config.backend]  # type: ignore
-        else:
-            self.__class__ = clients[backend]  # type: ignore
+        try:
+            self.__class__ = clients[backend or AnacondaAIConfig().backend]
+        except KeyError:
+            raise UnknownBackendError(f"There is no known backend called {backend}")
 
         self.__init__(  # type: ignore
             site=site,
