@@ -151,11 +151,8 @@ python =
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"
-conda_deps =
-    anaconda-auth >= 0.13.0rc3
-conda_channels =
-    conda-forge
-    anaconda-cloud/label/dev
+set_env =
+    PIP_EXTRA_INDEX_URL = https://pypi.anaconda.org/anaconda-cloud/simple
 
 [testenv:mypy]
 deps = mypy
