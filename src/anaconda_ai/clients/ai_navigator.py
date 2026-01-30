@@ -38,12 +38,14 @@ class AINavigatorQuantizedFile(QuantizedFile):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def local_path(self) -> Path:
-        return (
-            self._model._client.ai_config.backends.ai_navigator.models_path
-            / self._model.id
-            / self.identifier
-        )
+    def local_path(self) -> Path | None:
+        res = self._model._client.get(self._url)
+        res.raise_for_status()
+        path = res.json()["data"]["localPath"]
+        if path is not None:
+            return Path(path)
+        else:
+            return path
 
     @property
     def _url(self) -> str:
@@ -51,6 +53,7 @@ class AINavigatorQuantizedFile(QuantizedFile):
         url = f"/api/models/{model_id}/files/{self.sha256}"
         return url
 
+    @computed_field
     @property
     def is_downloaded(self) -> bool:
         res = self._model._client.get(self._url)
@@ -195,6 +198,11 @@ class AINavigatorServerConfig(ServerConfig):
 
     _params_dump: Set[str] = {"api_params", "load_params", "infer_params"}
 
+    @computed_field
+    @property
+    def serverParams(self) -> AINavigatorServerParams:
+        return self.api_params
+
 
 class AINavigatorServer(Server):
     config: AINavigatorServerConfig = Field(alias="serverConfig")
@@ -245,6 +253,7 @@ class AINavigatorServers(BaseServers):
             "start_server_on_create": True,
             "logs_dir": True,
             "api_params": {"port": True, "host": True},
+            "serverParams": {"port": True, "host": True},
             "params": True,
         }
 
@@ -264,7 +273,7 @@ class AINavigatorServers(BaseServers):
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> AINavigatorServer:
         server_config = AINavigatorServerConfig(
-            modelFileName=model_quantization.identifier,
+            modelFileName=model_quantization.local_path.name,
             loadParams=AINavigatorServerParams(**(extra_options or {})),
         )
 
@@ -284,7 +293,9 @@ class AINavigatorServers(BaseServers):
         if matched is not None:
             return matched
 
-        body = {"serverConfig": server_config.model_dump(exclude={"id"})}
+        body = {
+            "serverConfig": server_config.model_dump(exclude={"id"}, exclude_none=True)
+        }
 
         res = self.client.post("api/servers", json=body)
         res.raise_for_status()
