@@ -1,12 +1,22 @@
 import json
+from os.path import expandvars
 from pathlib import Path
 from typing import Any, Literal
 
 import platformdirs
-from pydantic import BaseModel, computed_field, Field
+from pydantic import BaseModel, computed_field, field_validator, Field
 
 from anaconda_ai.exceptions import AINavigatorConfigError
 from anaconda_cli_base.config import AnacondaBaseSettings
+
+
+class AICatalystConfig(BaseModel):
+    api_version: str = "2"
+    models_path: Path = Path("~/.anaconda/ai/models").expanduser()
+
+    @field_validator("models_path")
+    def expand_vars_models_path(cls, v: str) -> Path:
+        return Path(expandvars(v)).expanduser()
 
 
 class AINavigatorConfig(BaseModel):
@@ -60,13 +70,23 @@ class AINavigatorConfig(BaseModel):
         return key
 
 
+class AnacondaDesktopConfig(AINavigatorConfig):
+    app_name: str = "anaconda-desktop"
+
+
 class Backends(BaseModel):
+    ai_catalyst: AICatalystConfig = Field(default_factory=AICatalystConfig)
     ai_navigator: AINavigatorConfig = Field(default_factory=AINavigatorConfig)
+    anaconda_desktop: AnacondaDesktopConfig = Field(
+        default_factory=AnacondaDesktopConfig
+    )
 
 
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
-    backend: Literal["ai-navigator"] = "ai-navigator"
+    backend: Literal["ai-catalyst", "ai-navigator", "anaconda-desktop"] = (
+        "anaconda-desktop"
+    )
     stop_server_on_exit: bool = True
-    server_operations_timeout: int = 30
+    server_operations_timeout: int = 60
     show_blocked_models: bool = False
