@@ -417,16 +417,16 @@ result = await embed.embed("cat", input_type="document")
 
 ## Instructor
 
-Until the provider is added to the upstream [Instructor](https://python.useinstructor.com/) package clients can be
-prepared by importing the `AnacondaProvider`. Currently available models and backends only support JSON mode, which
-is the default for `from_anaconda()`.
+This integration monkeypatches the `instructor.from_provider()` method on import. This is needed until the provider
+can be added to the upstream [Instructor](https://python.useinstructor.com/) package.
 
 ```python
+import instructor
 from pydantic import BaseModel
-from anaconda_ai.integrations.instructor import AnacondaProvider
+import anaconda_ai.integrations.instructor  # noqa: F401
 
-client = AnacondaProvider.from_anaconda(
-    "OpenHermes-2.5-Mistral-7B/Q4_K_M", extra_options={"ctx_size": 512}
+client = instructor.from_provider(
+    "anaconda/OpenHermes-2.5-Mistral-7B/Q4_K_M", extra_options={"ctx_size": 512}
 )
 
 class UserInfo(BaseModel):
