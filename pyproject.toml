@@ -5,7 +5,7 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 [project]
 dependencies = [
   "anaconda-auth >=0.12",
-  "anaconda-cli-base >=0.8",
+  "anaconda-cli-base >=0.13.0rc3",
   "rich",
   "pydantic >=2",
   "typer",
@@ -145,12 +145,17 @@ python =
     3.11: py311, mypy
     3.12: py312, mypy
     3.13: py313, mypy
-    3.14: py314, mypy
+    3.14: py314
 
 [testenv]
 deps = pytest
 extras = dev
 commands = pytest -m "not integration"
+conda_deps =
+    anaconda-auth >= 0.13.0rc3
+conda_channels =
+    conda-forge
+    anaconda-cloud/label/dev
 
 [testenv:mypy]
 deps = mypy
