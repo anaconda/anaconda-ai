@@ -4,16 +4,15 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
-  "anaconda-auth >=0.8",
-  "anaconda-cli-base >=0.5",
+  "anaconda-auth >=0.12",
+  "anaconda-cli-base >=0.8",
   "rich",
   "pydantic >=2",
   "typer",
   "ruamel.yaml",
   "openai",
   "platformdirs",
-  "packaging",
-  "click <8.2"
+  "packaging"
 ]
 description = "Download and launch curated models from Anaconda"
 dynamic = ["version"]
