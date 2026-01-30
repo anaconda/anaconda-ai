@@ -44,6 +44,7 @@ MODEL_NAME = re.compile(
 
 
 class GenericClient(BaseClient):
+    name: str
     _user_agent = f"anaconda-ai/{version}"
     models: "BaseModels"
     servers: "BaseServers"

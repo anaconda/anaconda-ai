@@ -13,6 +13,8 @@ clients = {"ai-navigator": AINavigatorClient}
 class AnacondaAIClient(GenericClient):
     """Client for Anaconda AI models and servers"""
 
+    name: str
+
     def __init__(
         self,
         site: Optional[Union[str, AnacondaAuthSite]] = None,

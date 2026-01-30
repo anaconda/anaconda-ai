@@ -374,6 +374,8 @@ class AiNavigatorVersion(BaseModel):
 
 
 class AINavigatorClient(GenericClient):
+    name: str = "ai-navigator"
+
     def __init__(
         self,
         app_name: Optional[str] = None,
