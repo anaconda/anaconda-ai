@@ -167,7 +167,7 @@ def _model_info(
 def version(
     backend: Annotated[Optional[str], typer.Option(help="Select backend")] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     as_json: AS_JSON = False,
 ) -> None:
@@ -199,7 +199,7 @@ def models(
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -232,7 +232,7 @@ def download(
         False, help="Force re-download of model if already downloaded."
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -261,7 +261,7 @@ def download(
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -287,7 +287,7 @@ def launch(
         help="Name of the quantized model, it will download first if needed.",
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -409,7 +409,7 @@ def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, An
 def servers(
     server: Annotated[Optional[str], typer.Argument(help="Server ID")] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -443,7 +443,7 @@ def stop(
         help="Delete server on stop. Not supported by all backends.",
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
