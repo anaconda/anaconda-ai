@@ -4,8 +4,8 @@ requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
 
 [project]
 dependencies = [
-  "anaconda-auth >=0.12",
-  "anaconda-cli-base >=0.13.0rc3",
+  "anaconda-auth >=0.13.0rc3",
+  "anaconda-cli-base >=0.8",
   "rich",
   "pydantic >=2",
   "typer",
