@@ -56,7 +56,7 @@ publish = [
   "twine",
   "wheel"
 ]
-pydantic-ai = ["pydantic-ai"]
+pydantic-ai = ["pydantic-ai>=1.50"]
 
 [tool.distutils.bdist_wheel]
 universal = true
