@@ -30,7 +30,7 @@ anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-ai[langchain,dspy,litellm,llm,llama-index,panel,pydantic-ai]"
+  "anaconda-ai[langchain,dspy,instructor,litellm,llm,llama-index,panel,pydantic-ai]"
 ]
 dev = [
   "mypy",
@@ -41,6 +41,7 @@ dev = [
   "types-requests"
 ]
 dspy = ["dspy"]
+instructor = ["instructor"]
 langchain = ["langchain-openai>=0.2.8"]
 litellm = ["litellm"]
 llama-index = ["llama-index-llms-openai", "llama-index-embeddings-openai"]
