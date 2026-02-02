@@ -16,7 +16,7 @@ from ..clients.base import GenericClient, Server
 def prepare_server(model: str, options: dict) -> Server:
     kwargs = deepcopy(options)
 
-    client: Union[GenericClient]
+    client: GenericClient
     client_kwargs = kwargs.pop("client", {})
     if isinstance(client_kwargs, dict):
         client = AnacondaAIClient(**client_kwargs)

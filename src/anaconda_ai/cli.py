@@ -13,12 +13,13 @@ from typing import Union
 import typer
 from requests.exceptions import HTTPError
 from rich.console import RenderableType
+from rich.prompt import Confirm
 from rich.table import Column
 from rich.table import Table
 
 from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
-from .clients import AnacondaAIClient
+from .clients import AnacondaAIClient, clients
 from .clients.base import GenericClient, Server, VectorDbTableSchema
 from ._version import __version__
 
@@ -167,7 +168,7 @@ def _model_info(
 def version(
     backend: Annotated[Optional[str], typer.Option(help="Select backend")] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     as_json: AS_JSON = False,
 ) -> None:
@@ -199,7 +200,7 @@ def models(
         typer.Argument(help="Optional Model name for detailed information"),
     ] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -232,7 +233,7 @@ def download(
         False, help="Force re-download of model if already downloaded."
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -261,7 +262,7 @@ def download(
 def remove(
     model: str = typer.Argument(help="Model name with quantization"),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -287,19 +288,15 @@ def launch(
         help="Name of the quantized model, it will download first if needed.",
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
-    detach: bool = typer.Option(
-        False, "-d", "--detach", help="Start model server and leave it running."
-    ),
     remove: bool = typer.Option(
-        False,
-        "--rm",
-        "--remove",
-        help="Remove server after stopped. This is ignored when using --detach.",
+        True,
+        "--rm/--detach",
+        help="Stop and remove server on ctrl-C (default) or leave running with --detach.",
     ),
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
@@ -310,13 +307,13 @@ def launch(
     extra_options = {}
     for arg in ctx.args:
         if not arg.startswith("--"):
-            continue
+            raise ValueError("Extra server args must be passed as --key=value or --key")
         key, *value = arg[2:].split("=", maxsplit=1)
 
         if len(value) > 1:
             raise ValueError(arg)
 
-        extra_options[key] = True if value[0] is None else value[0]
+        extra_options[key] = True if not value else value[0]
 
     client = AnacondaAIClient(backend=backend, site=site)
 
@@ -337,12 +334,11 @@ def launch(
 
         webbrowser.open(server.url)
 
-    if client.servers.always_detach:
-        return
-    elif detach:
+    if not remove:
         return
 
     try:
+        console.print("[it]This server will stop and delete on [/it] [bold]^C[/bold]")
         while True:
             pass
     except KeyboardInterrupt:
@@ -388,7 +384,7 @@ def _servers_list(
 def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     table = Table.grid(padding=1, pad_edge=True)
     table.add_column("Metadata", justify="center", style="bold green")
-    table.add_column("Value", justify="left", no_wrap=False)
+    table.add_column("Value", justify="left", no_wrap=True)
     table.add_row("Server", server.id)
     table.add_row("Model", server.config.model_name)
     table.add_row("OpenAI Compatible URL", server.openai_url)
@@ -409,7 +405,7 @@ def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, An
 def servers(
     server: Annotated[Optional[str], typer.Argument(help="Server ID")] = None,
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -443,7 +439,7 @@ def stop(
         help="Delete server on stop. Not supported by all backends.",
     ),
     site: Annotated[
-        Optional[str], "--at", typer.Option(help="Site defined in config")
+        Optional[str], typer.Option("--at", help="Site defined in config")
     ] = None,
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
@@ -569,3 +565,59 @@ def create_table(
         console.print_json(data={"status": "success"})
     else:
         console.print("[green]Success[/green]")
+
+
+def _confirm_write(
+    sites: AnacondaAIConfig,
+    yes: Optional[bool],
+    preserve_existing_keys: bool = True,
+) -> None:
+    if yes is True:
+        sites.write_config(preserve_existing_keys=preserve_existing_keys)
+    elif yes is False:
+        sites.write_config(dry_run=True, preserve_existing_keys=preserve_existing_keys)
+    else:
+        sites.write_config(dry_run=True, preserve_existing_keys=preserve_existing_keys)
+        if Confirm.ask("Confirm:"):
+            sites.write_config(preserve_existing_keys=preserve_existing_keys)
+
+
+@app.command(
+    "config",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def configure(
+    backend: Annotated[str | None, typer.Option(help="Set the default backend")] = None,
+    stop_server_on_exit: Annotated[bool | None, typer.Option()] = None,
+    server_operations_timeout: Annotated[
+        int | None,
+        typer.Option(help="Timeout (seconds) waiting for server start, default is 60"),
+    ] = None,
+    show_blocked_models: Annotated[
+        bool | None, typer.Option(help="Show blocked models in CLI.")
+    ] = None,
+    yes: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--yes/--dry-run",
+            "-y",
+            help="Confirm changes and write, use --dry-run to print diff but do not write",
+        ),
+    ] = None,
+) -> None:
+    config = AnacondaAIConfig()
+    if backend is not None:
+        if backend not in clients:
+            console.print(f"{backend} is not a supported backend.")
+        config.backend = backend  # type: ignore
+
+    if server_operations_timeout is not None:
+        config.server_operations_timeout = server_operations_timeout
+
+    if stop_server_on_exit is not None:
+        config.stop_server_on_exit = stop_server_on_exit
+
+    if show_blocked_models is not None:
+        config.show_blocked_models = show_blocked_models
+
+    _confirm_write(config, yes=yes)

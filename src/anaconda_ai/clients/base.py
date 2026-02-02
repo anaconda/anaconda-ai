@@ -379,6 +379,7 @@ class Server(BaseModel):
                 def safe_stop(console: Console) -> None:
                     try:
                         self.stop(console=console)
+                        self.delete(console=console)
                     except Exception:
                         pass
 

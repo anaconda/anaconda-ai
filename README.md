@@ -1,9 +1,6 @@
 # anaconda-ai
 
 Download, launch, and integrate AI models curated by Anaconda.
-
-Anaconda provides quantization files for a [curated collection](https://docs.anaconda.com/ai-navigator/user-guide/models/)
-of large-language-models (LLMs).
 This package provides programmatic access and an SDK to access the curated models, download them, and start servers.
 
 Below you will find documentation for
@@ -26,12 +23,18 @@ Below you will find documentation for
 conda install -c anaconda-cloud anaconda-ai
 ```
 
-## Backend
+## Backends
 
-The backend service for anaconda-ai is the [Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)
-application. This package package utilizes the backend API to list and download models and manage running servers.
-All activities performed by the CLI, SDK, and integrations here are visible within the Anaconda AI Navigator
-application.
+The anaconda-ai package is the CLI/SDK for a number of backends that provide API endpoint to list and download models and manage running servers.
+All activities performed by the CLI, SDK, and integrations here are visible within the backend application or site.
+
+The available backends are
+
+|Backend name|Configuration value|Supports|Default|
+|------------|-------------------|--------|-------|
+|[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEFAULT|
+|Anaconda Desktop (beta)|`"anaconda-desktop"`|Models,Servers,Server Parameters,VectorDB||
+|Anaconda AI Catalyst (beta)|`"ai-catalyst"`|Models,Servers||
 
 ## Configuration
 
@@ -40,9 +43,15 @@ Anaconda AI supports configuration management in the `~/.anaconda/config.toml` f
 
 |Parameter|Environment variable|Description|Default value|
 |---------|--------------------|-----------|-------------|
+|`backend`|`ANACONDA_AI_BACKEND`|The backend API|`"ai-navigator"`|
 |`stop_server_on_exit`|`ANACONDA_AI_STOP_SERVER_ON_EXIT`|For any server started during a Python interpreter session stop the server when the interpreter stops. Does not affect servers that were previously running|`true`|
 |`server_operations_timeout`|`ANACONDA_AI_SERVER_OPERATIONS_TIMEOUT`|Timeout waiting for a server to start or stop|`30`|
 |`show_blocked_models`|`ANACONDA_AI_SHOW_BLOCKED_MODELS`|Toggle display of blocked models if backend supports it|`false`|
+
+## Configuration CLI
+
+Use `anaconda ai config` command to apply changes to the `~/.anaconda/config.toml`. See `anaconda ai config --help`
+for details.
 
 ## Declaring model quantization files
 
@@ -74,7 +83,7 @@ download model files, start and stop servers through the backend.
 |launch|Launch a server for a model file|
 |servers|Show all running servers or detailed information about a single server|
 |stop|Stop a running server by id|
-|launch-vectordb|Starts a pg vector db|
+|launch-vectordb|Starts a pg vector db (not supported by all backends)|
 
 See the `--help` for each command for more details.
 
@@ -232,7 +241,9 @@ with client.servers.create('OpenHermes-2.5-Mistral-7B/Q4_K_M') as server:
 Each of  `.openai_client()` and `async_openai_client()` allow extra keyword parameters to pass to the
 client initialization.
 
-#### AI Navigator Server Configuration Options
+#### Server Configuration Options
+
+Not all backends support `extra_options=` on server create.
 
 The AI Navigator backend supports [llama-server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
 passed as snake-case dictionary keys to `client.servers.create()` with the `extra_options` kwarg.
@@ -262,7 +273,7 @@ server = client.servers.create(
 
 ### Vector Db
 
-Creates a postgres vector db and returns the connection information.
+Creates a postgres vector db and returns the connection information. VectorDB is not supported by all backends.
 
 ```text
 anaconda ai launch-vectordb
