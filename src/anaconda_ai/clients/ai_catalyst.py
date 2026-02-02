@@ -12,6 +12,7 @@ from requests.exceptions import HTTPError
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
 from anaconda_auth.token import TokenInfo
+from anaconda_auth.exceptions import LoginRequiredError
 from anaconda_cli_base.console import console
 from anaconda_cli_base.exceptions import register_error_handler
 
@@ -98,7 +99,7 @@ class AICatalystQuantizedFile(QuantizedFile):
     policy: Optional[AICatalystQuantizedFilePolicy] = None
     _model: "AICatalystModel" = PrivateAttr()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_allowed(self) -> bool:
         if self.policy is None:
@@ -162,8 +163,17 @@ class AICatalystModel(Model):
     converted_files: List[AICatalystConvertedFiles]
     _client: "AICatalystClient" = PrivateAttr()
 
+    def __init__(self, client: "AICatalystClient", **data: Any) -> None:
+        super().__init__(**data)
+        self._client = client
+
 
 class AICatalystModels(BaseModels):
+    client: "AICatalystClient"
+
+    def __init__(self, client: "AICatalystClient"):
+        self.client = client
+
     @lru_cache
     def list(self) -> List[AICatalystModel]:
         response = self.client.get("/api/ai/model/org/models/model-data")
@@ -173,7 +183,7 @@ class AICatalystModels(BaseModels):
         models = []
         for model in data:
             try:
-                entry = AICatalystModel(client=self.client, **model)
+                entry = AICatalystModel(client=self.client, **model)  # type: ignore[call-arg]
                 models.append(entry)
             except ValidationError as e:
                 raise ValueError(
@@ -203,7 +213,7 @@ class AICatalystModels(BaseModels):
 
     def _download(
         self,
-        model_quantization: AICatalystQuantizedFile,
+        model_quantization: AICatalystQuantizedFile,  # type: ignore[override]
         path: Optional[Path] = None,
     ) -> Generator[int, None, None]:
         if not model_quantization.published:
@@ -215,9 +225,13 @@ class AICatalystModels(BaseModels):
             )
 
         if not model_quantization.is_allowed:
-            policy = model_quantization.policy.model_dump_json(indent=2)
+            if model_quantization.policy:
+                msg = model_quantization.policy.model_dump_json(indent=2)
+            else:
+                msg = "<unknown>"
+
             raise ModelNotAvailableError(
-                f"{model_quantization.identifier} cannot be downloaded\nPolicy:\n{policy}"
+                f"{model_quantization.identifier} cannot be downloaded\nPolicy:\n{msg}"
             )
 
         res = self.client.get(model_quantization.download_url)
@@ -240,7 +254,7 @@ class AICatalystModels(BaseModels):
             path.unlink(missing_ok=True)
             path.hardlink_to(model_quantization.local_path)
 
-    def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:
+    def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:  # type: ignore[override]
         model_quantization.local_path.unlink()
 
 
@@ -256,10 +270,17 @@ class AICatalystServer(Server):
     config: AICatalystServerConfig
     _client: "AICatalystClient" = PrivateAttr()
 
+    def __init__(self, client: "AICatalystClient", **data: Any) -> None:
+        super().__init__(**data)
+        self._client = client
+
 
 class AICatalystServers(BaseServers):
     client: "AICatalystClient"
     download_required: bool = False
+
+    def __init__(self, client: "AICatalystClient"):
+        self.client = client
 
     def list(self) -> List[AICatalystServer]:
         res = self.client.get("api/ai/inference/servers")
@@ -292,10 +313,13 @@ class AICatalystServers(BaseServers):
     def get(self, server: Union[str, UUID]) -> AICatalystServer:
         servers = self.list()
 
-        try:
-            uuid = UUID(server)
-        except ValueError:
-            uuid = None
+        if isinstance(server, str):
+            try:
+                uuid = UUID(server)
+            except ValueError:
+                uuid = None
+        else:
+            uuid = server
 
         for found_server in servers:
             if uuid and found_server.uuid == uuid:
@@ -306,7 +330,7 @@ class AICatalystServers(BaseServers):
 
     def _create(
         self,
-        model_quantization: AICatalystQuantizedFile,
+        model_quantization: AICatalystQuantizedFile,  # type: ignore[override]
         extra_options: Optional[Dict[str, Any]] = None,
     ) -> Server:
         file_uuid = model_quantization.file_uuid
@@ -358,12 +382,18 @@ class AICatalystServers(BaseServers):
 
         return server_entry
 
-    def _get_server_id(self, server: Union[AICatalystServer, UUID, str]) -> str:
+    def _get_server_id(self, server: Union[AICatalystServer, UUID, str]) -> str:  # type: ignore[override]
         if isinstance(server, AICatalystServer):
             server_id = str(server.uuid)
+        elif isinstance(server, UUID):
+            server_id = str(server)
         elif isinstance(server, str):
             server_entry = self.get(server)
-            server_id = server_entry.uuid
+            server_id = str(server_entry.uuid)
+        else:
+            raise ValueError(
+                f"{server} ({type(server)} is not a valid server identifier"
+            )
 
         return server_id
 
@@ -467,6 +497,8 @@ class AICatalystClient(GenericClient):
     @cached_property
     def api_key(self) -> str:
         key = self.config.api_key or TokenInfo.load(domain=self.config.domain).api_key
+        if key is None:
+            raise LoginRequiredError()
         return key
 
     @property
