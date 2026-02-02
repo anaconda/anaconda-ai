@@ -13,12 +13,13 @@ from typing import Union
 import typer
 from requests.exceptions import HTTPError
 from rich.console import RenderableType
+from rich.prompt import Confirm
 from rich.table import Column
 from rich.table import Table
 
 from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
-from .clients import AnacondaAIClient
+from .clients import AnacondaAIClient, clients
 from .clients.base import GenericClient, Server, VectorDbTableSchema
 from ._version import __version__
 
@@ -569,3 +570,59 @@ def create_table(
         console.print_json(data={"status": "success"})
     else:
         console.print("[green]Success[/green]")
+
+
+def _confirm_write(
+    sites: AnacondaAIConfig,
+    yes: Optional[bool],
+    preserve_existing_keys: bool = True,
+) -> None:
+    if yes is True:
+        sites.write_config(preserve_existing_keys=preserve_existing_keys)
+    elif yes is False:
+        sites.write_config(dry_run=True, preserve_existing_keys=preserve_existing_keys)
+    else:
+        sites.write_config(dry_run=True, preserve_existing_keys=preserve_existing_keys)
+        if Confirm.ask("Confirm:"):
+            sites.write_config(preserve_existing_keys=preserve_existing_keys)
+
+
+@app.command(
+    "config",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def configure(
+    backend: Annotated[str | None, typer.Option(help="Set the default backend")] = None,
+    stop_server_on_exit: Annotated[bool | None, typer.Option()] = None,
+    server_operations_timeout: Annotated[
+        int | None,
+        typer.Option(help="Timeout (seconds) waiting for server start, default is 60"),
+    ] = None,
+    show_blocked_models: Annotated[
+        bool | None, typer.Option(help="Show blocked models in CLI.")
+    ] = None,
+    yes: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--yes/--dry-run",
+            "-y",
+            help="Confirm changes and write, use --dry-run to print diff but do not write",
+        ),
+    ] = None,
+) -> None:
+    config = AnacondaAIConfig()
+    if backend is not None:
+        if backend not in clients:
+            console.print(f"{backend} is not a supported backend.")
+        config.backend = backend  # type: ignore
+
+    if server_operations_timeout is not None:
+        config.server_operations_timeout = server_operations_timeout
+
+    if stop_server_on_exit is not None:
+        config.stop_server_on_exit = stop_server_on_exit
+
+    if show_blocked_models is not None:
+        config.show_blocked_models = show_blocked_models
+
+    _confirm_write(config, yes=yes)

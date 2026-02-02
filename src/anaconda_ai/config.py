@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import platformdirs
-from pydantic import BaseModel, computed_field, field_validator, Field
+from pydantic import BaseModel, field_validator, field_serializer, Field
 
 from anaconda_ai.exceptions import AINavigatorConfigError
 from anaconda_cli_base.config import AnacondaBaseSettings
@@ -14,6 +14,10 @@ class AICatalystConfig(BaseModel):
     api_version: str = "2"
     models_path: Path = Path("~/.anaconda/ai/models").expanduser()
 
+    @field_serializer("models_path")
+    def serialize_models_path(self, models_path: Path) -> str:
+        return str(models_path)
+
     @field_validator("models_path")
     def expand_vars_models_path(cls, v: str) -> Path:
         return Path(expandvars(v)).expanduser()
@@ -22,7 +26,6 @@ class AICatalystConfig(BaseModel):
 class AINavigatorConfig(BaseModel):
     app_name: str = "ai-navigator"
 
-    @computed_field  # type: ignore[prop-decorator]
     @property
     def models_path(self) -> Path:
         path = self.get_config("downloadLocation")
