@@ -321,8 +321,10 @@ class AICatalystServers(BaseServers):
 
         for found_server in servers:
             if uuid and found_server.uuid == uuid:
+                found_server._matched = True
                 return found_server
             elif server == found_server.id:
+                found_server._matched = True
                 return found_server
         raise ServerNotFoundError(f"Server {server} was not found.")
 
