@@ -293,14 +293,10 @@ def launch(
     backend: Annotated[
         Optional[str], typer.Option(help="Select inference backend")
     ] = None,
-    detach: bool = typer.Option(
-        False, "-d", "--detach", help="Start model server and leave it running."
-    ),
     remove: bool = typer.Option(
-        False,
-        "--rm",
-        "--remove",
-        help="Remove server after stopped. This is ignored when using --detach.",
+        True,
+        "--rm/--detach",
+        help="Stop and remove server on ctrl-C (default) or leave running with --detach.",
     ),
     show: Optional[bool] = typer.Option(
         False, help="Open your webbrowser when the server starts."
@@ -311,13 +307,13 @@ def launch(
     extra_options = {}
     for arg in ctx.args:
         if not arg.startswith("--"):
-            continue
+            raise ValueError("Extra server args must be passed as --key=value or --key")
         key, *value = arg[2:].split("=", maxsplit=1)
 
         if len(value) > 1:
             raise ValueError(arg)
 
-        extra_options[key] = True if value[0] is None else value[0]
+        extra_options[key] = True if not value else value[0]
 
     client = AnacondaAIClient(backend=backend, site=site)
 
@@ -338,12 +334,11 @@ def launch(
 
         webbrowser.open(server.url)
 
-    if client.servers.always_detach:
-        return
-    elif detach:
+    if not remove:
         return
 
     try:
+        console.print("[it]This server will stop and delete on [/it] [bold]^C[/bold]")
         while True:
             pass
     except KeyboardInterrupt:
@@ -389,7 +384,7 @@ def _servers_list(
 def _server_info(server: Server) -> Tuple[RenderableType, MutableMapping[str, Any]]:
     table = Table.grid(padding=1, pad_edge=True)
     table.add_column("Metadata", justify="center", style="bold green")
-    table.add_column("Value", justify="left", no_wrap=False)
+    table.add_column("Value", justify="left", no_wrap=True)
     table.add_row("Server", server.id)
     table.add_row("Model", server.config.model_name)
     table.add_row("OpenAI Compatible URL", server.openai_url)
