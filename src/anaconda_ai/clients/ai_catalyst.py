@@ -164,15 +164,14 @@ class AICatalystModel(Model):
     _client: "AICatalystClient" = PrivateAttr()
 
     def __init__(self, client: "AICatalystClient", **data: Any) -> None:
-        super().__init__(**data)
-        self._client = client
+        super().__init__(client=client, **data)
 
 
 class AICatalystModels(BaseModels):
     client: "AICatalystClient"
 
     def __init__(self, client: "AICatalystClient"):
-        self.client = client
+        super().__init__(client=client)
 
     @lru_cache
     def list(self) -> List[AICatalystModel]:
@@ -271,8 +270,7 @@ class AICatalystServer(Server):
     _client: "AICatalystClient" = PrivateAttr()
 
     def __init__(self, client: "AICatalystClient", **data: Any) -> None:
-        super().__init__(**data)
-        self._client = client
+        super().__init__(client=client, **data)
 
 
 class AICatalystServers(BaseServers):
@@ -280,7 +278,7 @@ class AICatalystServers(BaseServers):
     download_required: bool = False
 
     def __init__(self, client: "AICatalystClient"):
-        self.client = client
+        super().__init__(client=client)
 
     def list(self) -> List[AICatalystServer]:
         res = self.client.get("api/ai/inference/servers")
