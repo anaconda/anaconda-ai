@@ -12,7 +12,7 @@ from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from ..clients import AnacondaAIClient
 from ..clients.base import GenericClient, Server
 
-CREATED_SERVERS = {}
+CREATED_SERVERS: dict[str, Server] = {}
 
 
 def prepare_server(model: str, options: dict) -> Server:
