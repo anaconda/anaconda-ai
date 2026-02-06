@@ -1,3 +1,4 @@
+import threading
 from copy import deepcopy
 from typing import Callable, Iterator, Optional, Any, Union, cast, AsyncIterator, Tuple
 
@@ -12,6 +13,9 @@ from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from ..clients import AnacondaAIClient
 from ..clients.base import GenericClient, Server
 
+_SERVER_LOCK = threading.Lock()
+CREATED_SERVERS: dict[str, Server] = {}
+
 
 def prepare_server(model: str, options: dict) -> Server:
     kwargs = deepcopy(options)
@@ -25,14 +29,18 @@ def prepare_server(model: str, options: dict) -> Server:
 
     server_params = kwargs.pop("server", {})
 
-    if model.startswith("server/"):
-        server_name = model.split("/", maxsplit=1)[1]
-        server = client.servers.get(server_name)
-    else:
-        server = client.servers.create(model, extra_options=server_params)
+    with _SERVER_LOCK:
+        if model.startswith("server/"):
+            server_name = model.split("/", maxsplit=1)[1]
+            server = client.servers.get(server_name)
+        elif model in CREATED_SERVERS:
+            server = CREATED_SERVERS[model]
+        else:
+            server = client.servers.create(model, extra_options=server_params)
+            CREATED_SERVERS[model] = server
 
-    if not server.is_running:
-        server.start()
+        if not server.is_running:
+            server.start()
 
     return server
 
