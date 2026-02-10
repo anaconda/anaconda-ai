@@ -146,6 +146,9 @@ class Model(BaseModel):
     num_parameters: int
     trained_for: str
     context_window_size: int
+    is_chat_model: bool
+    is_embedding_model: bool
+    supports_tool_calling: bool
     quantized_files: Sequence[QuantizedFile]
     _client: GenericClient = PrivateAttr()
 
