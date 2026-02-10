@@ -86,7 +86,7 @@ def start_server(
             extra_options=extra_options,
             show_progress=False,
         )
-        server.start(show_progress=False, leave_running=True)
+        server.start(show_progress=False, leave_running=True, wait=False)
         return {
             "server_id": str(server.id),
             "model": server.config.model_name,

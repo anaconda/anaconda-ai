@@ -343,6 +343,7 @@ class Server(BaseModel):
         show_progress: bool = True,
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
+        wait: bool = True,
     ) -> None:
         text = f"{self.config.model_name} (creating)"
         console = Console() if console is None else console
@@ -352,6 +353,8 @@ class Server(BaseModel):
             status = "starting"
             text = f"{self.config.model_name} ({status})"
             display.update(text)
+            if not wait:
+                return
 
             t0 = time()
             start_timeout = self._client.ai_config.server_operations_timeout
