@@ -148,7 +148,7 @@ def run(
     """Run the MCP server. Default: stdio. Use transport='streamable-http' for HTTP."""
     mcp.settings.port = port
     mcp.settings.host = host
-    mcp.run(transport=transport)
+    mcp.run(transport=transport)  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
