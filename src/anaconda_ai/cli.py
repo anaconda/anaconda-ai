@@ -621,3 +621,34 @@ def configure(
         config.show_blocked_models = show_blocked_models
 
     _confirm_write(config, yes=yes)
+
+
+@app.command("mcp")
+def mcp_server(
+    transport: Annotated[
+        str,
+        typer.Option("--transport", "-t", help="Transport: stdio or streamable-http"),
+    ] = "stdio",
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Host for streamable-http (default 127.0.0.1)"),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", "-p", help="Port for streamable-http (default 8000)"),
+    ] = 8000,
+) -> None:
+    """Run the Anaconda AI MCP server (list models/servers, start/stop/remove servers).
+
+    Requires: pip install 'anaconda-ai[mcp]'
+    Use stdio for IDE/client integration; use streamable-http for HTTP at host:port/mcp.
+    """
+    try:
+        from anaconda_ai.mcp_server import run
+    except ImportError as e:
+        console.print(
+            "[red]MCP server requires the mcp package.[/] "
+            "Install with: [bold]pip install 'anaconda-ai[mcp]'[/]"
+        )
+        raise typer.Exit(1) from e
+    run(transport=transport, host=host, port=port)
