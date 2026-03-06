@@ -50,7 +50,15 @@ anaconda ai claude OpenHermes-2.5-Mistral-7B/Q4_K_M --detach
 
 # Use specific backend
 anaconda ai claude OpenHermes-2.5-Mistral-7B/Q4_K_M --backend ai-navigator --at mysite
+
+# What actually gets executed (internally):
+# claude --model OpenHermes-2.5-Mistral-7B/Q4_K_M --verbose
+# with ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY set in the environment
 ```
+
+### Auto-Injected CLI Args
+
+The wrapper automatically prepends `--model <model-name>` to the arguments passed to `claude`. While the local inference server ignores the model field in API requests, passing `--model` ensures Claude Code's UI displays the correct model name and future-proofs against servers that may validate it. The user's arguments from after `--` are appended after the injected `--model` flag.
 
 ### Error Cases
 
@@ -72,6 +80,9 @@ Identical contract to `anaconda ai claude` except:
 | Binary invoked | `opencode` |
 | Not-found message | "OpenCode is not installed. Install from: https://opencode.ai" |
 | Env vars injected | `OPENCODE_CONFIG_CONTENT` (JSON) instead of `ANTHROPIC_*` |
+| Auto-injected CLI args | `--model=anaconda/<model-name>` (equals-separated, with `anaconda/` provider prefix) instead of `--model <model-name>` (space-separated, bare model name) |
+
+The wrapper automatically prepends `--model=anaconda/<model-name>` to the arguments passed to `opencode`. This ensures the model is selected at the highest priority level (CLI flag), matching the pattern used by OpenCode's own SDK (`createOpencodeTui`). The user's arguments from after `--` are appended after the injected `--model` flag.
 
 ```bash
 # Launch server and run OpenCode
@@ -79,4 +90,8 @@ anaconda ai opencode OpenHermes-2.5-Mistral-7B/Q4_K_M
 
 # With server options
 anaconda ai opencode OpenHermes-2.5-Mistral-7B/Q4_K_M --ctx-size=4096 -- --theme dark
+
+# What actually gets executed (internally):
+# opencode --model=anaconda/OpenHermes-2.5-Mistral-7B/Q4_K_M --theme dark
+# with OPENCODE_CONFIG_CONTENT set in the environment
 ```

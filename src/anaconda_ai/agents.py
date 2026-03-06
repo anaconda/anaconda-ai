@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 from .clients.base import Server
 
@@ -22,6 +22,7 @@ class AgentDefinition:
     name: str
     binary: str
     build_env: Callable[[Server, str], Dict[str, str]]
+    build_agent_args: Callable[[str], List[str]]
     install_hint: str
 
 
@@ -75,18 +76,42 @@ def build_env_opencode(server: Server, model_name: str) -> Dict[str, str]:
     }
 
 
+def build_agent_args_claude(model_name: str) -> List[str]:
+    """Build extra CLI arguments for Claude Code.
+
+    Claude Code accepts --model to set the model for the session. While the
+    local server ignores the model field in API requests, passing it ensures
+    Claude Code's UI displays the correct model name and future-proofs against
+    servers that may validate it.
+    """
+    return ["--model", model_name]
+
+
+def build_agent_args_opencode(model_name: str) -> List[str]:
+    """Build extra CLI arguments for OpenCode.
+
+    OpenCode's TUI accepts --model as the highest-priority model selection
+    mechanism (thread.ts#L71-L75), bypassing isModelValid() checks that can
+    silently drop the config "model" field. This matches the OpenCode SDK's
+    createOpencodeTui() pattern in packages/sdk/js/src/v2/server.ts.
+    """
+    return [f"--model=anaconda/{model_name}"]
+
+
 # Agent registry — keyed by CLI command name
 AGENTS: Dict[str, AgentDefinition] = {
     "claude": AgentDefinition(
         name="Claude Code",
         binary="claude",
         build_env=build_env_claude,
+        build_agent_args=build_agent_args_claude,
         install_hint="Install with: npm install -g @anthropic-ai/claude-code",
     ),
     "opencode": AgentDefinition(
         name="OpenCode",
         binary="opencode",
         build_env=build_env_opencode,
+        build_agent_args=build_agent_args_opencode,
         install_hint="Install from: https://opencode.ai",
     ),
 }

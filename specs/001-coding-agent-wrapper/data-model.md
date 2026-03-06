@@ -13,11 +13,12 @@ Represents a supported coding agent with its configuration requirements.
 | `name` | string | Display name (e.g., "Claude Code") |
 | `binary` | string | Executable name to find on PATH (e.g., "claude") |
 | `build_env` | callable | Function `(Server, model_name) -> dict[str, str]` that produces the environment variables to inject |
+| `build_agent_args` | callable | Function `(model_name) -> list[str]` that produces agent-specific CLI args to prepend (e.g., OpenCode's `--model` flag). Returns `[]` for agents that need no extra args. |
 | `install_hint` | string | Human-readable installation instructions shown when binary is not found |
 
 **Instances** (initial):
-- Claude Code: binary=`claude`, env via `ANTHROPIC_BASE_URL` (from `server.url`) + `ANTHROPIC_API_KEY`
-- OpenCode: binary=`opencode`, env via `OPENCODE_CONFIG_CONTENT` (JSON string using `server.openai_url`)
+- Claude Code: binary=`claude`, env via `ANTHROPIC_BASE_URL` (from `server.url`) + `ANTHROPIC_API_KEY`, injects `--model <model-name>` CLI args (space-separated)
+- OpenCode: binary=`opencode`, env via `OPENCODE_CONFIG_CONTENT` (JSON string using `server.openai_url`), injects `--model=anaconda/<model-name>` CLI arg
 
 ### Server (existing)
 
@@ -62,9 +63,9 @@ Tracks the state of a single wrapper invocation.
 ### Wrapper Process Lifecycle
 
 ```
-[Parse Args] --> [Resolve Server] --> [Build Env] --> [Fork] --> [Parent: Wait] --> [Cleanup] --> [Exit]
-                      |                                  |
-                      |                            [Child: setpgid + tcsetpgrp + execvpe]
+[Parse Args] --> [Resolve Server] --> [Build Env] --> [Build Agent Args] --> [Fork] --> [Parent: Wait] --> [Cleanup] --> [Exit]
+                      |                                                        |
+                      |                                                  [Child: setpgid + tcsetpgrp + execvpe]
                       |
                  model arg --> create/match server
                  server/<id> --> lookup server by ID

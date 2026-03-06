@@ -134,7 +134,7 @@ A developer needs to customize the inference server's configuration (e.g., conte
 ## Assumptions
 
 - The coding agents (Claude Code and OpenCode) are installed separately by the user and available on the system PATH. The wrapper does not install them.
-- Coding agents accept server configuration via agent-specific environment variables or inline configuration (e.g., `ANTHROPIC_BASE_URL` for Claude Code, `OPENCODE_CONFIG_CONTENT` for OpenCode).
+- Coding agents accept server configuration via agent-specific environment variables or inline configuration (e.g., `ANTHROPIC_BASE_URL` for Claude Code, `OPENCODE_CONFIG_CONTENT` for OpenCode). Some agents additionally require or benefit from CLI flags for model selection (e.g., OpenCode's `--model=provider/model` flag takes highest priority over config-based model selection).
 - The existing `AnacondaAIClient.servers.create()` method handles model downloading, server matching, and server creation — the wrapper delegates to this existing infrastructure.
 - The wrapper runs the coding agent as a child process in the foreground, inheriting the user's terminal (stdin/stdout/stderr).
 - The API key provided by the `Server` object is sufficient for authentication with the local inference server (no additional auth flow needed).

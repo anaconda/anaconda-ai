@@ -43,7 +43,7 @@ specs/001-coding-agent-wrapper/
 ```text
 src/anaconda_ai/
 ├── cli.py               # MODIFIED: add @app.command("claude") and @app.command("opencode")
-├── agents.py            # NEW: AgentDefinition registry + per-agent env var builders
+├── agents.py            # NEW: AgentDefinition registry + per-agent env var builders + per-agent CLI arg builders
 ├── process.py           # NEW: fork+exec+tcsetpgrp process launcher + cleanup logic
 ├── clients/
 │   └── base.py          # EXISTING: Server.openai_url, Server.api_key (read-only usage)
@@ -62,6 +62,6 @@ tests/
 See [research.md](research.md) for full analysis. Summary:
 
 1. **Process execution**: `os.fork()` + `os.execvpe()` with `setpgid` + `tcsetpgrp` for full TTY interactivity + post-exit cleanup. The parent masks `SIGINT`, `SIGTSTP`, `SIGTTIN`, and `SIGTTOU` for the entire wait+cleanup phase — without this, the shell can suspend the parent during the child's exit/pgrp transition, preventing server cleanup. Windows fallback via `subprocess.Popen()`.
-2. **Agent env vars**: Per-agent `build_env()` functions. Claude Code uses `ANTHROPIC_BASE_URL` (set to `server.url` — all backends serve `/v1/messages` at the base) + `ANTHROPIC_API_KEY`. OpenCode uses `OPENCODE_CONFIG_CONTENT` (inline JSON with `server.openai_url`).
+2. **Agent env vars**: Per-agent `build_env()` functions. Claude Code uses `ANTHROPIC_BASE_URL` (set to `server.url` — all backends serve `/v1/messages` at the base) + `ANTHROPIC_API_KEY`. OpenCode uses `OPENCODE_CONFIG_CONTENT` (inline JSON with `server.openai_url`). Per-agent `build_agent_args()` functions inject agent-specific CLI flags — both agents get `--model` for model selection: Claude Code uses `--model <model-name>` (space-separated, bare name per Anthropic CLI convention) and OpenCode uses `--model=anaconda/<model-name>` (equals-separated, prefixed per OpenCode provider convention). The `--model` flag is the highest-priority model selection mechanism in both agents.
 3. **Argument parsing**: `--` separator via custom `AgentCommand(TyperCommand)` subclass. Click silently consumes `--` during parsing, so `AgentCommand.parse_args()` intercepts it first — stashing agent args in `ctx.meta['agent_args']` and stripping them before click runs. Typed options (`--detach`, `--backend`, `--at`, `--json`) work in any position. Extra server options go to `ctx.args`. Reuses `launch` command's extra_options pattern for server options.
 4. **Server lifecycle**: Track `server_owned` flag. Only stop servers the wrapper launched (and only if not `--detach`).

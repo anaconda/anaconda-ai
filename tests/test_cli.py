@@ -187,8 +187,13 @@ class TestSeparatorParsing:
         assert create_call is not None
         extra_options = create_call.kwargs.get("extra_options", {})
         assert extra_options.get("ctx-size") == "4096"
-        # Agent received only args after '--'
-        assert captured_agent_args == ["--verbose", "--no-confirm"]
+        # Agent received injected --model flag + args after '--'
+        assert captured_agent_args == [
+            "--model",
+            "TestModel/Q4_K_M",
+            "--verbose",
+            "--no-confirm",
+        ]
 
     def test_separator_splits_server_and_agent_args(
         self, invoke_cli: CLIInvoker
@@ -234,5 +239,93 @@ class TestSeparatorParsing:
         create_call = mock_client.servers.create.call_args
         extra_options = create_call.kwargs.get("extra_options", {})
         assert extra_options == {"ctx-size": "4096", "jinja": True}
-        # Agent args are only what comes after '--'
-        assert captured_agent_args == ["--verbose", "--no-confirm"]
+        # Agent args include injected --model flag + args after '--'
+        assert captured_agent_args == [
+            "--model",
+            "TestModel/Q4_K_M",
+            "--verbose",
+            "--no-confirm",
+        ]
+
+
+class TestModelFlagInjection:
+    """Tests for --model flag injection into agent args (Phase 11)."""
+
+    def test_opencode_injects_model_flag(self, invoke_cli: CLIInvoker) -> None:
+        mock_server = MagicMock()
+        mock_server.id = "srv1"
+        mock_server.url = "http://localhost:8080"
+        mock_server.openai_url = "http://localhost:8080/v1"
+        mock_server.api_key = "test-key"
+        mock_server.is_running = True
+        mock_server._matched = False
+        mock_server.config.model_name = "test-model"
+        mock_server.config.params = {}
+        mock_server.status = "running"
+
+        mock_client = MagicMock()
+        mock_client.servers.create.return_value = mock_server
+
+        captured_agent_args = []
+
+        def mock_run_agent(binary_path, agent_args, env, cleanup_fn=None):
+            captured_agent_args.extend(agent_args)
+            return 0
+
+        with (
+            patch("anaconda_ai.cli.AnacondaAIClient", return_value=mock_client),
+            patch(
+                "anaconda_ai.cli.find_agent_binary", return_value="/usr/bin/opencode"
+            ),
+            patch("anaconda_ai.cli.run_agent_foreground", side_effect=mock_run_agent),
+        ):
+            _ = invoke_cli(
+                "ai",
+                "opencode",
+                "MyModel/Q4_K_M",
+                "--",
+                "--theme",
+                "dark",
+            )
+
+        assert captured_agent_args[0] == "--model=anaconda/MyModel/Q4_K_M"
+        assert "--theme" in captured_agent_args
+        assert "dark" in captured_agent_args
+
+    def test_claude_injects_model_flag(self, invoke_cli: CLIInvoker) -> None:
+        mock_server = MagicMock()
+        mock_server.id = "srv1"
+        mock_server.url = "http://localhost:8080"
+        mock_server.openai_url = "http://localhost:8080/v1"
+        mock_server.api_key = "test-key"
+        mock_server.is_running = True
+        mock_server._matched = False
+        mock_server.config.model_name = "test-model"
+        mock_server.config.params = {}
+        mock_server.status = "running"
+
+        mock_client = MagicMock()
+        mock_client.servers.create.return_value = mock_server
+
+        captured_agent_args = []
+
+        def mock_run_agent(binary_path, agent_args, env, cleanup_fn=None):
+            captured_agent_args.extend(agent_args)
+            return 0
+
+        with (
+            patch("anaconda_ai.cli.AnacondaAIClient", return_value=mock_client),
+            patch("anaconda_ai.cli.find_agent_binary", return_value="/usr/bin/claude"),
+            patch("anaconda_ai.cli.run_agent_foreground", side_effect=mock_run_agent),
+        ):
+            _ = invoke_cli(
+                "ai",
+                "claude",
+                "MyModel/Q4_K_M",
+                "--",
+                "--verbose",
+            )
+
+        assert captured_agent_args[0] == "--model"
+        assert captured_agent_args[1] == "MyModel/Q4_K_M"
+        assert "--verbose" in captured_agent_args

@@ -262,6 +262,25 @@ Task T012: "test_run_agent_foreground_args_forwarded() in tests/test_process.py"
 
 ---
 
+## Phase 11: Inject `--model` Flag for Coding Agents (Post-Implementation Discovery)
+
+**Purpose**: Both OpenCode and Claude Code benefit from receiving the model name via `--model` CLI flag. OpenCode's TUI resolves the model with priority: `--model` CLI flag > config `"model"` field > session history > first available. The config `"model"` field (set via `OPENCODE_CONFIG_CONTENT`) is subject to `isModelValid()` checks that can silently fail. Claude Code uses `--model` for UI display and future-proofing — the local server ignores the model field but the UI shows it.
+
+**Design**: Add a `build_agent_args()` callable to `AgentDefinition`. For OpenCode, it returns `["--model=anaconda/<model-name>"]` (equals-separated, with provider prefix). For Claude Code, it returns `["--model", model_name]` (space-separated, bare model name). The wrapper prepends these args before the user's `--` args when calling `run_agent_foreground()`.
+
+- [x] T055 Add `build_agent_args` field to `AgentDefinition` dataclass in `src/anaconda_ai/agents.py` — `Callable[[str], List[str]]` that takes `model_name` and returns agent-specific CLI args to inject
+- [x] T056 Implement `build_agent_args_opencode(model_name)` in `src/anaconda_ai/agents.py` — returns `["--model=anaconda/<model-name>"]`
+- [x] T057 Implement `build_agent_args_claude(model_name)` in `src/anaconda_ai/agents.py` — returns `["--model", model_name]` (Claude Code accepts `--model` for UI display and future-proofing, space-separated with bare model name)
+- [x] T058 Wire `build_agent_args` into AGENTS registry entries for both `"claude"` and `"opencode"` in `src/anaconda_ai/agents.py`
+- [x] T059 Update `_run_wrapper()` in `src/anaconda_ai/cli.py` — call `agent.build_agent_args(model_name)` and prepend the result to `agent_args` before passing to `run_agent_foreground()`
+- [x] T060 [P] Write test in `tests/test_agents.py`: `test_build_agent_args_opencode()` — assert returns `["--model=anaconda/MyModel"]` for model_name `"MyModel"`
+- [x] T061 [P] Write test in `tests/test_agents.py`: `test_build_agent_args_claude()` — assert returns `["--model", "MyModel"]` for model_name `"MyModel"`
+- [x] T062 [P] Write test in `tests/test_cli.py`: `test_opencode_injects_model_flag()` — mock `run_agent_foreground`, invoke `anaconda ai opencode MyModel/Q4_K_M`, assert `agent_args` starts with `["--model=anaconda/MyModel/Q4_K_M"]`
+- [x] T063 [P] Write test in `tests/test_cli.py`: `test_claude_injects_model_flag()` — mock `run_agent_foreground`, invoke `anaconda ai claude MyModel/Q4_K_M`, assert `agent_args` starts with `["--model", "MyModel/Q4_K_M"]`
+- [x] T064 Run `make test` and verify all tests pass
+
+---
+
 ## Notes
 
 - [P] tasks = different files, no dependencies

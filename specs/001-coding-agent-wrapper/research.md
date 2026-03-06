@@ -102,17 +102,22 @@ Each coding agent requires different environment variables and potentially diffe
 
 All Anaconda AI backends expose the `/v1/messages` Anthropic-compatible route at their base URL, so `server.url` is the correct value. Note: do NOT use `server.openai_url` (which appends `/v1` for OpenAI format) — that would result in a double-pathed `http://localhost:8080/v1/v1/messages`.
 
+**Model selection via `--model` CLI flag**: Claude Code accepts `--model <name>` (space-separated) to set the model for the session ([CLI reference](https://docs.anthropic.com/en/docs/claude-code/cli-reference)). The wrapper injects `--model <model-name>` so Claude Code's UI displays the correct model name. The local server ignores the `model` field in API requests (it serves whatever model is loaded), but passing it ensures correct display and future-proofs against servers that may validate it.
+
 ### OpenCode
 
 **Binary**: `opencode`
 **Wire format**: Configurable via provider registry (models.dev); supports OpenAI-compatible via `@ai-sdk/openai-compatible`
-**Key env vars**:
 
-OpenCode does NOT read a base URL from a single env var. Configuration must be injected via:
+OpenCode requires two separate configuration mechanisms — one for the provider/endpoint and one for model selection:
+
+#### 1. Provider Configuration via `OPENCODE_CONFIG_CONTENT`
+
+OpenCode does NOT read a base URL from a single env var. Provider/endpoint configuration must be injected via:
 
 | Env Var | Value | Purpose |
 |---------|-------|---------|
-| `OPENCODE_CONFIG_CONTENT` | JSON string with provider config | Inline config injection (highest precedence) |
+| `OPENCODE_CONFIG_CONTENT` | JSON string with provider config | Inline config injection (highest config precedence, per `config.ts#L78-L179`) |
 
 The JSON config must define a custom provider pointing at the server's OpenAI-compatible endpoint:
 
@@ -133,6 +138,24 @@ The JSON config must define a custom provider pointing at the server's OpenAI-co
   "model": "anaconda/<model-name>"
 }
 ```
+
+#### 2. Model Selection via `--model` CLI Flag
+
+OpenCode's TUI accepts `--model` / `-m` as a CLI flag (`thread.ts#L71-L75`):
+
+```
+opencode --model=anaconda/<model-name>
+```
+
+**Model resolution priority** (from `local.tsx#L153-L173`):
+1. `--model` CLI flag — **highest priority, unconditional**
+2. `OPENCODE_CONFIG_CONTENT`'s `"model"` field — second priority, subject to `isModelValid()` check
+3. Per-session recently used model
+4. First model from first available provider
+
+The config `"model"` field alone is fragile — if `isModelValid()` fails (e.g., provider not yet synced), it silently falls through to another model. The `--model` CLI flag bypasses this check on the `run` subcommand path entirely (`run.ts#L639-L646`).
+
+**The wrapper MUST pass `--model=anaconda/<model-name>` as a CLI argument** in addition to `OPENCODE_CONFIG_CONTENT`. This matches OpenCode's own SDK behavior — `createOpencodeTui()` in `packages/sdk/js/src/v2/server.ts` sets both `OPENCODE_CONFIG_CONTENT` and `--model=` when a model is specified.
 
 ### Extensibility
 

@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 from anaconda_ai.agents import (
     AGENTS,
     AgentDefinition,
+    build_agent_args_claude,
+    build_agent_args_opencode,
     build_env_claude,
     build_env_opencode,
     find_agent_binary,
@@ -110,3 +112,19 @@ class TestAgentsRegistry:
             assert len(agent.install_hint) > 10, (
                 f"Agent '{name}' install_hint too short: {agent.install_hint}"
             )
+
+
+class TestBuildAgentArgs:
+    """Tests for per-agent CLI argument builders (Phase 11)."""
+
+    def test_build_agent_args_opencode(self) -> None:
+        result = build_agent_args_opencode("MyModel")
+        assert result == ["--model=anaconda/MyModel"]
+
+    def test_build_agent_args_opencode_with_quant(self) -> None:
+        result = build_agent_args_opencode("OpenHermes-2.5-Mistral-7B/Q4_K_M")
+        assert result == ["--model=anaconda/OpenHermes-2.5-Mistral-7B/Q4_K_M"]
+
+    def test_build_agent_args_claude(self) -> None:
+        result = build_agent_args_claude("MyModel")
+        assert result == ["--model", "MyModel"]

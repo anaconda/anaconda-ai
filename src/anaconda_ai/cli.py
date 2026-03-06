@@ -766,6 +766,10 @@ def _run_wrapper(
     # Build agent-specific environment variables
     env = agent.build_env(server, model_name)
 
+    # Build agent-specific CLI args (e.g., --model for OpenCode) and prepend to user args
+    injected_args = agent.build_agent_args(model_name)
+    agent_args = injected_args + agent_args
+
     # Build cleanup function
     cleanup_fn = None
     if server_owned and remove:
