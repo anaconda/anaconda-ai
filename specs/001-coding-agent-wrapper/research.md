@@ -77,15 +77,15 @@ Each coding agent requires different environment variables and potentially diffe
 ### Claude Code
 
 **Binary**: `claude`
-**Wire format**: Anthropic API (`/v1/messages`) — NOT OpenAI-compatible
+**Wire format**: Anthropic API (`/v1/messages`)
 **Key env vars**:
 
 | Env Var | Value from Server | Purpose |
 |---------|-------------------|---------|
-| `ANTHROPIC_BASE_URL` | `server.openai_url` (without `/v1` suffix — adjusted to match Anthropic format) | API endpoint |
+| `ANTHROPIC_BASE_URL` | `server.url` (the raw base URL, e.g., `http://localhost:8080`) | API endpoint — Claude Code appends `/v1/messages` itself |
 | `ANTHROPIC_API_KEY` | `server.api_key` or dummy value | Auth (local servers typically don't validate) |
 
-**Wire format note**: Claude Code sends requests in Anthropic's Messages API format (`POST /v1/messages`), not OpenAI's chat completions format. Services like OpenRouter work because they accept the Anthropic wire format on their end. For local inference servers that only speak OpenAI format (llama.cpp, Ollama), a translation proxy (LiteLLM, Claude Code Router) would be needed between the server and Claude Code. This is outside the wrapper's scope — the wrapper only sets `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`; ensuring the endpoint speaks the right protocol is the user's or backend's responsibility.
+All Anaconda AI backends expose the `/v1/messages` Anthropic-compatible route at their base URL, so `server.url` is the correct value. Note: do NOT use `server.openai_url` (which appends `/v1` for OpenAI format) — that would result in a double-pathed `http://localhost:8080/v1/v1/messages`.
 
 ### OpenCode
 

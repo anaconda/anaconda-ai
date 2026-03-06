@@ -16,8 +16,8 @@ Represents a supported coding agent with its configuration requirements.
 | `install_hint` | string | Human-readable installation instructions shown when binary is not found |
 
 **Instances** (initial):
-- Claude Code: binary=`claude`, env via `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY`
-- OpenCode: binary=`opencode`, env via `OPENCODE_CONFIG_CONTENT` (JSON string)
+- Claude Code: binary=`claude`, env via `ANTHROPIC_BASE_URL` (from `server.url`) + `ANTHROPIC_API_KEY`
+- OpenCode: binary=`opencode`, env via `OPENCODE_CONFIG_CONTENT` (JSON string using `server.openai_url`)
 
 ### Server (existing)
 
@@ -25,7 +25,8 @@ Already defined in `clients/base.py`. Key attributes used by the wrapper:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `openai_url` | string | OpenAI-compatible endpoint URL (e.g., `http://localhost:8080/v1`) |
+| `openai_url` | string | OpenAI-compatible endpoint URL with `/v1` appended (e.g., `http://localhost:8080/v1`) — used for OpenCode |
+| `url` | string | Raw base URL without path suffix (e.g., `http://localhost:8080`) — used for Claude Code's `ANTHROPIC_BASE_URL` |
 | `api_key` | string | API key for server authentication |
 | `id` | string | Server identifier for lookup |
 | `is_running` | bool | Whether the server is currently running |

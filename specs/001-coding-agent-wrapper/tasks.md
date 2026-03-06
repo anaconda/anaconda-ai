@@ -45,7 +45,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_claude()` — given a mock Server with `openai_url="http://localhost:8080/v1"` and `api_key="test-key"`, assert `build_env_claude()` returns `{"ANTHROPIC_BASE_URL": "http://localhost:8080", "ANTHROPIC_API_KEY": "test-key"}` (note: strip `/v1` suffix for Anthropic format)
+- [ ] T006 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_claude()` — given a mock Server with `url="http://localhost:8080"` and `api_key="test-key"`, assert `build_env_claude()` returns `{"ANTHROPIC_BASE_URL": "http://localhost:8080", "ANTHROPIC_API_KEY": "test-key"}` (uses `server.url` directly — all backends serve `/v1/messages` at the base URL)
 - [ ] T007 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_opencode()` — given a mock Server, assert `build_env_opencode()` returns a dict with `OPENCODE_CONFIG_CONTENT` key containing valid JSON with the server's baseURL and apiKey in the provider config
 - [ ] T008 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_found()` — monkeypatch `shutil.which` to return `/usr/bin/claude`, assert `find_agent_binary("claude")` returns the path
 - [ ] T009 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_not_found()` — monkeypatch `shutil.which` to return `None`, assert `find_agent_binary("claude")` raises or returns None with the install hint from the AgentDefinition
@@ -56,7 +56,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement `build_env_claude(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `ANTHROPIC_BASE_URL` (server.openai_url with `/v1` stripped) and `ANTHROPIC_API_KEY` (server.api_key or `"not-needed"`)
+- [ ] T013 [US1] Implement `build_env_claude(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `ANTHROPIC_BASE_URL` set to `server.url` (the raw base URL — all backends serve the Anthropic `/v1/messages` route at their base) and `ANTHROPIC_API_KEY` set to `server.api_key` or `"not-needed"`
 - [ ] T014 [US1] Implement `build_env_opencode(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `OPENCODE_CONFIG_CONTENT` containing JSON per research.md Decision 2 OpenCode section
 - [ ] T015 [US1] Implement `find_agent_binary(binary_name)` in `src/anaconda_ai/agents.py` — use `shutil.which()`, return path or None
 - [ ] T016 [US1] Implement `run_agent_foreground(binary_path, agent_args, env, cleanup_fn)` in `src/anaconda_ai/process.py` — the full fork+exec+tcsetpgrp+waitpid+cleanup flow per research.md Decision 1 Implementation Protocol. Include Windows fallback using `subprocess.Popen` when `os.fork` is not available. The parent's `waitpid()` loop must NOT catch or suppress errors originating from the agent process (e.g., connection failures from a crashed server) — propagate whatever exit code the agent returns.
