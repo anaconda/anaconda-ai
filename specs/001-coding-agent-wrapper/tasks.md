@@ -249,6 +249,19 @@ Task T012: "test_run_agent_foreground_args_forwarded() in tests/test_process.py"
 
 ---
 
+## Phase 10: Fix Parent Suspension During Cleanup (Post-Implementation Discovery)
+
+**Purpose**: Fix parent process getting suspended (`SIGTSTP`) during child exit, preventing server cleanup. The parent only masked `SIGINT` while waiting — it also needed to mask `SIGTSTP`, `SIGTTIN`, and `SIGTTOU` to avoid being stopped by the shell during the foreground process group transition.
+
+- [x] T049 Mask `SIGTSTP`, `SIGTTIN`, `SIGTTOU` (in addition to existing `SIGINT`) before `waitpid()` in `_parent_wait_and_cleanup()` in `src/anaconda_ai/process.py`
+- [x] T050 Keep all four signals masked through terminal reclaim + cleanup; restore only after cleanup completes
+- [x] T051 Remove redundant `SIGTTOU` ignore/restore block around `tcsetpgrp()` (now covered by the broader signal mask)
+- [x] T052 Update research.md Decision 1 (Implementation Protocol + new Signal Handling in Parent section)
+- [x] T053 Update plan.md Key Decision 1 with signal mask detail
+- [x] T054 Run `make test` and verify all 40 tests pass
+
+---
+
 ## Notes
 
 - [P] tasks = different files, no dependencies

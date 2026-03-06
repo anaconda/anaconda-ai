@@ -44,11 +44,26 @@ The three non-negotiable steps (from the glibc shell implementation manual):
 3. **Reset signal handlers to `SIG_DFL`** in child before exec — undoes any `SIG_IGN` inherited from parent
 
 After `waitpid()` returns in the parent:
-1. Ignore `SIGTTOU` (parent is background, tcsetpgrp would trigger it)
-2. `tcsetpgrp(tty_fd, parent_pgid)` — reclaim terminal
-3. Restore terminal modes with `termios.tcsetattr()` (agent may have left raw mode)
-4. Run cleanup (stop server)
+1. `tcsetpgrp(tty_fd, parent_pgid)` — reclaim terminal (SIGTTOU already masked)
+2. Restore terminal modes with `termios.tcsetattr()` (agent may have left raw mode)
+3. Run cleanup (stop server)
+4. Restore all signal handlers to original values
 5. `sys.exit(child_exit_code)` — propagate exit code
+
+**Critical**: The parent must ignore `SIGINT`, `SIGTSTP`, `SIGTTIN`, and `SIGTTOU` for the entire duration from before `waitpid()` through cleanup completion. Only ignoring `SIGINT` is insufficient — when the child exits and the terminal's foreground process group is in transition, the parent (a background process) can receive `SIGTSTP` and get suspended by the shell, preventing cleanup from ever running. This matches the glibc manual §27.6.4 shell implementation where the parent shell masks all job-control signals while a foreground job is active.
+
+### Signal Handling in the Parent
+
+The parent must mask all four job-control and interrupt signals before entering `waitpid()` and keep them masked through cleanup:
+
+| Signal | Parent action | Why |
+|--------|--------------|-----|
+| SIGINT | SIG_IGN | Terminal sends to foreground pgrp (child), but parent may receive stale delivery |
+| SIGTSTP | SIG_IGN | During child exit/pgrp transition, shell can suspend the parent — prevents cleanup |
+| SIGTTIN | SIG_IGN | Background process reading from terminal would stop the parent |
+| SIGTTOU | SIG_IGN | Background process writing to terminal (or calling tcsetpgrp) would stop the parent |
+
+Signals are restored to their original handlers **after** cleanup completes, just before returning the exit code.
 
 ### Signal Routing Summary
 

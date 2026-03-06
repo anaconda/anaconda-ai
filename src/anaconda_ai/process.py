@@ -91,24 +91,24 @@ def _parent_wait_and_cleanup(
     except (OSError, ValueError):
         pass  # no terminal
 
-    # Ignore SIGINT while child is running (child handles it as foreground)
+    # Ignore SIGINT, SIGTSTP, SIGTTIN, SIGTTOU while child is running.
+    # The parent is a background process — it must not respond to terminal
+    # job-control signals (SIGTSTP/SIGTTIN/SIGTTOU) or keyboard interrupt
+    # (SIGINT). The child's process group is the exclusive foreground; these
+    # signals are meant for it, not the parent. This matches POSIX shell
+    # behavior (glibc manual §27.6.4).
     old_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    old_sigtstp = signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+    old_sigttin = signal.signal(signal.SIGTTIN, signal.SIG_IGN)
+    old_sigttou = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
 
-    # Wait for child exit
     _, status = os.waitpid(child_pid, 0)
 
-    # Restore SIGINT
-    signal.signal(signal.SIGINT, old_sigint)
-
-    # Reclaim terminal (parent is background, so ignore SIGTTOU)
-    old_sigttou = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     try:
         _safe_tcsetpgrp(sys.stdin.fileno(), os.getpgrp())
     except (OSError, ValueError):
         pass
-    signal.signal(signal.SIGTTOU, old_sigttou)
 
-    # Restore terminal modes (agent may have left raw mode)
     try:
         import termios
 
@@ -117,14 +117,17 @@ def _parent_wait_and_cleanup(
     except Exception:
         pass
 
-    # Run cleanup (e.g., stop inference server)
     if cleanup_fn is not None:
         try:
             cleanup_fn()
         except Exception:
             pass  # best-effort cleanup
 
-    # Compute exit code from wait status
+    signal.signal(signal.SIGINT, old_sigint)
+    signal.signal(signal.SIGTSTP, old_sigtstp)
+    signal.signal(signal.SIGTTIN, old_sigttin)
+    signal.signal(signal.SIGTTOU, old_sigttou)
+
     if os.WIFEXITED(status):
         return os.WEXITSTATUS(status)
     elif os.WIFSIGNALED(status):
