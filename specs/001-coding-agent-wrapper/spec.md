@@ -64,7 +64,7 @@ The system supports multiple coding agents (initially Claude Code and OpenCode) 
 
 **Acceptance Scenarios**:
 
-1. **Given** the user runs `anaconda ai claude <model> -- <args>`, **When** the coding agent launches, **Then** the `claude` binary is invoked with environment variables appropriate for Claude Code (OpenAI-compatible base URL and API key).
+1. **Given** the user runs `anaconda ai claude <model> -- <args>`, **When** the coding agent launches, **Then** the `claude` binary is invoked with environment variables appropriate for Claude Code (Anthropic-format base URL and API key).
 2. **Given** the user runs `anaconda ai opencode <model> -- <args>`, **When** the coding agent launches, **Then** the `opencode` binary is invoked with environment variables appropriate for OpenCode.
 3. **Given** the user runs a wrapper command for an agent that is not installed on their system, **When** the command is invoked, **Then** a clear error message is displayed explaining which tool is missing and how to install it.
 
@@ -134,7 +134,7 @@ A developer needs to customize the inference server's configuration (e.g., conte
 ## Assumptions
 
 - The coding agents (Claude Code and OpenCode) are installed separately by the user and available on the system PATH. The wrapper does not install them.
-- Coding agents accept OpenAI-compatible server configuration via standard environment variables (e.g., `OPENAI_BASE_URL`, `OPENAI_API_KEY`, or agent-specific equivalents).
+- Coding agents accept server configuration via agent-specific environment variables or inline configuration (e.g., `ANTHROPIC_BASE_URL` for Claude Code, `OPENCODE_CONFIG_CONTENT` for OpenCode).
 - The existing `AnacondaAIClient.servers.create()` method handles model downloading, server matching, and server creation — the wrapper delegates to this existing infrastructure.
 - The wrapper runs the coding agent as a child process in the foreground, inheriting the user's terminal (stdin/stdout/stderr).
 - The API key provided by the `Server` object is sufficient for authentication with the local inference server (no additional auth flow needed).
