@@ -17,8 +17,8 @@
 
 **Purpose**: Create new source files and establish the module structure
 
-- [ ] T001 [P] Create agent definition module with `AgentDefinition` dataclass, empty `AGENTS` registry dict, and stub signatures for `find_agent_binary()`, `build_env_claude()`, `build_env_opencode()` (bodies raise `NotImplementedError`) in `src/anaconda_ai/agents.py`
-- [ ] T002 [P] Create process launcher module with `run_agent_foreground()` implementing the fork+exec+tcsetpgrp pattern from research.md Decision 1 (including `_child_exec()`, `_parent_wait_and_cleanup()`, `_safe_tcsetpgrp()`, and Windows fallback via `subprocess.Popen`) in `src/anaconda_ai/process.py`
+- [x] T001 [P] Create agent definition module with `AgentDefinition` dataclass, empty `AGENTS` registry dict, and stub signatures for `find_agent_binary()`, `build_env_claude()`, `build_env_opencode()` (bodies raise `NotImplementedError`) in `src/anaconda_ai/agents.py`
+- [x] T002 [P] Create process launcher module with `run_agent_foreground()` implementing the fork+exec+tcsetpgrp pattern from research.md Decision 1 (including `_child_exec()`, `_parent_wait_and_cleanup()`, `_safe_tcsetpgrp()`, and Windows fallback via `subprocess.Popen`) in `src/anaconda_ai/process.py`
 
 ---
 
@@ -28,10 +28,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Add `_run_wrapper()` function scaffold in `src/anaconda_ai/cli.py` — define the function signature with parameters for `agent_name`, `ctx: typer.Context`, `model_or_server`, `site`, `backend`, `remove`, `as_json`. Include argument parsing for `ctx.args` extra options (reuse `launch` pattern lines 307-316) and the `server/` prefix detection. Leave the server creation, agent launch, and cleanup sections as `# TODO` placeholders. Follow the existing `launch` command's pattern for `--backend`/`--at`/`--rm/--detach` options and `extra_options` parsing.
-- [ ] T004 Add `@app.command("claude")` and `@app.command("opencode")` command definitions in `src/anaconda_ai/cli.py` that each call `_run_wrapper()` with the appropriate agent name from the AGENTS registry. Use `context_settings={"allow_extra_args": True, "ignore_unknown_options": True}` matching the `launch` command pattern.
-- [ ] T005 Add `"claude"` and `"opencode"` to the `SUBCOMMANDS` list in `tests/test_cli.py` to get `--help` smoke test coverage for both new commands.
-- [ ] T005B [P] Implement interrupt cleanup in `src/anaconda_ai/process.py` and `src/anaconda_ai/cli.py` — wrap server creation + agent launch in try/except `KeyboardInterrupt` so Ctrl+C during server startup (before fork) still cleans up owned servers. Follow the `launch` command's existing pattern (lines 340-351 of cli.py). (FR-015)
+- [x] T003 Add `_run_wrapper()` function scaffold in `src/anaconda_ai/cli.py` — define the function signature with parameters for `agent_name`, `ctx: typer.Context`, `model_or_server`, `site`, `backend`, `remove`, `as_json`. Include argument parsing for `ctx.args` extra options (reuse `launch` pattern lines 307-316) and the `server/` prefix detection. Leave the server creation, agent launch, and cleanup sections as `# TODO` placeholders. Follow the existing `launch` command's pattern for `--backend`/`--at`/`--rm/--detach` options and `extra_options` parsing.
+- [x] T004 Add `@app.command("claude")` and `@app.command("opencode")` command definitions in `src/anaconda_ai/cli.py` that each call `_run_wrapper()` with the appropriate agent name from the AGENTS registry. Use `context_settings={"allow_extra_args": True, "ignore_unknown_options": True}` matching the `launch` command pattern.
+- [x] T005 Add `"claude"` and `"opencode"` to the `SUBCOMMANDS` list in `tests/test_cli.py` to get `--help` smoke test coverage for both new commands.
+- [x] T005B [P] Implement interrupt cleanup in `src/anaconda_ai/process.py` and `src/anaconda_ai/cli.py` — wrap server creation + agent launch in try/except `KeyboardInterrupt` so Ctrl+C during server startup (before fork) still cleans up owned servers. Follow the `launch` command's existing pattern (lines 340-351 of cli.py). (FR-015)
 
 **Checkpoint**: Both commands are registered and respond to `--help`. The full wrapper flow is wired end-to-end. Individual behaviors are validated in the user story phases below.
 
@@ -45,23 +45,23 @@
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_claude()` — given a mock Server with `url="http://localhost:8080"` and `api_key="test-key"`, assert `build_env_claude()` returns `{"ANTHROPIC_BASE_URL": "http://localhost:8080", "ANTHROPIC_API_KEY": "test-key"}` (uses `server.url` directly — all backends serve `/v1/messages` at the base URL)
-- [ ] T007 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_opencode()` — given a mock Server, assert `build_env_opencode()` returns a dict with `OPENCODE_CONFIG_CONTENT` key containing valid JSON with the server's baseURL and apiKey in the provider config
-- [ ] T008 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_found()` — monkeypatch `shutil.which` to return `/usr/bin/claude`, assert `find_agent_binary("claude")` returns the path
-- [ ] T009 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_not_found()` — monkeypatch `shutil.which` to return `None`, assert `find_agent_binary("claude")` raises or returns None with the install hint from the AgentDefinition
-- [ ] T010 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_exit_code()` — mock `os.fork` to simulate child exiting with code 42, assert `run_agent_foreground()` returns 42
-- [ ] T011 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_env_passed()` — mock fork+exec, assert `os.execvpe` is called with the correct env dict merged into `os.environ`
-- [ ] T012 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_args_forwarded()` — mock fork+exec, call with `agent_args=["--verbose", "--no-confirm"]`, assert `os.execvpe` is called with `["claude", "--verbose", "--no-confirm"]`
-- [ ] T012B [P] [US1] Write test in `tests/test_process.py`: `test_windows_fallback()` — monkeypatch `os` to not have `fork` attribute (`delattr` or `hasattr` returns False), call `run_agent_foreground()`, assert `subprocess.Popen` is used instead of `os.fork`
+- [x] T006 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_claude()` — given a mock Server with `url="http://localhost:8080"` and `api_key="test-key"`, assert `build_env_claude()` returns `{"ANTHROPIC_BASE_URL": "http://localhost:8080", "ANTHROPIC_API_KEY": "test-key"}` (uses `server.url` directly — all backends serve `/v1/messages` at the base URL)
+- [x] T007 [P] [US1] Write test in `tests/test_agents.py`: `test_build_env_opencode()` — given a mock Server, assert `build_env_opencode()` returns a dict with `OPENCODE_CONFIG_CONTENT` key containing valid JSON with the server's baseURL and apiKey in the provider config
+- [x] T008 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_found()` — monkeypatch `shutil.which` to return `/usr/bin/claude`, assert `find_agent_binary("claude")` returns the path
+- [x] T009 [P] [US1] Write test in `tests/test_agents.py`: `test_find_agent_binary_not_found()` — monkeypatch `shutil.which` to return `None`, assert `find_agent_binary("claude")` raises or returns None with the install hint from the AgentDefinition
+- [x] T010 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_exit_code()` — mock `os.fork` to simulate child exiting with code 42, assert `run_agent_foreground()` returns 42
+- [x] T011 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_env_passed()` — mock fork+exec, assert `os.execvpe` is called with the correct env dict merged into `os.environ`
+- [x] T012 [P] [US1] Write test in `tests/test_process.py`: `test_run_agent_foreground_args_forwarded()` — mock fork+exec, call with `agent_args=["--verbose", "--no-confirm"]`, assert `os.execvpe` is called with `["claude", "--verbose", "--no-confirm"]`
+- [x] T012B [P] [US1] Write test in `tests/test_process.py`: `test_windows_fallback()` — monkeypatch `os` to not have `fork` attribute (`delattr` or `hasattr` returns False), call `run_agent_foreground()`, assert `subprocess.Popen` is used instead of `os.fork`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement `build_env_claude(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `ANTHROPIC_BASE_URL` set to `server.url` (the raw base URL — all backends serve the Anthropic `/v1/messages` route at their base) and `ANTHROPIC_API_KEY` set to `server.api_key` or `"not-needed"`
-- [ ] T014 [US1] Implement `build_env_opencode(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `OPENCODE_CONFIG_CONTENT` containing JSON per research.md Decision 2 OpenCode section
-- [ ] T015 [US1] Implement `find_agent_binary(binary_name)` in `src/anaconda_ai/agents.py` — use `shutil.which()`, return path or None
-- [ ] T016 [US1] Implement `run_agent_foreground(binary_path, agent_args, env, cleanup_fn)` in `src/anaconda_ai/process.py` — the full fork+exec+tcsetpgrp+waitpid+cleanup flow per research.md Decision 1 Implementation Protocol. Include Windows fallback using `subprocess.Popen` when `os.fork` is not available. The parent's `waitpid()` loop must NOT catch or suppress errors originating from the agent process (e.g., connection failures from a crashed server) — propagate whatever exit code the agent returns.
-- [ ] T017 [US1] Complete `_run_wrapper()` body in `src/anaconda_ai/cli.py` — fill in: `client.servers.create()` → `server.start(show_progress=not as_json, console=console)` (matching `launch` pattern at cli.py:326 to surface download/startup progress per FR-014) → show server info → `find_agent_binary()` (exit with install hint if not found, FR-010) → `build_env()` → `run_agent_foreground()` → `sys.exit(exit_code)`.
-- [ ] T018 [US1] Run `make test` and verify all US1 tests pass and `--help` smoke tests pass for both commands
+- [x] T013 [US1] Implement `build_env_claude(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `ANTHROPIC_BASE_URL` set to `server.url` (the raw base URL — all backends serve the Anthropic `/v1/messages` route at their base) and `ANTHROPIC_API_KEY` set to `server.api_key` or `"not-needed"`
+- [x] T014 [US1] Implement `build_env_opencode(server, model_name)` in `src/anaconda_ai/agents.py` — return dict with `OPENCODE_CONFIG_CONTENT` containing JSON per research.md Decision 2 OpenCode section
+- [x] T015 [US1] Implement `find_agent_binary(binary_name)` in `src/anaconda_ai/agents.py` — use `shutil.which()`, return path or None
+- [x] T016 [US1] Implement `run_agent_foreground(binary_path, agent_args, env, cleanup_fn)` in `src/anaconda_ai/process.py` — the full fork+exec+tcsetpgrp+waitpid+cleanup flow per research.md Decision 1 Implementation Protocol. Include Windows fallback using `subprocess.Popen` when `os.fork` is not available. The parent's `waitpid()` loop must NOT catch or suppress errors originating from the agent process (e.g., connection failures from a crashed server) — propagate whatever exit code the agent returns.
+- [x] T017 [US1] Complete `_run_wrapper()` body in `src/anaconda_ai/cli.py` — fill in: `client.servers.create()` → `server.start(show_progress=not as_json, console=console)` (matching `launch` pattern at cli.py:326 to surface download/startup progress per FR-014) → show server info → `find_agent_binary()` (exit with install hint if not found, FR-010) → `build_env()` → `run_agent_foreground()` → `sys.exit(exit_code)`.
+- [x] T018 [US1] Run `make test` and verify all US1 tests pass and `--help` smoke tests pass for both commands
 
 **Checkpoint**: `anaconda ai claude <model>` works end-to-end. Server launches, agent starts with correct env, args forwarded, exit code preserved.
 
@@ -75,14 +75,14 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Write test in `tests/test_cli.py`: `test_parse_server_id()` — assert `"server/abc123"` is parsed as server ID `"abc123"`, and `"OpenHermes-2.5"` is parsed as a model name
-- [ ] T020 [P] [US2] Write test in `tests/test_cli.py`: `test_server_id_not_found()` — mock `client.servers.get()` to raise/return None for unknown ID, assert wrapper exits with error message "Server 'xyz' not found or not running"
+- [x] T019 [P] [US2] Write test in `tests/test_cli.py`: `test_parse_server_id()` — assert `"server/abc123"` is parsed as server ID `"abc123"`, and `"OpenHermes-2.5"` is parsed as a model name
+- [x] T020 [P] [US2] Write test in `tests/test_cli.py`: `test_server_id_not_found()` — mock `client.servers.get()` to raise/return None for unknown ID, assert wrapper exits with error message "Server 'xyz' not found or not running"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Add `server/<id>` positional argument parsing to `_run_wrapper()` in `src/anaconda_ai/cli.py` — detect `server/` prefix, extract ID, look up server via `client.servers.get(id)` or equivalent, validate it's running, skip `servers.create()` path. Set `server_owned = False`.
-- [ ] T022 [US2] Add error handling for server-not-found case — display "Server '<id>' not found or not running" and exit with code 1
-- [ ] T023 [US2] Run `make test` and verify all US2 tests pass alongside existing US1 tests
+- [x] T021 [US2] Add `server/<id>` positional argument parsing to `_run_wrapper()` in `src/anaconda_ai/cli.py` — detect `server/` prefix, extract ID, look up server via `client.servers.get(id)` or equivalent, validate it's running, skip `servers.create()` path. Set `server_owned = False`.
+- [x] T022 [US2] Add error handling for server-not-found case — display "Server '<id>' not found or not running" and exit with code 1
+- [x] T023 [US2] Run `make test` and verify all US2 tests pass alongside existing US1 tests
 
 **Checkpoint**: Both `anaconda ai claude <model>` and `anaconda ai claude server/<id>` work. Server lookup path skips creation.
 
@@ -96,14 +96,14 @@
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_called_for_owned_server()` — mock fork+exec, pass `cleanup_fn`, assert cleanup_fn is called after child exits
-- [ ] T025 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_not_called_for_detach()` — pass `cleanup_fn=None` (detach mode), assert no server stop/delete calls
-- [ ] T026 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_not_called_for_preexisting_server()` — set `server_owned=False`, assert no cleanup
+- [x] T024 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_called_for_owned_server()` — mock fork+exec, pass `cleanup_fn`, assert cleanup_fn is called after child exits
+- [x] T025 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_not_called_for_detach()` — pass `cleanup_fn=None` (detach mode), assert no server stop/delete calls
+- [x] T026 [P] [US3] Write test in `tests/test_process.py`: `test_cleanup_not_called_for_preexisting_server()` — set `server_owned=False`, assert no cleanup
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Implement cleanup logic in `_run_wrapper()` in `src/anaconda_ai/cli.py` — build a `cleanup_fn` that calls `server.stop()` + `server.delete()` only when `server_owned=True` and `detach=False`. Pass `cleanup_fn` to `run_agent_foreground()`. For `server_owned=False` or `detach=True`, pass `cleanup_fn=None`.
-- [ ] T028 [US3] Run `make test` and verify all US3 tests pass alongside US1 and US2 tests
+- [x] T027 [US3] Implement cleanup logic in `_run_wrapper()` in `src/anaconda_ai/cli.py` — build a `cleanup_fn` that calls `server.stop()` + `server.delete()` only when `server_owned=True` and `detach=False`. Pass `cleanup_fn` to `run_agent_foreground()`. For `server_owned=False` or `detach=True`, pass `cleanup_fn=None`.
+- [x] T028 [US3] Run `make test` and verify all US3 tests pass alongside US1 and US2 tests
 
 **Checkpoint**: Server lifecycle is fully managed. Owned servers stop on exit, pre-existing servers are left alone, `--detach` leaves servers running.
 
@@ -117,14 +117,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T030 [P] [US4] Write test in `tests/test_agents.py`: `test_agents_registry_has_claude_and_opencode()` — assert AGENTS dict contains `"claude"` and `"opencode"` keys with correct AgentDefinition fields
-- [ ] T031 [P] [US4] Write test in `tests/test_agents.py`: `test_agent_install_hints()` — assert each agent's `install_hint` is non-empty and contains a URL or package name
+- [x] T030 [P] [US4] Write test in `tests/test_agents.py`: `test_agents_registry_has_claude_and_opencode()` — assert AGENTS dict contains `"claude"` and `"opencode"` keys with correct AgentDefinition fields
+- [x] T031 [P] [US4] Write test in `tests/test_agents.py`: `test_agent_install_hints()` — assert each agent's `install_hint` is non-empty and contains a URL or package name
 
 ### Implementation for User Story 4
 
-- [ ] T032 [US4] Wire the AGENTS registry in `src/anaconda_ai/agents.py` — add complete `AgentDefinition` entries for `"claude"` (binary=`"claude"`, build_env=`build_env_claude`, install_hint with npm command) and `"opencode"` (binary=`"opencode"`, build_env=`build_env_opencode`, install_hint with URL). This connects the implementations from T013/T014/T015 into the lookup dict used by `_run_wrapper()`.
-- [ ] T033 [US4] Ensure `_run_wrapper()` in `src/anaconda_ai/cli.py` uses the AGENTS registry to look up agent config by command name, and that the error message for missing binary includes the agent-specific `install_hint`
-- [ ] T034 [US4] Run `make test` and verify all tests pass
+- [x] T032 [US4] Wire the AGENTS registry in `src/anaconda_ai/agents.py` — add complete `AgentDefinition` entries for `"claude"` (binary=`"claude"`, build_env=`build_env_claude`, install_hint with npm command) and `"opencode"` (binary=`"opencode"`, build_env=`build_env_opencode`, install_hint with URL). This connects the implementations from T013/T014/T015 into the lookup dict used by `_run_wrapper()`.
+- [x] T033 [US4] Ensure `_run_wrapper()` in `src/anaconda_ai/cli.py` uses the AGENTS registry to look up agent config by command name, and that the error message for missing binary includes the agent-specific `install_hint`
+- [x] T034 [US4] Run `make test` and verify all tests pass
 
 **Checkpoint**: Both agent commands work with distinct env var mappings. Adding a third agent (e.g., aider) would only require a new AgentDefinition entry.
 
@@ -138,12 +138,12 @@
 
 ### Tests for User Story 5
 
-- [ ] T035 [P] [US5] Write test in `tests/test_cli.py`: `test_extra_server_options_parsed()` — invoke wrapper with `--ctx-size=4096 --jinja`, assert these are passed to `servers.create(extra_options=...)` (mock the client)
+- [x] T035 [P] [US5] Write test in `tests/test_cli.py`: `test_extra_server_options_parsed()` — invoke wrapper with `--ctx-size=4096 --jinja`, assert these are passed to `servers.create(extra_options=...)` (mock the client)
 
 ### Implementation for User Story 5
 
-- [ ] T036 [US5] Ensure `_run_wrapper()` in `src/anaconda_ai/cli.py` parses `ctx.args` for extra `--key=value` server options using the identical pattern from the `launch` command (lines 307-316), and passes them as `extra_options` to `client.servers.create()`. Verify `--backend` and `--at` options are passed to `AnacondaAIClient(backend=backend, site=site)`.
-- [ ] T037 [US5] Run `make test` and verify all tests pass
+- [x] T036 [US5] Ensure `_run_wrapper()` in `src/anaconda_ai/cli.py` parses `ctx.args` for extra `--key=value` server options using the identical pattern from the `launch` command (lines 307-316), and passes them as `extra_options` to `client.servers.create()`. Verify `--backend` and `--at` options are passed to `AnacondaAIClient(backend=backend, site=site)`.
+- [x] T037 [US5] Run `make test` and verify all tests pass
 
 **Checkpoint**: Full `anaconda ai launch` option parity. Backend selection, site selection, and extra server options all work through the wrapper.
 
@@ -153,9 +153,9 @@
 
 **Purpose**: Quality improvements across all user stories
 
-- [ ] T038 [P] Add type hints to all public functions in `src/anaconda_ai/agents.py` and `src/anaconda_ai/process.py`
-- [ ] T039 [P] Run `ruff check .` and fix any linting issues in new files
-- [ ] T040 Run full `make test` — verify all tests pass with coverage above project threshold
+- [x] T038 [P] Add type hints to all public functions in `src/anaconda_ai/agents.py` and `src/anaconda_ai/process.py`
+- [x] T039 [P] Run `ruff check .` and fix any linting issues in new files
+- [x] T040 Run full `make test` — verify all tests pass with coverage above project threshold
 - [ ] T041 Validate quickstart.md examples work end-to-end (manual smoke test)
 
 ---

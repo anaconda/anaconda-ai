@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from typing import Annotated
 from typing import Any
@@ -21,6 +22,8 @@ from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
 from .clients import AnacondaAIClient, clients
 from .clients.base import GenericClient, Server, VectorDbTableSchema
+from .agents import AGENTS, find_agent_binary
+from .process import run_agent_foreground
 from ._version import __version__
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
@@ -652,3 +655,197 @@ def mcp_server(
         )
         raise typer.Exit(1) from e
     run(transport=transport, host=host, port=port)
+
+
+def _run_wrapper(
+    agent_name: str,
+    ctx: typer.Context,
+    model_or_server: str,
+    site: Optional[str],
+    backend: Optional[str],
+    remove: bool,
+    as_json: bool,
+) -> None:
+    """Shared logic for coding agent wrapper commands (claude, opencode).
+
+    Orchestrates: parse positional arg → resolve server → check agent binary →
+    build env → fork+exec agent → cleanup on exit.
+    """
+    # Look up agent definition
+    agent = AGENTS.get(agent_name)
+    if agent is None:
+        console.print(f"[red]Unknown agent: {agent_name}[/]")
+        raise typer.Exit(1)
+
+    # Check agent binary is installed
+    binary_path = find_agent_binary(agent.binary)
+    if binary_path is None:
+        console.print(f"[red]{agent.name} is not installed.[/] {agent.install_hint}")
+        raise typer.Exit(1)
+
+    # Parse extra server options from ctx.args (before '--')
+    extra_options: Dict[str, Any] = {}
+    agent_args: List[str] = []
+    found_separator = False
+    for arg in ctx.args:
+        if arg == "--":
+            found_separator = True
+            continue
+        if found_separator:
+            agent_args.append(arg)
+        else:
+            if not arg.startswith("--"):
+                raise ValueError(
+                    "Extra server args must be passed as --key=value or --key"
+                )
+            key, *value = arg[2:].split("=", maxsplit=1)
+            if len(value) > 1:
+                raise ValueError(arg)
+            extra_options[key] = True if not value else value[0]
+
+    client = AnacondaAIClient(backend=backend, site=site)
+
+    # Resolve server: model name or server/<id>
+    server_owned = False
+    if model_or_server.startswith("server/"):
+        # Connect to existing server by ID
+        server_id = model_or_server[len("server/") :]
+        try:
+            server = client.servers.get(server_id)
+        except Exception:
+            console.print(f"[red]Server '{server_id}' not found or not running[/]")
+            raise typer.Exit(1)
+        if not server.is_running:
+            console.print(f"[red]Server '{server_id}' not found or not running[/]")
+            raise typer.Exit(1)
+        model_name = server.config.model_name
+    else:
+        # Launch or reuse server for model
+        model_name = model_or_server
+        server = None
+        try:
+            server = client.servers.create(
+                model=model_name,
+                extra_options=extra_options,
+                show_progress=not as_json,
+                console=console,
+            )
+            server.start(show_progress=not as_json, leave_running=True, console=console)
+            server_owned = not server._matched
+        except KeyboardInterrupt:
+            # Interrupt cleanup: stop server if we started creating it
+            console.print("\n[yellow]Interrupted. Cleaning up...[/]")
+            try:
+                if server is not None and server_owned:
+                    server.stop(show_progress=not as_json, console=console)
+                    server.delete(show_progress=not as_json, console=console)
+            except Exception:
+                pass
+            raise typer.Exit(130)
+
+    # Show server info
+    table, data = _server_info(server)
+    if as_json:
+        console.print_json(data=data)
+    else:
+        console.print(table, soft_wrap=True)
+
+    # Build agent-specific environment variables
+    env = agent.build_env(server, model_name)
+
+    # Build cleanup function
+    cleanup_fn = None
+    if server_owned and remove:
+
+        def _do_cleanup() -> None:
+            server.stop(show_progress=not as_json, console=console)
+            server.delete(show_progress=not as_json, console=console)
+
+        cleanup_fn = _do_cleanup
+
+    # Fork+exec the agent
+    try:
+        exit_code = run_agent_foreground(
+            binary_path=binary_path,
+            agent_args=agent_args,
+            env=env,
+            cleanup_fn=cleanup_fn,
+        )
+    except KeyboardInterrupt:
+        # Ctrl+C during agent startup — clean up if we own the server
+        if cleanup_fn is not None:
+            try:
+                cleanup_fn()
+            except Exception:
+                pass
+        exit_code = 130
+
+    sys.exit(exit_code)
+
+
+@app.command(
+    name="claude",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def claude(
+    ctx: typer.Context,
+    model_or_server: str = typer.Argument(
+        help="Model name (e.g., OpenHermes-2.5-Mistral-7B/Q4_K_M) or server/<id> to connect to existing server.",
+    ),
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    remove: bool = typer.Option(
+        True,
+        "--rm/--detach",
+        help="Stop server on exit (default) or leave running with --detach.",
+    ),
+    as_json: AS_JSON = False,
+) -> None:
+    """Launch Claude Code connected to an Anaconda AI inference server."""
+    _run_wrapper(
+        agent_name="claude",
+        ctx=ctx,
+        model_or_server=model_or_server,
+        site=site,
+        backend=backend,
+        remove=remove,
+        as_json=as_json,
+    )
+
+
+@app.command(
+    name="opencode",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def opencode(
+    ctx: typer.Context,
+    model_or_server: str = typer.Argument(
+        help="Model name (e.g., OpenHermes-2.5-Mistral-7B/Q4_K_M) or server/<id> to connect to existing server.",
+    ),
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    remove: bool = typer.Option(
+        True,
+        "--rm/--detach",
+        help="Stop server on exit (default) or leave running with --detach.",
+    ),
+    as_json: AS_JSON = False,
+) -> None:
+    """Launch OpenCode connected to an Anaconda AI inference server."""
+    _run_wrapper(
+        agent_name="opencode",
+        ctx=ctx,
+        model_or_server=model_or_server,
+        site=site,
+        backend=backend,
+        remove=remove,
+        as_json=as_json,
+    )
