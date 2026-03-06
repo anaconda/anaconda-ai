@@ -5,8 +5,10 @@
 ## Command: `anaconda ai claude`
 
 ```
-anaconda ai claude <model-or-server> [--backend <backend>] [--at <site>] [--detach] [--<server-options>...] [-- <agent-args>...]
+anaconda ai claude <model-or-server> [--backend <backend>] [--at <site>] [--detach] [--json] [--<server-options>...] [-- <agent-args>...]
 ```
+
+**Note**: Options can appear in any order. Use `--` to separate server options from agent arguments.
 
 ### Arguments
 

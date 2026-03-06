@@ -143,21 +143,63 @@ Each agent has evolved independently and uses different configuration mechanisms
 
 ### Decision
 
-Use the `--` separator to delineate server options from agent arguments. Everything before `--` is parsed by the wrapper (model, `--backend`, `--at`, `--detach`, and extra `--key=value` server options). Everything after `--` is forwarded verbatim to the coding agent.
+Use the `--` separator to delineate server options from agent arguments. A custom `AgentCommand(TyperCommand)` subclass overrides `parse_args()` to intercept `--` **before** click's parser consumes it. Agent arguments (after `--`) are stashed in `ctx.meta['agent_args']` and stripped from the arg list. Click then parses the remaining args normally — typed options (`--detach`, `--backend`, etc.) and extra server options (`--ctx-size=4096`) all work in any position.
 
 ### Rationale
 
-This follows the Unix convention (`--` ends option processing) and matches the user's original design. The existing `launch` command already uses `context_settings={"allow_extra_args": True, "ignore_unknown_options": True}` for extra server options — we extend this pattern.
+Click/typer's parser silently consumes `--` when processing args. The `--` token is popped from `rargs` at `click/parser.py#L327-330` and never reaches `ctx.args`. This means any design that relies on finding `--` in `ctx.args` cannot work.
+
+Two alternatives were explored and rejected:
+- **`allow_interspersed_args=False`** preserves `--` in `ctx.args`, but breaks typed options after the positional argument — `anaconda ai claude MyModel --detach` would silently fail to parse `--detach`.
+- **`sys.argv` post-processing** doesn't work with `CliRunner` in tests.
+
+The `AgentCommand.parse_args()` approach is clean: it splits args on `--` at the earliest possible point (before click's parser runs), so click never sees `--` or the agent args. All typed options, extra server options, and agent arguments work as expected with no UX constraints on argument ordering.
+
+### Alternatives Rejected
+
+| Approach | Why Rejected |
+|----------|--------------|
+| Default click behavior | `--` silently consumed, never in `ctx.args` — cannot split server opts from agent args |
+| `allow_interspersed_args=False` | `--` preserved, but typed options after positional stop working (e.g., `MyModel --detach` broken) |
+| `click.UNPROCESSED` with `nargs=-1` | Grabs extra server options too when combined with `allow_extra_args` |
+| Post-parse `sys.argv` | Fragile, doesn't work with test runners (`CliRunner`) |
+| Drop `--` entirely, use `--agent-args="..."` | Ugly UX for agent arguments, non-standard |
+
+### Evidence
+
+- **click source** (`parser.py#L327-330`): `if arg == "--": return` — `--` is consumed and discarded
+- **Google ADK** (`cli_tools_click.py`): Uses `allow_interspersed_args=False` but has no typed options after positional — not our case
+- **Direct testing**: Confirmed `allow_interspersed_args=False` breaks `anaconda ai claude MyModel --backend x` (typed opt after positional)
+- **`AgentCommand` approach**: Tested with all combinations — typed opts before/after positional, server opts, `--`, agent args all work correctly
+
+### Implementation
+
+```python
+class AgentCommand(TyperCommand):
+    def parse_args(self, ctx, args):
+        if "--" in args:
+            idx = args.index("--")
+            ctx.meta["agent_args"] = list(args[idx + 1:])
+            args = list(args[:idx])
+        else:
+            ctx.meta["agent_args"] = []
+        return super().parse_args(ctx, args)
+```
+
+In `_run_wrapper()`:
+```python
+agent_args = ctx.meta.get("agent_args", [])  # Already extracted by AgentCommand
+```
 
 ### Parsing Flow
 
 ```
-anaconda ai claude OpenHermes-2.5-Mistral-7B/Q4_K_M --ctx-size=512 --detach -- --verbose --no-confirm
-│                  │                                   │               │         │  │
-│                  │                                   │               │         │  └─ agent args (forwarded verbatim)
-│                  │                                   │               │         └─ separator
-│                  │                                   │               └─ wrapper flag
-│                  │                                   └─ server extra option
+anaconda ai claude MyModel/Q4_K_M --backend anaconda-desktop --ctx-size=80000 -- --tools=Edit,Read
+│                  │               │                          │                │  │
+│                  │               │                          │                │  └─ agent args (ctx.meta['agent_args'])
+│                  │               │                          │                └─ separator (intercepted by AgentCommand)
+│                  │               │                          └─ server extra option (ctx.args)
+│                  │               └─ typed option (parsed by typer — works anywhere)
 │                  └─ positional: model OR server/<id>
 └─ subcommand
 ```

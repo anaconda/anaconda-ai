@@ -235,6 +235,20 @@ Task T012: "test_run_agent_foreground_args_forwarded() in tests/test_process.py"
 
 ---
 
+## Phase 9: Fix `--` Separator Parsing (Post-Implementation Discovery)
+
+**Purpose**: Fix click/typer silently consuming `--` separator. Click's parser strips `--` at `parser.py#L327-330` before it reaches `ctx.args`. The fix uses a custom `AgentCommand(TyperCommand)` subclass that overrides `parse_args()` to intercept `--` and stash agent args in `ctx.meta['agent_args']` before click processes the remaining args. No UX constraints on argument ordering.
+
+- [x] T042 Add `AgentCommand(TyperCommand)` subclass with `parse_args()` override in `src/anaconda_ai/cli.py`
+- [x] T043 Update `claude` and `opencode` commands to use `cls=AgentCommand`
+- [x] T044 Update `_run_wrapper()` to read `agent_args` from `ctx.meta['agent_args']` instead of scanning `ctx.args` for `--`
+- [x] T045 [P] Write test: `test_separator_preserved_and_typed_options_parsed()` — typed opts after positional + server opts + `--` + agent args all work correctly
+- [x] T046 [P] Write test: `test_separator_splits_server_and_agent_args()` — verify `extra_options` gets server opts and agent only gets args after `--`
+- [x] T047 Update spec artifacts (research.md, plan.md, contracts/cli.md, quickstart.md) with final approach
+- [x] T048 Run `make test` and verify all 40 tests pass
+
+---
+
 ## Notes
 
 - [P] tasks = different files, no dependencies

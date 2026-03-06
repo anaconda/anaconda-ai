@@ -134,3 +134,105 @@ class TestExtraServerOptions:
         extra_options = create_call.kwargs.get("extra_options", {})
         assert extra_options.get("ctx-size") == "4096"
         assert extra_options.get("jinja") is True
+
+
+class TestSeparatorParsing:
+    """Tests for '--' separator behavior with AgentCommand.parse_args."""
+
+    def test_separator_preserved_and_typed_options_parsed(
+        self, invoke_cli: CLIInvoker
+    ) -> None:
+        """Test that '--' splits server options from agent args, and typed
+        options work regardless of position (before or after positional)."""
+        mock_server = MagicMock()
+        mock_server.id = "srv1"
+        mock_server.url = "http://localhost:8080"
+        mock_server.openai_url = "http://localhost:8080/v1"
+        mock_server.api_key = "test-key"
+        mock_server.is_running = True
+        mock_server._matched = False
+        mock_server.config.model_name = "test-model"
+        mock_server.config.params = {}
+        mock_server.status = "running"
+
+        mock_client = MagicMock()
+        mock_client.servers.create.return_value = mock_server
+
+        captured_agent_args = []
+
+        def mock_run_agent(binary_path, agent_args, env, cleanup_fn=None):
+            captured_agent_args.extend(agent_args)
+            return 0
+
+        with (
+            patch("anaconda_ai.cli.AnacondaAIClient", return_value=mock_client),
+            patch("anaconda_ai.cli.find_agent_binary", return_value="/usr/bin/claude"),
+            patch("anaconda_ai.cli.run_agent_foreground", side_effect=mock_run_agent),
+        ):
+            # Typed option AFTER positional (natural UX), server opts, --, agent args
+            _ = invoke_cli(
+                "ai",
+                "claude",
+                "TestModel/Q4_K_M",
+                "--detach",
+                "--ctx-size=4096",
+                "--",
+                "--verbose",
+                "--no-confirm",
+            )
+
+        # --detach was parsed by typer (server should not be cleaned up)
+        # Server create was called with server options only
+        create_call = mock_client.servers.create.call_args
+        assert create_call is not None
+        extra_options = create_call.kwargs.get("extra_options", {})
+        assert extra_options.get("ctx-size") == "4096"
+        # Agent received only args after '--'
+        assert captured_agent_args == ["--verbose", "--no-confirm"]
+
+    def test_separator_splits_server_and_agent_args(
+        self, invoke_cli: CLIInvoker
+    ) -> None:
+        """Test '--' correctly splits ctx.args into server options and agent args."""
+        mock_server = MagicMock()
+        mock_server.id = "srv1"
+        mock_server.url = "http://localhost:8080"
+        mock_server.openai_url = "http://localhost:8080/v1"
+        mock_server.api_key = "test-key"
+        mock_server.is_running = True
+        mock_server._matched = False
+        mock_server.config.model_name = "test-model"
+        mock_server.config.params = {}
+        mock_server.status = "running"
+
+        mock_client = MagicMock()
+        mock_client.servers.create.return_value = mock_server
+
+        captured_agent_args = []
+
+        def mock_run_agent(binary_path, agent_args, env, cleanup_fn=None):
+            captured_agent_args.extend(agent_args)
+            return 0
+
+        with (
+            patch("anaconda_ai.cli.AnacondaAIClient", return_value=mock_client),
+            patch("anaconda_ai.cli.find_agent_binary", return_value="/usr/bin/claude"),
+            patch("anaconda_ai.cli.run_agent_foreground", side_effect=mock_run_agent),
+        ):
+            _ = invoke_cli(
+                "ai",
+                "claude",
+                "TestModel/Q4_K_M",
+                "--ctx-size=4096",
+                "--jinja",
+                "--",
+                "--verbose",
+                "--no-confirm",
+            )
+
+        # Server options parsed correctly
+        create_call = mock_client.servers.create.call_args
+        extra_options = create_call.kwargs.get("extra_options", {})
+        assert extra_options == {"ctx-size": "4096", "jinja": True}
+        # Agent args are only what comes after '--'
+        assert captured_agent_args == ["--verbose", "--no-confirm"]

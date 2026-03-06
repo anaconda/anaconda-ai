@@ -63,5 +63,5 @@ See [research.md](research.md) for full analysis. Summary:
 
 1. **Process execution**: `os.fork()` + `os.execvpe()` with `setpgid` + `tcsetpgrp` for full TTY interactivity + post-exit cleanup. Windows fallback via `subprocess.Popen()`.
 2. **Agent env vars**: Per-agent `build_env()` functions. Claude Code uses `ANTHROPIC_BASE_URL` (set to `server.url` — all backends serve `/v1/messages` at the base) + `ANTHROPIC_API_KEY`. OpenCode uses `OPENCODE_CONFIG_CONTENT` (inline JSON with `server.openai_url`).
-3. **Argument parsing**: `--` separator. Wrapper/server options before, agent args after. Reuses `launch` command's extra_options pattern.
+3. **Argument parsing**: `--` separator via custom `AgentCommand(TyperCommand)` subclass. Click silently consumes `--` during parsing, so `AgentCommand.parse_args()` intercepts it first — stashing agent args in `ctx.meta['agent_args']` and stripping them before click runs. Typed options (`--detach`, `--backend`, `--at`, `--json`) work in any position. Extra server options go to `ctx.args`. Reuses `launch` command's extra_options pattern for server options.
 4. **Server lifecycle**: Track `server_owned` flag. Only stop servers the wrapper launched (and only if not `--detach`).

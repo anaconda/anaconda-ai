@@ -17,6 +17,7 @@ from rich.console import RenderableType
 from rich.prompt import Confirm
 from rich.table import Column
 from rich.table import Table
+from typer.core import TyperCommand
 
 from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
@@ -29,6 +30,27 @@ from ._version import __version__
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
 
 CHECK_MARK = "[bold green]✔︎[/bold green]"
+
+
+class AgentCommand(TyperCommand):
+    """Custom command class that intercepts '--' before click consumes it.
+
+    Click silently strips '--' from args during parsing, making it impossible
+    to distinguish server options from agent arguments in ctx.args. This
+    subclass splits args on '--' in parse_args() before click sees them,
+    stashing agent arguments in ctx.meta['agent_args'].
+    """
+
+    def parse_args(self, ctx: typer.Context, args: list) -> list:  # type: ignore[override]
+        if "--" in args:
+            idx = args.index("--")
+            ctx.meta["agent_args"] = list(args[idx + 1 :])
+            args = list(args[:idx])
+        else:
+            ctx.meta["agent_args"] = []
+        return super().parse_args(ctx, args)
+
+
 AS_JSON = Annotated[
     bool, typer.Option("--json", is_flag=True, help="Print output as JSON")
 ]
@@ -683,25 +705,16 @@ def _run_wrapper(
         console.print(f"[red]{agent.name} is not installed.[/] {agent.install_hint}")
         raise typer.Exit(1)
 
-    # Parse extra server options from ctx.args (before '--')
+    # Parse extra server options from ctx.args (agent args already extracted by AgentCommand)
     extra_options: Dict[str, Any] = {}
-    agent_args: List[str] = []
-    found_separator = False
+    agent_args: List[str] = ctx.meta.get("agent_args", [])
     for arg in ctx.args:
-        if arg == "--":
-            found_separator = True
-            continue
-        if found_separator:
-            agent_args.append(arg)
-        else:
-            if not arg.startswith("--"):
-                raise ValueError(
-                    "Extra server args must be passed as --key=value or --key"
-                )
-            key, *value = arg[2:].split("=", maxsplit=1)
-            if len(value) > 1:
-                raise ValueError(arg)
-            extra_options[key] = True if not value else value[0]
+        if not arg.startswith("--"):
+            raise ValueError("Extra server args must be passed as --key=value or --key")
+        key, *value = arg[2:].split("=", maxsplit=1)
+        if len(value) > 1:
+            raise ValueError(arg)
+        extra_options[key] = True if not value else value[0]
 
     client = AnacondaAIClient(backend=backend, site=site)
 
@@ -785,6 +798,7 @@ def _run_wrapper(
 
 @app.command(
     name="claude",
+    cls=AgentCommand,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def claude(
@@ -805,7 +819,16 @@ def claude(
     ),
     as_json: AS_JSON = False,
 ) -> None:
-    """Launch Claude Code connected to an Anaconda AI inference server."""
+    """Launch Claude Code connected to an Anaconda AI inference server.
+
+    Use -- to separate server options from agent arguments.
+
+    \b
+    Examples:
+        anaconda ai claude MyModel/Q4_K_M
+        anaconda ai claude MyModel/Q4_K_M --detach --ctx-size=4096 -- --verbose
+        anaconda ai claude server/abc123 -- --no-confirm
+    """
     _run_wrapper(
         agent_name="claude",
         ctx=ctx,
@@ -819,6 +842,7 @@ def claude(
 
 @app.command(
     name="opencode",
+    cls=AgentCommand,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def opencode(
@@ -839,7 +863,16 @@ def opencode(
     ),
     as_json: AS_JSON = False,
 ) -> None:
-    """Launch OpenCode connected to an Anaconda AI inference server."""
+    """Launch OpenCode connected to an Anaconda AI inference server.
+
+    Use -- to separate server options from agent arguments.
+
+    \b
+    Examples:
+        anaconda ai opencode MyModel/Q4_K_M
+        anaconda ai opencode MyModel/Q4_K_M --detach --ctx-size=4096 -- --theme dark
+        anaconda ai opencode server/abc123
+    """
     _run_wrapper(
         agent_name="opencode",
         ctx=ctx,
