@@ -31,7 +31,8 @@ class AnacondaProvider(Provider[AsyncOpenAI]):
     def client(self) -> AsyncOpenAI:
         return AsyncOpenAI(base_url="", api_key="")
 
-    def model_profile(self, model_name: str) -> AnacondaModelProfile | None:
+    @staticmethod
+    def model_profile(model_name: str) -> AnacondaModelProfile | None:
         return AnacondaModelProfile(
             json_schema_transformer=OpenAIJsonSchemaTransformer,
             openai_chat_thinking_field="reasoning",
