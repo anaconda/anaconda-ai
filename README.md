@@ -33,7 +33,6 @@ The available backends are
 |Backend name|Configuration value|Supports|Default|
 |------------|-------------------|--------|-------|
 |[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEFAULT|
-|Anaconda Desktop (beta)|`"anaconda-desktop"`|Models,Servers,Server Parameters,VectorDB||
 |Anaconda AI Catalyst (beta)|`"ai-catalyst"`|Models,Servers||
 
 ## Configuration

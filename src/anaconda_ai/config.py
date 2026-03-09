@@ -88,7 +88,7 @@ class Backends(BaseModel):
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
     backend: Literal["ai-catalyst", "ai-navigator", "anaconda-desktop"] = (
-        "anaconda-desktop"
+        "ai-navigator"
     )
     stop_server_on_exit: bool = True
     server_operations_timeout: int = 60
