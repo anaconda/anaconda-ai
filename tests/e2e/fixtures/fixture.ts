@@ -1,11 +1,11 @@
 import { test as baseTest } from '@anaconda/playwright-utils';
-import { CLI } from '@pages/cli/cli';
+import { AnacondaAiCli } from '@pages/cli/anaconda-ai';
 
 export const test = baseTest.extend<{
-  cli: CLI;
+  anacondaAiCli: AnacondaAiCli;
 }>({
-  cli: async ({}, use) => {
-    await use(new CLI());
+  anacondaAiCli: async ({ }, use) => {
+    await use(new AnacondaAiCli());
   },
 });
 
