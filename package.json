@@ -1,0 +1,56 @@
+{
+  "name": "anaconda-ai",
+  "version": "1.0.0",
+  "description": "Anaconda AI - CLI and e2e tests with Playwright",
+  "keywords": [
+    "playwright",
+    "typescript",
+    "testing",
+    "e2e",
+    "cli"
+  ],
+  "devDependencies": {
+    "@anaconda/playwright-utils": "1.2.4",
+    "@playwright/test": "^1.49.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.15.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "build": "tsc",
+    "validate": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --retries 0 --project=chromiumheadless",
+    "test:e2e:headed": "playwright test -j 1 --retries 0 --headed --project=chromium",
+    "test:e2e:functional": "playwright test --project=chromium -g '@functional'",
+    "test:e2e:smoke": "playwright test --project=chromiumheadless -g '@smoke'",
+    "test:e2e:local": "playwright test -j 1 --retries 0 --headed --project=chromium",
+    "test:e2e:reg": "playwright test --project=chromiumheadless --grep-invert '@fail'",
+    "report": "playwright show-report playwright-report",
+    "ui": "playwright test --project=chromiumheadless --ui-port 0",
+    "trace": "playwright show-trace --port 0",
+    "lint": "cross-env eslint 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts'",
+    "lint:fix": "cross-env eslint 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts' --fix",
+    "format": "cross-env prettier --write 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts' '**/*.json' '**/*.md' '!package-lock.json' '!dist/**/*' '!build/**/*'",
+    "postinstall": "playwright install chromium"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{json,md}": "cross-env prettier --write",
+    "{*.ts,eslint.config.mjs}": [
+      "cross-env eslint --fix",
+      "cross-env prettier --write"
+    ]
+  }
+}
