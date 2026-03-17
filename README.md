@@ -20,7 +20,7 @@ Below you will find documentation for
 ## Install
 
 ```text
-conda install -c anaconda-cloud anaconda-ai
+conda install anaconda-ai
 ```
 
 ## Backends
