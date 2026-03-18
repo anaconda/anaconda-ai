@@ -48,3 +48,10 @@ src/*/_version.py
 
 # llama.cpp logs
 llama-cpp.*.log
+
+# Playwright e2e
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/
+playwright/.auth/
