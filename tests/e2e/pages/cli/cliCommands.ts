@@ -10,7 +10,7 @@ export const installAiPackageCmd = `conda create -c defaults -c conda-forge anac
 export const activateAiPackageEnvCmd = `conda run -n anaconda-cli --no-capture-output true`;
 
 // Command to set AI Catalyst site as default (Self-Hosted site)
-export const addAiPackageEnvToSandboxCmd = `conda run -n anaconda-cli --no-capture-output anaconda sites modify --domain ${baseDomain} --name self-hosted --default --yes`;
+export const addAiPackageEnvToSandboxCmd = `conda run -n anaconda-cli --no-capture-output anaconda sites add --domain ${baseDomain} --name self-hosted --default --yes`;
 
 // Command to configure the Anaconda AI package environment to use the AI Catalyst backend
 export const configureAiPackageEnvToUseSandboxCmd = `conda run -n anaconda-cli --no-capture-output anaconda ai config --backend ai-catalyst --yes`;
