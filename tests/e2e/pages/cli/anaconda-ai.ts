@@ -2,11 +2,12 @@ import { expect } from '@playwright/test';
 import { shellCommand, type ShellResult } from 'tests/utils/CliUtils';
 
 import * as cliCommands from './cliCommands';
+import { logger } from '@anaconda/playwright-utils';
 
 export class AnacondaAiCli {
   private verifyExitCode(result: ShellResult, commandName: string): void {
     if (result.exitCode !== 0) {
-      console.log(`${commandName} stderr:`, result.stderrOutput || result.output);
+      logger.error(`${commandName} stderr:`, result.stderrOutput || result.output);
     }
     expect(
       result.exitCode,
