@@ -6,6 +6,7 @@ This package provides programmatic access and an SDK to access the curated model
 Below you will find documentation for
 
 * [How to install](#install)
+* [Backends and configuration](#backends)
 * [Command line interface to list, download, run API servers for models](#cli)
 * [Anaconda AI SDK](#sdk)
 * [Integration with LLM CLI](#llm)
@@ -20,7 +21,7 @@ Below you will find documentation for
 ## Install
 
 ```text
-conda install -c anaconda-cloud anaconda-ai
+conda install anaconda-ai
 ```
 
 ## Backends
@@ -33,7 +34,7 @@ The available backends are
 |Backend name|Configuration value|Supports|Default|
 |------------|-------------------|--------|-------|
 |[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEFAULT|
-|Anaconda AI Catalyst (beta)|`"ai-catalyst"`|Models,Servers||
+|Anaconda AI Catalyst|`"ai-catalyst"`|Models,Servers,Multi-Site||
 
 ## Configuration
 
@@ -51,6 +52,10 @@ Anaconda AI supports configuration management in the `~/.anaconda/config.toml` f
 
 Use `anaconda ai config` command to apply changes to the `~/.anaconda/config.toml`. See `anaconda ai config --help`
 for details.
+
+## Site configuration
+
+For backends that support multi-site configuration see [anaconda-auth multi-site configuration](https://anaconda.github.io/anaconda-auth/#multi-site-configuration) and the [`anaconda sites`](https://anaconda.github.io/anaconda-auth/#cli-commands) CLI command.
 
 ## Declaring model quantization files
 
