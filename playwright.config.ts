@@ -10,13 +10,14 @@ import path from 'path';
 
 dotenv.config({ path: '.env' });
 
-// To run against a local environment, set the URL in .env or pass as command line argument.
-export const BASE_URL = process.env.URL ?? 'https://www.saucedemo.com';
+// Base URL from .env (align with cliCommands default)
+export const BASE_URL = process.env.BASE_URL ?? process.env.URL ?? 'https://qa.anaconda-sandbox.com';
 export const STORAGE_STATE_PATH = path.join(__dirname, 'playwright/.auth');
 const bearerToken = process.env.BEARER_TOKEN ?? '';
 
 export default defineConfig({
   ...AnacondaConfigDefaults,
+  globalSetup: './tests/test-setup/global-setup.ts',
   testDir: './tests/e2e',
   use: {
     ...AnacondaProjectDefaults,

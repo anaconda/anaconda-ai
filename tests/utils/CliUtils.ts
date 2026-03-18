@@ -12,8 +12,13 @@ export const shellCommand = async (input: string) => {
   let output = '';
   let stderrOutput = '';
 
-  // Spawn a child process to run the command
-  const commandProcess = spawn(commandToExecute, { shell: true });
+  // Spawn with env so Anaconda CLI sees ANACONDA_AUTH_API_KEY 
+  const env = {
+    ...process.env,
+    ANACONDA_AUTH_API_KEY:
+      process.env.ANACONDA_AUTH_API_KEY ?? '',
+  };
+  const commandProcess = spawn(commandToExecute, { shell: true, env });
 
   commandProcess.stdout.on('data', (data: string) => {
     output += data;
