@@ -666,9 +666,9 @@ class BaseSystemPrompts:
     NotImplementedError from the default implementations.
     """
 
-    client: GenericClient
+    client: BaseClient
 
-    def __init__(self, client: GenericClient) -> None:
+    def __init__(self, client: BaseClient) -> None:
         self.client = client
 
     def list(self, *, next_page_url: Optional[str] = None) -> PromptListResponse:

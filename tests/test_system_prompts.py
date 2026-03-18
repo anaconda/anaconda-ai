@@ -9,7 +9,6 @@ import requests
 from anaconda_ai.clients.anaconda_desktop import AnacondaDesktopSystemPrompts
 from anaconda_ai.clients.base import (
     BaseSystemPrompts,
-    GenericClient,
     PromptListResponse,
     PromptSummary,
     SystemPrompt,
@@ -24,18 +23,21 @@ from anaconda_ai.exceptions import ProjectsAPIError, SystemPromptNotFoundError
 
 @pytest.fixture()
 def mock_client() -> MagicMock:
-    """Provide a mock GenericClient with config.domain set for auth-derived base URL."""
-    client = MagicMock(spec=GenericClient)
-    # config.domain is how anaconda_auth resolves the authenticated domain;
-    # since config comes from BaseClient (parent), we need to explicitly
-    # set it on the mock as spec=GenericClient doesn't auto-inherit it.
+    """Provide a mock cloud-authenticated BaseClient for Projects API calls.
+
+    ``config.domain`` is set to a cloud domain so that
+    ``_projects_api_base_url`` resolves correctly.
+    """
+    client = MagicMock()
     client.config = MagicMock()
     client.config.domain = "test.anaconda.com"
     return client
 
 
 @pytest.fixture()
-def desktop_prompts(mock_client: MagicMock) -> AnacondaDesktopSystemPrompts:
+def desktop_prompts(
+    mock_client: MagicMock,
+) -> AnacondaDesktopSystemPrompts:
     """Provide an AnacondaDesktopSystemPrompts instance backed by a mock client."""
     return AnacondaDesktopSystemPrompts(mock_client)
 
@@ -92,7 +94,9 @@ class TestSystemPromptsList:
     """Tests for client.system_prompts.list()."""
 
     def test_list_returns_three_prompt_summaries(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() with 3 projects returns 3 PromptSummary items with correct fields."""
         mock_client.get.return_value = _make_response(
@@ -118,7 +122,9 @@ class TestSystemPromptsList:
         assert result.next_page_url is None
 
     def test_list_empty_returns_empty_response(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() with 0 projects returns empty PromptListResponse (not an error)."""
         mock_client.get.return_value = _make_response(
@@ -133,7 +139,9 @@ class TestSystemPromptsList:
         assert result.next_page_url is None
 
     def test_list_passes_through_next_page_url(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() with next_page_url present passes it through in response."""
         next_url = "https://test.anaconda.com/api/projects/?owner=me&tag=advisor&page=2"
@@ -151,7 +159,9 @@ class TestSystemPromptsList:
         assert result.next_page_url == next_url
 
     def test_list_5xx_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() on 5xx from Projects API raises ProjectsAPIError."""
         mock_client.get.return_value = _make_response(500)
@@ -160,7 +170,9 @@ class TestSystemPromptsList:
             desktop_prompts.list()
 
     def test_list_connection_error_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() on network/connection error raises ProjectsAPIError."""
         mock_client.get.side_effect = requests.exceptions.ConnectionError(
@@ -171,7 +183,9 @@ class TestSystemPromptsList:
             desktop_prompts.list()
 
     def test_list_timeout_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() on request timeout raises ProjectsAPIError."""
         mock_client.get.side_effect = requests.exceptions.Timeout("Request timed out")
@@ -180,7 +194,9 @@ class TestSystemPromptsList:
             desktop_prompts.list()
 
     def test_list_calls_correct_url(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list() calls the correct Projects API URL."""
         mock_client.get.return_value = _make_response(
@@ -195,7 +211,9 @@ class TestSystemPromptsList:
         )
 
     def test_list_with_next_page_url_uses_provided_url(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list(next_page_url=...) uses the provided URL instead of building one."""
         cursor_url = (
@@ -220,7 +238,9 @@ class TestSystemPromptsList:
         assert result.next_page_url is None
 
     def test_list_with_next_page_url_error_handling(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """list(next_page_url=...) raises ProjectsAPIError on 5xx."""
         cursor_url = (
@@ -233,7 +253,9 @@ class TestSystemPromptsList:
             desktop_prompts.list(next_page_url=cursor_url)
 
     def test_list_pagination_round_trip(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """First page returns next_page_url, second call with it returns last page."""
         next_url = (
@@ -278,7 +300,9 @@ class TestSystemPromptsGet:
     """Tests for client.system_prompts.get()."""
 
     def test_get_returns_system_prompt(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """get() returns SystemPrompt with correct fields."""
         # Step 1: name lookup returns 1 project
@@ -306,7 +330,9 @@ class TestSystemPromptsGet:
         assert result.updated_at == datetime(2026, 3, 12, 11, 0, 0, tzinfo=timezone.utc)
 
     def test_get_nonexistent_raises_not_found(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """get() with nonexistent name raises SystemPromptNotFoundError."""
         mock_client.get.return_value = _make_response(
@@ -318,7 +344,9 @@ class TestSystemPromptsGet:
             desktop_prompts.get("nonexistent-name")
 
     def test_get_404_on_file_download_raises_not_found(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """get() on 404 from file download raises SystemPromptNotFoundError."""
         lookup_resp = _make_response(
@@ -336,7 +364,9 @@ class TestSystemPromptsGet:
             desktop_prompts.get("finance-coding-assistant-a3f2")
 
     def test_get_5xx_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """get() on 5xx from Projects API raises ProjectsAPIError."""
         mock_client.get.return_value = _make_response(500)
@@ -345,7 +375,9 @@ class TestSystemPromptsGet:
             desktop_prompts.get("finance-coding-assistant-a3f2")
 
     def test_get_prompt_name_derivation_standard(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """Prompt name derivation: finance-coding-assistant-a3f2 -> prompts/finance-coding-assistant.json."""
         lookup_resp = _make_response(
@@ -366,7 +398,9 @@ class TestSystemPromptsGet:
         assert "/files/prompts/finance-coding-assistant.json" in file_url
 
     def test_get_prompt_name_derivation_multi_hyphen(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """Multi-hyphen name: my-cool-agent-abc123 -> prompts/my-cool-agent.json."""
         project = {
@@ -390,7 +424,9 @@ class TestSystemPromptsGet:
         assert "/files/prompts/my-cool-agent.json" in file_url
 
     def test_get_prompt_name_derivation_single_segment(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """Single-segment name: simple-ff02 -> prompts/simple.json."""
         project = {
@@ -414,7 +450,9 @@ class TestSystemPromptsGet:
         assert "/files/prompts/simple.json" in file_url
 
     def test_get_malformed_prompt_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """Malformed prompt file (missing system_prompt key) raises ProjectsAPIError."""
         lookup_resp = _make_response(
@@ -433,7 +471,9 @@ class TestSystemPromptsGet:
             desktop_prompts.get("finance-coding-assistant-a3f2")
 
     def test_get_connection_error_raises_projects_api_error(
-        self, desktop_prompts: AnacondaDesktopSystemPrompts, mock_client: MagicMock
+        self,
+        desktop_prompts: AnacondaDesktopSystemPrompts,
+        mock_client: MagicMock,
     ) -> None:
         """get() on network error raises ProjectsAPIError."""
         mock_client.get.side_effect = requests.exceptions.ConnectionError(

@@ -1,6 +1,7 @@
 from typing import Any, Callable, Dict, Optional
 
 import requests
+from anaconda_auth.client import BaseClient as AuthBaseClient
 
 from ..config import AnacondaAIConfig
 from ..exceptions import ProjectsAPIError, SystemPromptNotFoundError
@@ -30,15 +31,21 @@ def _derive_prompt_name(project_name: str) -> str:
 
 
 class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
-    """System prompt operations via the Anaconda Cloud Projects API.
+    """System prompt operations via the Anaconda Platform Collections API.
 
     Unlike models/servers/vector_db (which reuse AINavigator classes),
     this class talks directly to the cloud Projects API because
     AINavigator does not support system prompts.
 
-    The Projects API base URL is derived from the authenticated user's
-    domain (e.g., ``https://anaconda.com``), so it automatically
-    follows whichever Anaconda instance the user is logged into.
+    The *client* passed to this class must be an
+    ``anaconda_auth.client.BaseClient`` authenticated against the
+    user's Anaconda Cloud domain so that the correct cloud auth token
+    is sent — the desktop client's local API key is not valid for
+    cloud endpoints.
+
+    The Projects API base URL is derived from the client's domain
+    (e.g., ``https://anaconda.com``), so it automatically follows
+    whichever Anaconda instance the user is logged into.
     """
 
     @property
@@ -51,9 +58,10 @@ class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
     ) -> requests.Response:
         """Execute an API request with standardised error handling.
 
-        Wraps *request_fn* (e.g. ``self.client.get``, ``self.client.post``)
-        so that connectivity errors and server-side failures are surfaced
-        as :class:`ProjectsAPIError` consistently.
+        Wraps *request_fn* (e.g. ``self.client.get``,
+        ``self.client.post``) so that connectivity errors and
+        server-side failures are surfaced as :class:`ProjectsAPIError`
+        consistently.
         """
         try:
             response = request_fn(*args, **kwargs)
@@ -154,8 +162,9 @@ class AnacondaDesktopClient(GenericClient):
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
-        # System prompts use the cloud Projects API (not AINavigator's local API)
-        self.system_prompts = AnacondaDesktopSystemPrompts(self)
+        # System prompts use the cloud Projects API (not AINavigator's local API),
+        # so they need a cloud-authenticated client rather than the desktop one.
+        self.system_prompts = AnacondaDesktopSystemPrompts(AuthBaseClient())
 
     @property
     def online(self) -> bool:
