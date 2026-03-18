@@ -27,6 +27,7 @@ from .base import (
     BaseServers,
     Server,
     ServerConfig,
+    BaseSystemPrompts,
 )
 
 
@@ -480,6 +481,7 @@ class AICatalystClient(GenericClient):
 
         self.models = AICatalystModels(self)
         self.servers = AICatalystServers(self)
+        self.system_prompts = BaseSystemPrompts(self)
         self.hooks["response"].insert(0, catalyst_login_required)
 
     @cached_property

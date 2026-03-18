@@ -22,6 +22,7 @@ from .base import (
     BaseVectorDb,
     VectorDbTableSchema,
     TableInfo,
+    BaseSystemPrompts,
 )
 from ..utils import find_free_port
 
@@ -403,6 +404,7 @@ class AINavigatorClient(GenericClient):
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
+        self.system_prompts = BaseSystemPrompts(self)
 
     @property
     def online(self) -> bool:
