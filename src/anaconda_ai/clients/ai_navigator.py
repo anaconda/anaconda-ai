@@ -404,7 +404,6 @@ class AINavigatorClient(GenericClient):
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
-        self.system_prompts = BaseSystemPrompts(self)
 
     @property
     def online(self) -> bool:

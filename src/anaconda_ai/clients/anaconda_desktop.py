@@ -43,15 +43,10 @@ class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
     is sent — the desktop client's local API key is not valid for
     cloud endpoints.
 
-    The Projects API base URL is derived from the client's domain
-    (e.g., ``https://anaconda.com``), so it automatically follows
-    whichever Anaconda instance the user is logged into.
+    URL resolution is handled by ``BaseClient`` (a ``requests.Session``
+    subclass) which joins relative paths against its ``_base_uri``
+    (e.g., ``https://anaconda.com``) automatically.
     """
-
-    @property
-    def _projects_api_base_url(self) -> str:
-        """Derive the Projects API base URL from the client's auth domain."""
-        return f"https://{self.client.config.domain}"
 
     def _api_request(
         self, request_fn: Callable[..., requests.Response], *args: Any, **kwargs: Any
@@ -78,11 +73,7 @@ class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
 
     def list(self, *, next_page_url: Optional[str] = None) -> PromptListResponse:
         """List advisor-generated system prompts owned by the authenticated user."""
-        if next_page_url is not None:
-            url = next_page_url
-        else:
-            base_url = self._projects_api_base_url
-            url = f"{base_url}/api/projects/?owner=me&tag=advisor"
+        url = next_page_url or "/api/projects/?owner=me&tag=advisor"
 
         response = self._api_request(self.client.get, url)
 
@@ -102,11 +93,11 @@ class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
 
     def get(self, name: str) -> SystemPrompt:
         """Retrieve a system prompt by its full project name."""
-        base_url = self._projects_api_base_url
-
         # Step 1: Look up project by name
-        lookup_url = f"{base_url}/api/projects/?owner=me&tag=advisor&name={name}"
-        response = self._api_request(self.client.get, lookup_url)
+        response = self._api_request(
+            self.client.get,
+            f"/api/projects/?owner=me&tag=advisor&name={name}",
+        )
 
         data = response.json()
         items = data.get("items", [])
@@ -118,10 +109,10 @@ class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
         prompt_name = _derive_prompt_name(project["name"])
 
         # Step 2: Download the prompt file
-        file_url = (
-            f"{base_url}/api/projects/{project_id}/files/prompts/{prompt_name}.json"
+        file_response = self._api_request(
+            self.client.get,
+            f"/api/projects/{project_id}/files/prompts/{prompt_name}.json",
         )
-        file_response = self._api_request(self.client.get, file_url)
 
         if file_response.status_code == 404:
             raise SystemPromptNotFoundError(f"System prompt '{name}' not found")

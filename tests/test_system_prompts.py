@@ -23,11 +23,7 @@ from anaconda_ai.exceptions import ProjectsAPIError, SystemPromptNotFoundError
 
 @pytest.fixture()
 def mock_client() -> MagicMock:
-    """Provide a mock cloud-authenticated BaseClient for Projects API calls.
-
-    ``config.domain`` is set to a cloud domain so that
-    ``_projects_api_base_url`` resolves correctly.
-    """
+    """Provide a mock cloud-authenticated BaseClient for Projects API calls."""
     client = MagicMock()
     client.config = MagicMock()
     client.config.domain = "test.anaconda.com"
@@ -206,9 +202,7 @@ class TestSystemPromptsList:
 
         desktop_prompts.list()
 
-        mock_client.get.assert_called_once_with(
-            "https://test.anaconda.com/api/projects/?owner=me&tag=advisor"
-        )
+        mock_client.get.assert_called_once_with("/api/projects/?owner=me&tag=advisor")
 
     def test_list_with_next_page_url_uses_provided_url(
         self,
