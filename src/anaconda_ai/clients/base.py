@@ -1,5 +1,6 @@
 import atexit
 import re
+from datetime import datetime
 from pathlib import Path
 from time import time
 from types import TracebackType
@@ -18,7 +19,15 @@ from urllib.parse import urljoin
 
 import openai
 import rich.progress
-from pydantic import BaseModel, computed_field, model_validator, Field, PrivateAttr
+from pydantic import (
+    BaseModel,
+    computed_field,
+    model_validator,
+    Field,
+    PrivateAttr,
+    ConfigDict,
+    field_validator,
+)
 from rich.status import Status
 from rich.console import Console
 
@@ -49,6 +58,7 @@ class GenericClient(BaseClient):
     models: "BaseModels"
     servers: "BaseServers"
     vector_db: "BaseVectorDb"
+    system_prompts: "BaseSystemPrompts"
 
     def __init__(
         self,
@@ -579,6 +589,45 @@ class TableInfo(BaseModel):
     numRows: int
 
 
+class PromptSummary(BaseModel):
+    """Lightweight representation of an advisor-generated system prompt."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("name")
+    @classmethod
+    def name_must_be_non_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name must be non-empty")
+        return v
+
+
+class SystemPrompt(PromptSummary):
+    """Full system prompt content, combining project info with prompt text."""
+
+    system_prompt: str
+
+    @field_validator("system_prompt")
+    @classmethod
+    def system_prompt_must_be_non_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("system_prompt must be non-empty")
+        return v
+
+
+class PromptListResponse(BaseModel):
+    """Response from listing system prompts, with pagination support."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[PromptSummary]
+    next_page_url: Optional[str] = None
+
+
 class BaseVectorDb:
     client: GenericClient
 
@@ -606,4 +655,61 @@ class BaseVectorDb:
         raise NotImplementedError
 
     def drop_table(self, table: str) -> None:
+        raise NotImplementedError
+
+
+class BaseSystemPrompts:
+    """Base class for system prompt operations.
+
+    Concrete implementations must override list() and get().
+    Backends that do not support system prompts will raise
+    NotImplementedError from the default implementations.
+    """
+
+    client: BaseClient
+
+    def __init__(self, client: BaseClient) -> None:
+        self.client = client
+
+    def list(self, *, next_page_url: Optional[str] = None) -> PromptListResponse:
+        """List advisor-generated system prompts owned by the authenticated user.
+
+        Returns one page of results (up to 1000 items). To fetch
+        subsequent pages, pass the ``next_page_url`` from a previous
+        response back into this method.
+
+        Args:
+            next_page_url: Opaque cursor URL from a previous
+                ``PromptListResponse.next_page_url``. When provided,
+                fetches that page instead of the first page. The URL
+                must be used as-is — it cannot be constructed or
+                predicted by the caller.
+
+        Returns:
+            PromptListResponse containing a list of PromptSummary objects
+            and optional next_page_url for fetching the next page.
+
+        Raises:
+            AnacondaAIException: On authentication failure.
+            ProjectsAPIError: On Projects API connectivity failure.
+            NotImplementedError: If the backend does not support this operation.
+        """
+        raise NotImplementedError
+
+    def get(self, name: str) -> SystemPrompt:
+        """Retrieve a system prompt by its full project name.
+
+        Args:
+            name: The full project name including random hex suffix
+                  (e.g., "finance-coding-assistant-a3f2b1").
+
+        Returns:
+            SystemPrompt containing the prompt text and project dates.
+
+        Raises:
+            SystemPromptNotFoundError: If no project with the given name exists.
+            AnacondaAIException: On authentication failure.
+            ProjectsAPIError: On Projects API connectivity failure.
+            NotImplementedError: If the backend does not support this operation.
+        """
         raise NotImplementedError

@@ -1,13 +1,135 @@
-from typing import Optional, Any, Dict
+from typing import Any, Callable, Dict, Optional
+
+import requests
+from anaconda_auth.client import BaseClient as AuthBaseClient
 
 from ..config import AnacondaAIConfig
-from .base import GenericClient
+from ..exceptions import ProjectsAPIError, SystemPromptNotFoundError
+from .base import (
+    BaseSystemPrompts,
+    GenericClient,
+    PromptListResponse,
+    PromptSummary,
+    SystemPrompt,
+)
 from .ai_navigator import (
     AINavigatorModels,
     AINavigatorServers,
     AINavigatorVectorDbServer,
     AiNavigatorVersion,
 )
+
+
+def _derive_prompt_name(project_name: str) -> str:
+    """Derive the prompt file name from a project name.
+
+    The advisor creates project names as ``f"{prompt_name}-{hex_suffix}"``,
+    so stripping everything after the last hyphen recovers the original
+    prompt name used in the file path ``prompts/{prompt_name}.json``.
+    """
+    return project_name.rsplit("-", 1)[0]
+
+
+class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
+    """System prompt operations via the Anaconda Platform Collections API.
+
+    Unlike models/servers/vector_db (which reuse AINavigator classes),
+    this class talks directly to the cloud Projects API because
+    AINavigator does not support system prompts.
+
+    The *client* passed to this class must be an
+    ``anaconda_auth.client.BaseClient`` authenticated against the
+    user's Anaconda Cloud domain so that the correct cloud auth token
+    is sent — the desktop client's local API key is not valid for
+    cloud endpoints.
+
+    URL resolution is handled by ``BaseClient`` (a ``requests.Session``
+    subclass) which joins relative paths against its ``_base_uri``
+    (e.g., ``https://anaconda.com``) automatically.
+    """
+
+    def _api_request(
+        self, request_fn: Callable[..., requests.Response], *args: Any, **kwargs: Any
+    ) -> requests.Response:
+        """Execute an API request with standardised error handling.
+
+        Wraps *request_fn* (e.g. ``self.client.get``,
+        ``self.client.post``) so that connectivity errors and
+        server-side failures are surfaced as :class:`ProjectsAPIError`
+        consistently.
+        """
+        try:
+            response = request_fn(*args, **kwargs)
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as exc:
+            raise ProjectsAPIError(f"Failed to connect to Projects API: {exc}") from exc
+
+        if response.status_code >= 500:
+            raise ProjectsAPIError(f"Projects API returned {response.status_code}")
+
+        return response
+
+    def list(self, *, next_page_url: Optional[str] = None) -> PromptListResponse:
+        """List advisor-generated system prompts owned by the authenticated user."""
+        url = next_page_url or "/api/projects/?owner=me&tag=advisor"
+
+        response = self._api_request(self.client.get, url)
+
+        data = response.json()
+        items = [
+            PromptSummary(
+                name=item["name"],
+                created_at=item["created_at"],
+                updated_at=item["updated_at"],
+            )
+            for item in data.get("items", [])
+        ]
+        return PromptListResponse(
+            items=items,
+            next_page_url=data.get("next_page_url"),
+        )
+
+    def get(self, name: str) -> SystemPrompt:
+        """Retrieve a system prompt by its full project name."""
+        # Step 1: Look up project by name
+        response = self._api_request(
+            self.client.get,
+            f"/api/projects/?owner=me&tag=advisor&name={name}",
+        )
+
+        data = response.json()
+        items = data.get("items", [])
+        if not items:
+            raise SystemPromptNotFoundError(f"System prompt '{name}' not found")
+
+        project = items[0]
+        project_id = project["id"]
+        prompt_name = _derive_prompt_name(project["name"])
+
+        # Step 2: Download the prompt file
+        file_response = self._api_request(
+            self.client.get,
+            f"/api/projects/{project_id}/files/prompts/{prompt_name}.json",
+        )
+
+        if file_response.status_code == 404:
+            raise SystemPromptNotFoundError(f"System prompt '{name}' not found")
+
+        file_data = file_response.json()
+        if "system_prompt" not in file_data:
+            raise ProjectsAPIError(
+                f"Prompt file for '{name}' has unexpected format: "
+                f"missing 'system_prompt' key"
+            )
+
+        return SystemPrompt(
+            name=project["name"],
+            system_prompt=file_data["system_prompt"],
+            created_at=project["created_at"],
+            updated_at=project["updated_at"],
+        )
 
 
 class AnacondaDesktopClient(GenericClient):
@@ -31,6 +153,9 @@ class AnacondaDesktopClient(GenericClient):
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
         self.vector_db = AINavigatorVectorDbServer(self)
+        # System prompts use the cloud Projects API (not AINavigator's local API),
+        # so they need a cloud-authenticated client rather than the desktop one.
+        self.system_prompts = AnacondaDesktopSystemPrompts(AuthBaseClient())
 
     @property
     def online(self) -> bool:

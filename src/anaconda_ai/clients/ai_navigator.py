@@ -22,6 +22,7 @@ from .base import (
     BaseVectorDb,
     VectorDbTableSchema,
     TableInfo,
+    BaseSystemPrompts,
 )
 from ..utils import find_free_port
 
