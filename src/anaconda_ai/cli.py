@@ -584,6 +584,7 @@ def _confirm_write(
 
 @app.command(
     "config",
+    no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def configure(
