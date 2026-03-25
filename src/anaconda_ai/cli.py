@@ -461,11 +461,19 @@ def stop(
 
 
 @app.command("launch-vectordb")
-def launch_vector_db(as_json: AS_JSON = False) -> None:
+def launch_vector_db(
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
     """
     Starts a vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     result = client.vector_db.create(show_progress=not as_json)
 
     table = Table.grid(padding=1, pad_edge=True)
@@ -487,11 +495,19 @@ def launch_vector_db(as_json: AS_JSON = False) -> None:
 
 
 @app.command("delete-vectordb")
-def delete_vector_db(as_json: AS_JSON = False) -> None:
+def delete_vector_db(
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
     """
     Deletes the vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     client.vector_db.delete()
     if as_json:
         console.print_json(data={"status": "success"})
@@ -500,11 +516,19 @@ def delete_vector_db(as_json: AS_JSON = False) -> None:
 
 
 @app.command("stop-vectordb")
-def stop_vector_db(as_json: AS_JSON = False) -> None:
+def stop_vector_db(
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
     """
     Stops the vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     _ = client.vector_db.stop()
     if as_json:
         console.print_json(data={"status": "success"})
@@ -513,11 +537,19 @@ def stop_vector_db(as_json: AS_JSON = False) -> None:
 
 
 @app.command("list-tables")
-def list_tables(as_json: AS_JSON = False) -> None:
+def list_tables(
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
     """
     Lists all tables in the vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     tables = client.vector_db.get_tables()
 
     if as_json:
@@ -536,12 +568,18 @@ def list_tables(as_json: AS_JSON = False) -> None:
 @app.command("drop-table")
 def drop_table(
     table: str = typer.Argument(help="Name of the table to drop"),
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
     as_json: AS_JSON = False,
 ) -> None:
     """
     Drops a table from the vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     client.vector_db.drop_table(table)
     if as_json:
         console.print_json(data={"status": "success"})
@@ -553,12 +591,18 @@ def drop_table(
 def create_table(
     table: str = typer.Argument(help="Name of the table to create"),
     schema: str = typer.Argument(help="Schema of the table to create"),
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    backend: Annotated[
+        Optional[str], typer.Option(help="Select inference backend")
+    ] = None,
     as_json: AS_JSON = False,
 ) -> None:
     """
     Creates a table in the vector db
     """
-    client = AnacondaAIClient()
+    client = AnacondaAIClient(backend=backend, site=site)
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
     if as_json:
