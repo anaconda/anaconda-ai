@@ -9,20 +9,21 @@ from typer.testing import CliRunner
 
 from anaconda_cli_base.cli import app
 
-SUBCOMMANDS = [
+SUBCOMMANDS = {
     "version",
-    "models", 
-    "download", 
-    "launch", 
+    "models",
+    "download",
+    "launch",
     "servers",
-    "stop", 
-    "launch-vectordb", 
+    "stop",
+    "launch-vectordb",
     "delete-vectordb",
-    "stop-vectordb", 
-    "create-table", 
-    "drop-table", 
-    "list-tables"
-    ]
+    "stop-vectordb",
+    "create-table",
+    "drop-table",
+    "list-tables",
+    "config",
+}
 
 
 class CLIInvoker(Protocol):
@@ -46,3 +47,10 @@ def invoke_cli(tmp_path: Path, monkeypatch: MonkeyPatch) -> CLIInvoker:
 def test_feature_action(invoke_cli: CLIInvoker, action: str) -> None:
     result = invoke_cli("ai", action, "--help")
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize("action", {"config"})
+def test_no_args_is_help(invoke_cli: CLIInvoker, action: str) -> None:
+    result = invoke_cli("ai", action)
+    assert result.exit_code == 2
+    assert "Usage" in result.stdout
