@@ -10,7 +10,7 @@ import httpx
 import numpy as np
 import panel as pn
 
-from ..clients import get_default_client
+from ..clients import AnacondaAIClient
 from ..clients.base import Server
 
 HERE = os.path.dirname(__file__)
@@ -26,6 +26,8 @@ class AnacondaModelHandler:
         model_id: str,
         display_throughput: bool = False,
         system_message: Optional[str] = None,
+        backend: Optional[str] = None,
+        site: Optional[str] = None,
         client_options: Optional[dict] = None,
         extra_options: Optional[dict] = None,
     ) -> None:
@@ -44,16 +46,23 @@ class AnacondaModelHandler:
         self.model_id = model_id
 
         self.server = None
-        self._get_or_create_service()
+        self._get_or_create_service(backend=backend, site=site)
 
         self.avatar = os.path.join(HERE, "Anaconda_Logo.png")
 
-    def _get_or_create_service(self) -> None:
-        client = get_default_client()
+    def _get_or_create_service(
+        self, backend: Optional[str] = None, site: Optional[str] = None
+    ) -> None:
+        client = AnacondaAIClient(backend=backend, site=site)
+
         if self.server is None:
-            self.server = client.servers.create(
-                model=self.model_id, extra_options=self.extra_options
-            )
+            if self.model_id.startswith("server/"):
+                server_name = self.model_id.split("/", maxsplit=1)[1]
+                self.server = client.servers.get(server_name)
+            else:
+                self.server = client.servers.create(
+                    model=self.model_id, extra_options=self.extra_options
+                )
 
         self.server.start()
         self.model_name = self.server.config.model_name
