@@ -1,9 +1,23 @@
 import { spawn } from 'child_process';
 
+import { expect } from '@playwright/test';
+import { logger } from '@anaconda/playwright-utils';
+
 export interface ShellResult {
   exitCode: number;
   output: string;
   stderrOutput: string;
+}
+
+/** Asserts a shell command exited 0; logs stderr/output on failure. */
+export function verifyShellExitCode(result: ShellResult, commandName: string): void {
+  if (result.exitCode !== 0) {
+    logger.error(`${commandName} stderr:`, result.stderrOutput || result.output);
+  }
+  expect(
+    result.exitCode,
+    `Expected ${commandName} to exit with code 0, but got ${result.exitCode}`,
+  ).toBe(0);
 }
 
 export const shellCommand = async (input: string) => {

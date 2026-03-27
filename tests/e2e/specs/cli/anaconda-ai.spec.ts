@@ -5,5 +5,9 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     const result = await anacondaAiCli.runAnacondaAiHelpCommand();
     anacondaAiCli.verifyAnacondaAiHelpCommand(result);
   });
+  test('anaconda ai models list command', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runAnacondaAiModelsListCommand();
+    anacondaAiCli.verifyAnacondaAiModelsListCommand(result);
+  });
 
 });
