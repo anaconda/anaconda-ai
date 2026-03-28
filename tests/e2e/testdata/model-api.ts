@@ -6,7 +6,7 @@ export type ModelQuantization = {
   blocked: boolean;
 };
 
-export type Model = {
+export type ModelApi = {
   model: string;
   parameters: number;
   quantizations: ModelQuantization[];

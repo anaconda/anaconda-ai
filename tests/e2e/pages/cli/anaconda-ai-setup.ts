@@ -27,7 +27,7 @@ export class AnacondaAiSetupCli {
   }
 
   public verifyActivateAiPackageEnvCommand(result: ShellResult): void {
-    verifyShellExitCode(result, 'activate command');
+    verifyShellExitCode(result, 'anaconda-ai --version');
   }
 
   public async runSitesListCommand(): Promise<ShellResult> {

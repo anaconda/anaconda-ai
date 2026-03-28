@@ -1,31 +1,32 @@
 // Anaconda AI package CLI commands
-// Command to install the Anaconda AI package using conda
-export const installAiPackageCmd = `conda create -c defaults -c conda-forge anaconda-cloud/label/dev::anaconda-ai=0.5.0 python=3.12 notebook ipywidgets llm dspy -n anaconda-cli --y`;
 
-// Verify the Anaconda AI package environment is runnable 
-export const activateAiPackageEnvCmd = `conda run -n anaconda-cli --no-capture-output true`;
+const anacondaAiChannel = process.env.ANACONDA_AI_CHANNEL ?? 'anaconda-cloud/label/dev';
+const anacondaAiVersion = process.env.ANACONDA_AI_VERSION ?? '0.5.0';
 
-// Command to list sites
-export const sitesListCmd = `conda run -n anaconda-cli --no-capture-output anaconda sites list`;
+// Run all command in the anaconda-cli environment
+const condaRun = (inner: string): string =>
+  `conda run -n anaconda-cli --no-capture-output ${inner}`;
 
-// Command to add a site
-export const addSiteCmd = (domain: string, name: string): string => {
-  return `conda run -n anaconda-cli --no-capture-output anaconda sites add --domain ${domain} --name ${name} --default --yes`;
-};
+export const installAiPackageCmd =
+  `conda create -c defaults -c conda-forge ${anacondaAiChannel}::anaconda-ai=${anacondaAiVersion} -n anaconda-cli --yes`;
 
-// Command to modify a site
-export const modifySiteCmd = (domain: string, name: string): string => {
-  return `conda run -n anaconda-cli --no-capture-output anaconda sites modify --domain ${domain} --name ${name} --default --yes`;
-};
+// Verify the Anaconda AI package environment is runnable
+export const activateAiPackageEnvCmd = condaRun('anaconda-ai --version');
 
-// Command to configure the Anaconda AI package environment to use the AI Catalyst backend
-export const configureAiPackageEnvToUseSandboxCmd = `conda run -n anaconda-cli --no-capture-output anaconda ai config --backend ai-catalyst --yes`;
+export const sitesListCmd = condaRun('anaconda sites list');
 
-// Verify authentication
-export const authWhoamiCmd = `conda run -n anaconda-cli --no-capture-output anaconda auth whoami`;
+export const addSiteCmd = (domain: string, name: string): string =>
+  condaRun(`anaconda sites add --domain ${domain} --name ${name} --default --yes`);
 
-// Command to show Anaconda AI package help
-export const anacondaAiHelpCmd = `conda run -n anaconda-cli --no-capture-output anaconda ai --help`;
+export const modifySiteCmd = (domain: string, name: string): string =>
+  condaRun(`anaconda sites modify --domain ${domain} --name ${name} --default --yes`);
 
-// Command to list Anaconda AI models
-export const anacondaAiModelsListCmd = `conda run -n anaconda-cli --no-capture-output anaconda ai models --json`;
+export const configureAiPackageEnvToUseSandboxCmd = condaRun(
+  'anaconda ai config --backend ai-catalyst --yes',
+);
+
+export const authWhoamiCmd = condaRun('anaconda auth whoami');
+
+export const anacondaAiHelpCmd = condaRun('anaconda ai --help');
+
+export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
