@@ -11,7 +11,7 @@ export const installAiPackageCmd =
   `conda create -c defaults -c conda-forge ${anacondaAiChannel}::anaconda-ai=${anacondaAiVersion} -n anaconda-cli --yes`;
 
 // Verify the Anaconda AI package environment is runnable
-export const activateAiPackageEnvCmd = condaRun('anaconda-ai --version');
+export const activateAiPackageEnvCmd = condaRun('conda list anaconda-ai');
 
 export const sitesListCmd = condaRun('anaconda sites list');
 

@@ -19,7 +19,7 @@ export class AnacondaAiSetupCli {
     expect(
       isInstalledNow || isAlreadyInstalled,
       'Expected anaconda-ai to be either newly installed or already installed',
-    ).toBeTruthy();
+    ).toBe(true);
   }
 
   public async runActivateAiPackageEnvCommand(): Promise<ShellResult> {
@@ -27,7 +27,7 @@ export class AnacondaAiSetupCli {
   }
 
   public verifyActivateAiPackageEnvCommand(result: ShellResult): void {
-    verifyShellExitCode(result, 'anaconda-ai --version');
+    verifyShellExitCode(result, 'conda list anaconda-ai');
   }
 
   public async runSitesListCommand(): Promise<ShellResult> {
