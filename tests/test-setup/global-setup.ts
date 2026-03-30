@@ -2,10 +2,12 @@
  * global-setup.ts: Sets up global state before all tests start.
  * Runs the Anaconda AI package install before any tests.
  */
+import { AnacondaAiSetupCli } from '../e2e/pages/cli/anaconda-ai-setup';
+import { baseDomain, SELF_HOSTED_SITE_NAME } from '@testdata/site-data';
 
-import { AnacondaAiCli } from '../e2e/pages/cli/anaconda-ai';
+async function setupAnacondaAi(cli: AnacondaAiSetupCli): Promise<void> {
+  console.log(`[Global Setup] Installing and verifying Anaconda AI in "anaconda-cli" (version: ${process.env.ANACONDA_AI_VERSION ?? 'not set'})`,);
 
-async function setupAnacondaAi(cli: AnacondaAiCli): Promise<void> {
   // Install the Anaconda AI package
   const installResult = await cli.runInstallAiPackageCommand();
   cli.verifyInstallAiPackageCommand(installResult);
@@ -14,9 +16,17 @@ async function setupAnacondaAi(cli: AnacondaAiCli): Promise<void> {
   const activateResult = await cli.runActivateAiPackageEnvCommand();
   cli.verifyActivateAiPackageEnvCommand(activateResult);
 
-  // Add the Self-Hosted site as the default site
-  const addResult = await cli.runAddAiPackageEnvToSandboxCommand();
-  cli.verifyAddAiPackageEnvToSandboxCommand(addResult);
+  // List sites: if site exists run modify, otherwise run add
+  const sitesListResult = await cli.runSitesListCommand();
+  cli.verifySitesListCommand(sitesListResult);
+
+  if (cli.isSiteNameListed(sitesListResult, SELF_HOSTED_SITE_NAME)) {
+    const modifyResult = await cli.runModifySiteCommand(baseDomain, SELF_HOSTED_SITE_NAME);
+    cli.verifyModifySiteCommand(modifyResult);
+  } else {
+    const addResult = await cli.runAddSiteCommand(baseDomain, SELF_HOSTED_SITE_NAME);
+    cli.verifyAddSiteCommand(addResult);
+  }
 
   // Configure the Anaconda AI package environment to use the AI Catalyst backend
   const configureResult = await cli.runConfigureAiPackageEnvToUseSandboxCommand();
@@ -29,7 +39,7 @@ async function setupAnacondaAi(cli: AnacondaAiCli): Promise<void> {
 
 export default async (): Promise<void> => {
   try {
-    await setupAnacondaAi(new AnacondaAiCli());
+    await setupAnacondaAi(new AnacondaAiSetupCli());
   } catch (e) {
     throw new Error(`Global setup failed: ${e instanceof Error ? e.message : e}`, { cause: e });
   }

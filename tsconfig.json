@@ -8,6 +8,7 @@
     "paths": {
       "@fixture": ["tests/e2e/fixtures/fixture"],
       "@pages/*": ["tests/e2e/pages/*"],
+      "@testdata/*": ["tests/e2e/testdata/*"],
       "@playwright-config": ["playwright.config"]
     },
     "outDir": "dist",
