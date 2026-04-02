@@ -4,7 +4,8 @@ from anaconda_ai.integrations.panel import AnacondaModelHandler
 pn.extension("echarts", "tabulator", "terminal")
 
 llm = AnacondaModelHandler(
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf", display_throughput=True
+    "TinyLlama/TinyLlama-1.1B-Chat-v1.0_Q4_K_M.gguf",
+    display_throughput=True,
 )
 
 chat = pn.chat.ChatInterface(callback=llm.callback, show_button_name=False)
