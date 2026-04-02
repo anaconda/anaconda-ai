@@ -10,4 +10,8 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     anacondaAiCli.verifyAnacondaAiModelsListCommand(result);
   });
 
+  test('anaconda ai models list blocked command', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runAnacondaAiBlockedModelsListCommand();
+    anacondaAiCli.verifyAnacondaAiBlockedModelsListCommand(result);
+  });
 });
