@@ -30,3 +30,7 @@ export const authWhoamiCmd = condaRun('anaconda auth whoami');
 export const anacondaAiHelpCmd = condaRun('anaconda ai --help');
 
 export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
+
+export const anacondaAiBlockedModelsListCmd = condaRun(
+  'anaconda ai models --show-blocked --json',
+);

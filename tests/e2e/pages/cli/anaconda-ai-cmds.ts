@@ -17,16 +17,32 @@ export class AnacondaAiCli {
     return await shellCommand(cliCommands.anacondaAiModelsListCmd);
   }
 
+  public async runAnacondaAiBlockedModelsListCommand(): Promise<ShellResult> {
+    return await shellCommand(cliCommands.anacondaAiBlockedModelsListCmd);
+  }
+
   // Verify the output of the `anaconda ai models --json` command
   public verifyAnacondaAiModelsListCommand(result: ShellResult): void {
     verifyShellExitCode(result, 'anaconda ai models --json');
 
-    // Verify the output of the `anaconda ai models` command is valid JSON and contains a non-empty array of models.
     const models = JSON.parse(result.output) as ModelApi[];
     expect(
       Array.isArray(models) && models.length,
       'models output should be a non-empty array',
     ).toBeGreaterThan(0);
+    this.assertModelResponseData(models);
+  }
+
+  // Verify the output of `anaconda ai models --show-blocked --json` (array may be empty).
+  public verifyAnacondaAiBlockedModelsListCommand(result: ShellResult): void {
+    verifyShellExitCode(result, 'anaconda ai models --show-blocked --json');
+
+    const models = JSON.parse(result.output) as ModelApi[];
+    expect(Array.isArray(models), 'blocked models output should be an array').toBe(true);
+    this.assertModelResponseData(models);
+  }
+
+  private assertModelResponseData(models: ModelApi[]): void {
     models.forEach((model, modelIndex) => {
       expect(model.model, `models[${modelIndex}].model should be defined`).toBeDefined();
       expect(model.model.trim().length, `models[${modelIndex}].model should not be empty`).toBeGreaterThan(0);
