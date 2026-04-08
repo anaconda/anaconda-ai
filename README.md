@@ -101,6 +101,17 @@ from anaconda_ai import AnacondaAIClient
 client = AnacondaAIClient()
 ```
 
+`AnacondaAIClient` extends [`BaseClient`](https://anaconda.github.io/anaconda-auth/#api-requests) from `anaconda-auth` with the following additional keyword arguments:
+
+|Argument|Type|Description|Default|
+|---|---|---|---|
+|`backend`|str|The backend to use, see [Backends](#backends)|`"ai-navigator"`|
+|`stop_server_on_exit`|bool|Stop servers started in this session when the Python interpreter exits|`True`|
+|`server_operations_timeout`|int|Timeout in seconds waiting for a server to start or stop|`30`|
+
+All other keyword arguments (e.g. `site`, `domain`, `api_key`, `ssl_verify`) are passed through to [`BaseClient`](https://anaconda.github.io/anaconda-auth/#api-requests).
+
+
 The client provides two top-level accessors `.models` and `.servers`.
 
 ### Models
@@ -109,7 +120,7 @@ The `.models` attribute provides actions to list available models and download s
 
 |Method|Return|Description|
 |-----|-----|------|
-|`.list()`|`List[ModelSummary]`|List all available and downloaded models|
+|`.list()`|`List[Model]`|List all available and downloaded models|
 |`.get('<model-name>')`|`Model`|retrieve metadata about a model|
 |`.download('<model>/<quantization>')`|None|Download a model quantization file|
 |`.delete('<model>/<quantization>')`|None|Delete a downloaded model quantization file|
@@ -123,12 +134,12 @@ The `Model` class holds metadata for each available model
 |`.num_parameters`|int|Number of parameters for the model|
 |`.trained_for`|str|Either `'sentence-similarity'` or `'text-generation'`|
 |`.context_window_size`|int|Length of the context window for the model|
-|`.quantized_files`|`List[ModelQuantization]`|List of available quantization files|
-|`.get_quantization('<method>')`|`ModelQuantization`|Retrieve metadata for a single quantization file|
+|`.quantized_files`|`List[QuantizedFile]`|List of available quantization files|
+|`.get_quantization('<method>')`|`QuantizedFile`|Retrieve metadata for a single quantization file|
 |`.download('<method>')`|None|Direct call to download a quantization file|
 |`.delete('<method>')`|None|Delete a downloaded quantization file|
 
-Each `ModelQuantization` object provides
+Each `QuantizedFile` object provides
 
 |Attribute/Method|Return|Description|
 |---------|-------|--------|
@@ -138,7 +149,7 @@ Each `ModelQuantization` object provides
 |`.size_bytes`|int|Size of the model file in bytes|
 |`.max_ram_usage`|int|The total amount of ram needed to load the model in bytes|
 |`.is_downloaded`|bool|True if the model file has been downloaded|
-|`.local_path`|str|Will be non-null if the model file has been downloaded|
+|`.local_path`|Optional[Path]|Will be non-null if the model file has been downloaded|
 |`.download()`|None|Direct call to download the quantization file|
 |`.delete()`|None|Delete the downloaded quantization file|
 
@@ -146,12 +157,12 @@ Each `ModelQuantization` object provides
 
 There are three methods to download a quantization file:
 
-1. Calling `.download()` from a `ModelQuantization` object
+1. Calling `.download()` from a `QuantizedFile` object
     * For example: `client.models.get('<model>').get_quantization('<method>').download()`
 1. Calling `.download('<method>')` from a `Model` object
     * For example: `client.models.get('<model>').download('<method>')`
 1. `client.models.download('quantized-file-name')`
-    * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `ModelQuantization` object
+    * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `QuantizedFile` object
 
 If the model file has already been downloaded this function returns
 immediately. Otherwise a progress bar is shown showing the download
@@ -183,7 +194,7 @@ The `.create` function has the following inputs
 
 |Argument|Type|Description|
 |---|---|---|
-|model|str or ModelQuantization|The string name for the quantized model or a ModelQuantization object|
+|model|str or QuantizedFile|The string name for the quantized model or a QuantizedFile object|
 |extra_options|dict|Control server configuration supported by the backend|
 
 By default creating a server configuration will
@@ -195,9 +206,9 @@ For example to create a server with the OpenHermes model with
 default values
 
 ```python
-from anaconda_ai import get_default_client
+from anaconda_ai import AnacondaAIClient
 
-client = get_default_client()
+client = AnacondaAIClient()
 server = client.servers.create(
   'OpenHermes-2.5-Mistral-7B/Q4_K_M',
 )
@@ -316,6 +327,12 @@ Additionally, server configuration parameters like `ctx_size` can be passed
 llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 -o ctx_size 512 'what is pi?'
 ```
 
+To use an already running server, use `server/<server-name>` as the model identifier:
+
+```text
+llm -m 'anaconda:server/my-server' -o temperature 0.1 'what is pi?'
+```
+
 ## Langchain
 
 The LangChain integration provides Chat and Embedding classes that automatically manage downloading and starting servers.
@@ -331,6 +348,12 @@ model = AnacondaQuantizedModelChat(model_name='meta-llama/llama-2-7b-chat-hf_Q4_
 chain = prompt | model
 
 message = chain.invoke({'topic': 'python'})
+```
+
+To use an already running server, pass `server/<server-name>` as the `model_name`:
+
+```python
+model = AnacondaQuantizedModelChat(model_name='server/my-server')
 ```
 
 The following keyword arguments are supported:
@@ -351,7 +374,7 @@ llm = AnacondaModel(
 
 The `AnacondaModel` class supports the following arguments
 
-* `model`: Name of the model using the pattern defined above
+* `model`: Name of the model using the pattern defined above, or `server/<server-name>` to use a running server
 * `system_prompt`: Optional system prompt to apply to completions and chats
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
@@ -369,6 +392,15 @@ import anaconda_ai.integrations.litellm
 
 response = litellm.completion(
     'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
+    messages=[{'role': 'user', 'content': 'what is pi?'}]
+)
+```
+
+To use an already running server, use `anaconda/server/<server-name>` as the model:
+
+```python
+response = litellm.completion(
+    'anaconda/server/my-server',
     messages=[{'role': 'user', 'content': 'what is pi?'}]
 )
 ```
@@ -400,6 +432,8 @@ chain = dspy.ChainOfThought("question -> answer")
 chain(question="Who are you?")
 ```
 
+A running server can also be used: `dspy.LM('anaconda/server/my-server')`
+
 `dspy.LM` supports `optional_params=` keyword argument as explained in the previous section.
 
 ## PydanticAI
@@ -420,6 +454,12 @@ model = AnacondaChatModel(
 )
 ```
 
+To use an already running server, pass `server/<server-name>` as the model name:
+
+```python
+model = AnacondaChatModel("server/my-server")
+```
+
 And embedding
 
 ```python
@@ -429,6 +469,8 @@ embed = AnacondaEmbeddingModel(
 
 result = await embed.embed("cat", input_type="document")
 ```
+
+You can also use `AnacondaEmbeddingModel("server/<name>")`.
 
 ## Instructor
 
@@ -453,6 +495,12 @@ user_info = await client.create(
     response_model=UserInfo,
     messages=[{"role": "user", "content": "John Doe is 30 years old."}],
 )
+```
+
+To use an already running server, use `anaconda/server/<server-name>`:
+
+```python
+client = instructor.from_provider("anaconda/server/my-server")
 ```
 
 ## Panel

@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import Optional
+from warnings import warn
 
 from llama_index.core.constants import DEFAULT_TEMPERATURE, DEFAULT_CONTEXT_WINDOW
 from llama_index.llms.openai import OpenAI
@@ -46,11 +47,22 @@ class AnacondaModel(OpenAI):
         if model and server_name:
             raise ValueError("You can only have one of model= or server_name=")
         if server_name:
+            warn(
+                "server_name= is deprecated, use model='server/<name>' instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             server = client.servers.get(server_name)
         elif model:
-            server = client.servers.create(model, extra_options=extra_options)
+            if model.startswith("server/"):
+                server_name = model.split("/", maxsplit=1)[1]
+                server = client.servers.get(server_name)
+            else:
+                server = client.servers.create(model, extra_options=extra_options)
         else:
-            raise ValueError("You must specify one of model= or server_name=")
+            raise TypeError(
+                "AnacondaModel.__init__() missing required argument: 'model'"
+            )
 
         server.start()
         context_window = client.models.get(server.config.model_name).context_window_size
@@ -122,7 +134,11 @@ class AnacondaEmbeddingModel(OpenAIEmbedding):
             )
 
         client = client or AnacondaAIClient(site=site, backend=backend)
-        server = client.servers.create(model_name, extra_options=extra_options)
+        if model_name.startswith("server/"):
+            server_name = model_name.split("/", maxsplit=1)[1]
+            server = client.servers.get(server_name)
+        else:
+            server = client.servers.create(model_name, extra_options=extra_options)
         server.start()
 
         super().__init__(
