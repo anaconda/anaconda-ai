@@ -120,7 +120,7 @@ The `.models` attribute provides actions to list available models and download s
 
 |Method|Return|Description|
 |-----|-----|------|
-|`.list()`|`List[ModelSummary]`|List all available and downloaded models|
+|`.list()`|`List[Model]`|List all available and downloaded models|
 |`.get('<model-name>')`|`Model`|retrieve metadata about a model|
 |`.download('<model>/<quantization>')`|None|Download a model quantization file|
 |`.delete('<model>/<quantization>')`|None|Delete a downloaded model quantization file|
@@ -134,12 +134,12 @@ The `Model` class holds metadata for each available model
 |`.num_parameters`|int|Number of parameters for the model|
 |`.trained_for`|str|Either `'sentence-similarity'` or `'text-generation'`|
 |`.context_window_size`|int|Length of the context window for the model|
-|`.quantized_files`|`List[ModelQuantization]`|List of available quantization files|
-|`.get_quantization('<method>')`|`ModelQuantization`|Retrieve metadata for a single quantization file|
+|`.quantized_files`|`List[QuantizedFile]`|List of available quantization files|
+|`.get_quantization('<method>')`|`QuantizedFile`|Retrieve metadata for a single quantization file|
 |`.download('<method>')`|None|Direct call to download a quantization file|
 |`.delete('<method>')`|None|Delete a downloaded quantization file|
 
-Each `ModelQuantization` object provides
+Each `QuantizedFile` object provides
 
 |Attribute/Method|Return|Description|
 |---------|-------|--------|
@@ -149,7 +149,7 @@ Each `ModelQuantization` object provides
 |`.size_bytes`|int|Size of the model file in bytes|
 |`.max_ram_usage`|int|The total amount of ram needed to load the model in bytes|
 |`.is_downloaded`|bool|True if the model file has been downloaded|
-|`.local_path`|str|Will be non-null if the model file has been downloaded|
+|`.local_path`|Optional[Path]|Will be non-null if the model file has been downloaded|
 |`.download()`|None|Direct call to download the quantization file|
 |`.delete()`|None|Delete the downloaded quantization file|
 
@@ -157,12 +157,12 @@ Each `ModelQuantization` object provides
 
 There are three methods to download a quantization file:
 
-1. Calling `.download()` from a `ModelQuantization` object
+1. Calling `.download()` from a `QuantizedFile` object
     * For example: `client.models.get('<model>').get_quantization('<method>').download()`
 1. Calling `.download('<method>')` from a `Model` object
     * For example: `client.models.get('<model>').download('<method>')`
 1. `client.models.download('quantized-file-name')`
-    * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `ModelQuantization` object
+    * the `.models.download()` method accepts two types of input: string name of the model with quantization or a `QuantizedFile` object
 
 If the model file has already been downloaded this function returns
 immediately. Otherwise a progress bar is shown showing the download
@@ -194,7 +194,7 @@ The `.create` function has the following inputs
 
 |Argument|Type|Description|
 |---|---|---|
-|model|str or ModelQuantization|The string name for the quantized model or a ModelQuantization object|
+|model|str or QuantizedFile|The string name for the quantized model or a QuantizedFile object|
 |extra_options|dict|Control server configuration supported by the backend|
 
 By default creating a server configuration will
