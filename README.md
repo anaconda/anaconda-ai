@@ -470,6 +470,8 @@ embed = AnacondaEmbeddingModel(
 result = await embed.embed("cat", input_type="document")
 ```
 
+You can also use `AnacondaEmbeddingModel("server/<name>")`.
+
 ## Instructor
 
 This integration monkeypatches the `instructor.from_provider()` method on import. This is needed until the provider
