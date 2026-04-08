@@ -101,6 +101,17 @@ from anaconda_ai import AnacondaAIClient
 client = AnacondaAIClient()
 ```
 
+`AnacondaAIClient` extends [`BaseClient`](https://anaconda.github.io/anaconda-auth/#api-requests) from `anaconda-auth` with the following additional keyword arguments:
+
+|Argument|Type|Description|Default|
+|---|---|---|---|
+|`backend`|str|The backend to use, see [Backends](#backends)|`"ai-navigator"`|
+|`stop_server_on_exit`|bool|Stop servers started in this session when the Python interpreter exits|`True`|
+|`server_operations_timeout`|int|Timeout in seconds waiting for a server to start or stop|`30`|
+
+All other keyword arguments (e.g. `site`, `domain`, `api_key`, `ssl_verify`) are passed through to [`BaseClient`](https://anaconda.github.io/anaconda-auth/#api-requests).
+
+
 The client provides two top-level accessors `.models` and `.servers`.
 
 ### Models
@@ -195,9 +206,9 @@ For example to create a server with the OpenHermes model with
 default values
 
 ```python
-from anaconda_ai import get_default_client
+from anaconda_ai import AnacondaAIClient
 
-client = get_default_client()
+client = AnacondaAIClient()
 server = client.servers.create(
   'OpenHermes-2.5-Mistral-7B/Q4_K_M',
 )
@@ -316,6 +327,12 @@ Additionally, server configuration parameters like `ctx_size` can be passed
 llm -m 'anaconda:meta-llama/llama-2-7b-chat-hf_Q4_K_M.gguf' -o temperature 0.1 -o ctx_size 512 'what is pi?'
 ```
 
+To use an already running server, use `server/<server-name>` as the model identifier:
+
+```text
+llm -m 'anaconda:server/my-server' -o temperature 0.1 'what is pi?'
+```
+
 ## Langchain
 
 The LangChain integration provides Chat and Embedding classes that automatically manage downloading and starting servers.
@@ -331,6 +348,12 @@ model = AnacondaQuantizedModelChat(model_name='meta-llama/llama-2-7b-chat-hf_Q4_
 chain = prompt | model
 
 message = chain.invoke({'topic': 'python'})
+```
+
+To use an already running server, pass `server/<server-name>` as the `model_name`:
+
+```python
+model = AnacondaQuantizedModelChat(model_name='server/my-server')
 ```
 
 The following keyword arguments are supported:
@@ -351,7 +374,7 @@ llm = AnacondaModel(
 
 The `AnacondaModel` class supports the following arguments
 
-* `model`: Name of the model using the pattern defined above
+* `model`: Name of the model using the pattern defined above, or `server/<server-name>` to use a running server
 * `system_prompt`: Optional system prompt to apply to completions and chats
 * `temperature`: Optional temperature to apply to all completions and chats (default is 0.1)
 * `max_tokens`: Optional Max tokens to predict (default is to let the model decide when to finish)
@@ -369,6 +392,15 @@ import anaconda_ai.integrations.litellm
 
 response = litellm.completion(
     'anaconda/openhermes-2.5-mistral-7b/q4_k_m',
+    messages=[{'role': 'user', 'content': 'what is pi?'}]
+)
+```
+
+To use an already running server, use `anaconda/server/<server-name>` as the model:
+
+```python
+response = litellm.completion(
+    'anaconda/server/my-server',
     messages=[{'role': 'user', 'content': 'what is pi?'}]
 )
 ```
@@ -400,6 +432,8 @@ chain = dspy.ChainOfThought("question -> answer")
 chain(question="Who are you?")
 ```
 
+A running server can also be used: `dspy.LM('anaconda/server/my-server')`
+
 `dspy.LM` supports `optional_params=` keyword argument as explained in the previous section.
 
 ## PydanticAI
@@ -418,6 +452,12 @@ model = AnacondaChatModel(
     "OpenHermes-2.5-Mistral-7B/q4_k_m",
     settings=settings,
 )
+```
+
+To use an already running server, pass `server/<server-name>` as the model name:
+
+```python
+model = AnacondaChatModel("server/my-server")
 ```
 
 And embedding
@@ -453,6 +493,12 @@ user_info = await client.create(
     response_model=UserInfo,
     messages=[{"role": "user", "content": "John Doe is 30 years old."}],
 )
+```
+
+To use an already running server, use `anaconda/server/<server-name>`:
+
+```python
+client = instructor.from_provider("anaconda/server/my-server")
 ```
 
 ## Panel
