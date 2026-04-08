@@ -21,7 +21,11 @@ def _prepare_model(
     if client is None:
         client = AnacondaAIClient()
 
-    server = client.servers.create(model=model_name, extra_options=extra_options)
+    if model_name.startswith("server/"):
+        server_name = model_name.split("/", maxsplit=1)[1]
+        server = client.servers.get(server_name)
+    else:
+        server = client.servers.create(model=model_name, extra_options=extra_options)
 
     if not server.is_running:
         server.start()
