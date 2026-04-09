@@ -13,3 +13,7 @@ export type ModelApi = {
   trained_for: string;
 };
 
+// Data to verify the Download Model Command
+export const DOWNLOAD_TEST_MODEL_NAME = 'bge-base-en-v1.5';
+export const DOWNLOAD_TEST_MODEL_QUANTIZATION = 'q4_k_m';
+

@@ -1,4 +1,4 @@
-import { shellCommand, verifyShellExitCode, type ShellResult } from 'tests/utils/CliUtils';
+import { shellCommand, stripAnsiSgrAndTrim, verifyShellExitCode, type ShellResult } from 'tests/utils/CliUtils';
 import * as cliCommands from './cliCommands';
 import { expect } from 'tests/test-setup/page-setup';
 import { ModelApi } from '@testdata/model-api';
@@ -25,7 +25,7 @@ export class AnacondaAiCli {
   public verifyAnacondaAiModelsListCommand(result: ShellResult): void {
     verifyShellExitCode(result, 'anaconda ai models --json');
 
-    const models = JSON.parse(result.output) as ModelApi[];
+    const models = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ModelApi[];
     expect(
       Array.isArray(models) && models.length,
       'models output should be a non-empty array',
@@ -37,9 +37,32 @@ export class AnacondaAiCli {
   public verifyAnacondaAiBlockedModelsListCommand(result: ShellResult): void {
     verifyShellExitCode(result, 'anaconda ai models --show-blocked --json');
 
-    const models = JSON.parse(result.output) as ModelApi[];
+    const models = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ModelApi[];
     expect(Array.isArray(models), 'blocked models output should be an array').toBe(true);
     this.assertModelResponseData(models);
+  }
+
+  // Executes `anaconda ai download <model>/<quant>` (positional; no --model)
+  public async runDownloadModelCommand(modelName: string, modelQuantization: string): Promise<ShellResult> {
+    return await shellCommand(cliCommands.downloadModelCmd(modelName, modelQuantization));
+  }
+
+  // Validates model download started or completed successfully
+  public verifyDownloadModelCommand(result: ShellResult): void {
+    verifyShellExitCode(result, 'anaconda ai download <model>/<quant>');
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    const isDownloadedNow =
+      output.includes('downloading') &&
+      (output.includes('mb') || output.includes('.gguf')) &&
+      output.includes('success');
+    const isAlreadyDownloaded = output.includes('success');
+
+    expect(
+      isDownloadedNow || isAlreadyDownloaded,
+      'Expected the model to be either newly downloaded or already downloaded',
+    )
+      .toBeTruthy();
   }
 
   private assertModelResponseData(models: ModelApi[]): void {
