@@ -49,23 +49,19 @@ export class AnacondaAiCli {
 
   // Validates model download started or completed successfully
   public verifyDownloadModelCommand(result: ShellResult): void {
-    expect(
-      result.exitCode,
-      `Expected download command to exit with code 0, but got ${result.exitCode}`,
-    ).toBe(0);
-    const output = result.output.toLowerCase();
-   
+    verifyShellExitCode(result, 'anaconda ai download <model>/<quant>');
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
     const isDownloadedNow =
       output.includes('downloading') &&
       (output.includes('mb') || output.includes('.gguf')) &&
       output.includes('success');
     const isAlreadyDownloaded = output.includes('success');
 
-    expect
-      .soft(
-        isDownloadedNow || isAlreadyDownloaded,
-        'Expected the model to be either newly downloaded or already downloaded',
-      )
+    expect(
+      isDownloadedNow || isAlreadyDownloaded,
+      'Expected the model to be either newly downloaded or already downloaded',
+    )
       .toBeTruthy();
   }
 
