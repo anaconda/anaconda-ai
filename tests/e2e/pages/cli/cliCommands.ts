@@ -34,3 +34,7 @@ export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
 export const anacondaAiBlockedModelsListCmd = condaRun(
   'anaconda ai models --show-blocked --json',
 );
+
+// Download Model Command
+export const downloadModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai download ${modelName}/${modelQuantization}`);

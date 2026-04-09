@@ -9,6 +9,11 @@ export interface ShellResult {
   stderrOutput: string;
 }
 
+// Strip ANSI SGR color sequences (ESC [ … m) and trim — use before parsing CLI stdout/stderr.
+export function stripAnsiSgrAndTrim(output: string): string {
+  return output.replace(/\x1B\[[0-9;]*m/g, '').trim();
+}
+
 /** Asserts a shell command exited 0; logs stderr/output on failure. */
 export function verifyShellExitCode(result: ShellResult, commandName: string): void {
   if (result.exitCode !== 0) {
