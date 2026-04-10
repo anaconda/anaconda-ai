@@ -2,12 +2,29 @@ import datetime as dt
 from functools import cached_property, lru_cache
 from pathlib import Path
 from time import sleep
-from typing import List, Optional, Union, Dict, Any, Generator, MutableMapping
+from typing import (
+    List,
+    Optional,
+    Union,
+    Dict,
+    Any,
+    Generator,
+    MutableMapping,
+    Annotated,
+)
+from typing_extensions import Self
 from uuid import UUID
 
 import json
 import requests
-from pydantic import PrivateAttr, ValidationError, computed_field, BaseModel
+from pydantic import (
+    PrivateAttr,
+    ValidationError,
+    computed_field,
+    BaseModel,
+    BeforeValidator,
+)
+from pydantic_core import core_schema
 from requests.exceptions import HTTPError
 
 from anaconda_auth.cli import _login_required_message, _continue_with_login
@@ -134,9 +151,35 @@ class AICatalystQuantizedFile(QuantizedFile):
         return f"/api/ai/model/models/{self.model_uuid}/files/{self.file_uuid}/download"
 
 
-class Tag(BaseModel):
+class _Tag(str):
     id: int
-    name: str
+
+    def __new__(cls, value: str, id: int):
+        instance = super().__new__(cls, value)
+        instance.id = id
+        return instance
+
+    @classmethod
+    def _validate(cls, v: Any) -> Self:
+        if isinstance(v, dict) and "name" in v and "id" in v:
+            return cls(v["name"], v["id"])
+        elif isinstance(v, cls):
+            return v
+        raise ValueError(
+            f"Malformed tag entry {v}, should be dictionary {{'name': ..., 'id': ...}}"
+        )
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type, handler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_before_validator_function(
+            cls._validate,
+            core_schema.is_instance_schema(cls),
+        )
+
+
+Tag = Annotated[_Tag, BeforeValidator(_Tag._validate)]
 
 
 class Group(BaseModel):
