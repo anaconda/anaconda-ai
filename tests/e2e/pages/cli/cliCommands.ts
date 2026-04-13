@@ -42,3 +42,21 @@ export const downloadModelCmd = (modelName: string, modelQuantization: string): 
 
 // Anaconda AI Servers Command
 export const anacondaAiServersListCmd = condaRun('anaconda ai servers --json');
+
+// Launch server for model command
+export const launchModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai launch ${modelName}/${modelQuantization} --detach`);
+
+// Negative: input missing the slash — triggers ValueError (invalid format)
+export const launchModelInvalidFormatCmd = condaRun('anaconda ai launch abc');
+
+// Negative: valid format but non-existent model — triggers ModelNotFound
+export const launchModelNotFoundCmd = condaRun('anaconda ai launch nonexistent-model/q4_k_m');
+
+// Stop server for model command — takes the .gguf filename: <modelName>_<modelQuantization>.gguf
+export const stopModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai stop ${modelName}_${modelQuantization}.gguf`);
+
+// Stop and remove server — same as stop but with --rm to delete it
+export const stopAndRemoveModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai stop ${modelName}_${modelQuantization}.gguf --rm`);
