@@ -1,4 +1,4 @@
-import { shellCommand, stripAnsiSgrAndTrim, verifyShellExitCode, type ShellResult } from 'tests/utils/CliUtils';
+import { type ShellResult, shellCommand, stripAnsiSgrAndTrim, verifyShellExitCode } from 'tests/utils/CliUtils';
 import * as cliCommands from './cliCommands';
 import { expect } from 'tests/test-setup/page-setup';
 import { INVALID_MODEL_ERROR_MESSAGE, ModelApi, ServerApi } from '@testdata/model-api';
@@ -26,10 +26,7 @@ export class AnacondaAiCli {
     verifyShellExitCode(result, 'anaconda ai models --json');
 
     const models = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ModelApi[];
-    expect(
-      Array.isArray(models) && models.length,
-      'models output should be a non-empty array',
-    ).toBeGreaterThan(0);
+    expect(Array.isArray(models) && models.length, 'models output should be a non-empty array').toBeGreaterThan(0);
     this.assertModelResponseData(models);
   }
 
@@ -59,7 +56,7 @@ export class AnacondaAiCli {
 
     const servers = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ServerApi[];
     const expectedModelFile = `${modelName}_${modelQuantization}.gguf`;
-    const server = servers.find((s) => s.model === expectedModelFile);
+    const server = servers.find(s => s.model === expectedModelFile);
 
     expect(server, `Expected server for model "${expectedModelFile}" to appear in servers list`).toBeDefined();
     expect(server!.server_id, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
@@ -90,10 +87,9 @@ export class AnacondaAiCli {
   }
 
   public verifyInvalidDownloadModelCommand(result: ShellResult): void {
-    expect(
-      result.exitCode,
-      `Expected invalid download command to fail, but got exit code ${result.exitCode}`,
-    ).not.toBe(0);
+    expect(result.exitCode, `Expected invalid download command to fail, but got exit code ${result.exitCode}`).not.toBe(
+      0,
+    );
     const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
     expect(output, 'Expected the model to be invalid').toContain('error');
     expect(output, 'Expected output should contain invalid model error message').toContain(INVALID_MODEL_ERROR_MESSAGE);
@@ -122,10 +118,7 @@ export class AnacondaAiCli {
     const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
     const expectedModelFile = `${modelName}_${modelQuantization}.gguf`.toLowerCase();
     expect(output.includes('running'), 'Expected status to be "running"').toBeTruthy();
-    expect(
-      output.includes('inference/serve/'),
-      'Expected "inference/serve/" is running',
-    ).toBeTruthy();
+    expect(output.includes('inference/serve/'), 'Expected "inference/serve/" is running').toBeTruthy();
     expect(
       output.includes(expectedModelFile),
       `Expected model "${expectedModelFile}" to appear in output`,
@@ -202,11 +195,34 @@ export class AnacondaAiCli {
       expect(model.trained_for, `models[${modelIndex}].trained_for should be defined`).toBeDefined();
 
       model.quantizations.forEach((quant, quantIndex) => {
-        expect(quant.method, `models[${modelIndex}].quantizations[${quantIndex}].method should be defined`).toBeDefined();
-        expect(quant.running, `models[${modelIndex}].quantizations[${quantIndex}].running should be defined`).not.toBeUndefined();
-        expect(quant.downloaded, `models[${modelIndex}].quantizations[${quantIndex}].downloaded should be defined`).not.toBeUndefined();
-        expect(quant.blocked, `models[${modelIndex}].quantizations[${quantIndex}].blocked should be defined`).not.toBeUndefined();
+        expect(
+          quant.method,
+          `models[${modelIndex}].quantizations[${quantIndex}].method should be defined`,
+        ).toBeDefined();
+        expect(
+          quant.running,
+          `models[${modelIndex}].quantizations[${quantIndex}].running should be defined`,
+        ).toBeDefined();
+        expect(
+          quant.downloaded,
+          `models[${modelIndex}].quantizations[${quantIndex}].downloaded should be defined`,
+        ).toBeDefined();
+        expect(
+          quant.blocked,
+          `models[${modelIndex}].quantizations[${quantIndex}].blocked should be defined`,
+        ).toBeDefined();
       });
     });
+  }
+
+  public async runAnacondaAiVersionCommand(): Promise<ShellResult> {
+    return await shellCommand(cliCommands.anacondaAiVersionCmd);
+  }
+
+  public verifyAnacondaAiVersionCommand(result: ShellResult): void {
+    verifyShellExitCode(result, 'anaconda ai --version');
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    expect(output.includes('anaconda-ai'), 'Expected "anaconda-ai" to be in output').toBeTruthy();
   }
 }

@@ -4,11 +4,9 @@ const anacondaAiChannel = process.env.ANACONDA_AI_CHANNEL ?? 'anaconda-cloud/lab
 const anacondaAiVersion = process.env.ANACONDA_AI_VERSION ?? '0.5.0';
 
 // Run all command in the anaconda-cli environment
-const condaRun = (inner: string): string =>
-  `conda run -n anaconda-cli --no-capture-output ${inner}`;
+const condaRun = (inner: string): string => `conda run -n anaconda-cli --no-capture-output ${inner}`;
 
-export const installAiPackageCmd =
-  `conda create -c defaults -c conda-forge ${anacondaAiChannel}::anaconda-ai=${anacondaAiVersion} -n anaconda-cli --yes`;
+export const installAiPackageCmd = `conda create -c defaults -c conda-forge ${anacondaAiChannel}::anaconda-ai=${anacondaAiVersion} -n anaconda-cli --yes`;
 
 // Verify the Anaconda AI package environment is runnable
 export const activateAiPackageEnvCmd = condaRun('conda list anaconda-ai');
@@ -21,20 +19,19 @@ export const addSiteCmd = (domain: string, name: string): string =>
 export const modifySiteCmd = (domain: string, name: string): string =>
   condaRun(`anaconda sites modify --domain ${domain} --name ${name} --default --yes`);
 
-export const configureAiPackageEnvToUseSandboxCmd = condaRun(
-  'anaconda ai config --backend ai-catalyst --yes',
-);
+export const configureAiPackageEnvToUseSandboxCmd = condaRun('anaconda ai config --backend ai-catalyst --yes');
 
 export const authWhoamiCmd = condaRun('anaconda auth whoami');
 
 export const anacondaAiHelpCmd = condaRun('anaconda ai --help');
 
+// Anaconda AI Version Command
+export const anacondaAiVersionCmd = condaRun('anaconda ai version --json');
+
 // Anaconda AI Models Command
 export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
 
-export const anacondaAiBlockedModelsListCmd = condaRun(
-  'anaconda ai models --show-blocked --json',
-);
+export const anacondaAiBlockedModelsListCmd = condaRun('anaconda ai models --show-blocked --json');
 
 // Download Model Command
 export const downloadModelCmd = (modelName: string, modelQuantization: string): string =>

@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { shellCommand, verifyShellExitCode, type ShellResult } from 'tests/utils/CliUtils';
+import { type ShellResult, shellCommand, verifyShellExitCode } from 'tests/utils/CliUtils';
 
 import * as cliCommands from './cliCommands';
 
@@ -12,8 +12,7 @@ export class AnacondaAiSetupCli {
   public verifyInstallAiPackageCommand(result: ShellResult): void {
     verifyShellExitCode(result, 'install command');
     const output = result.output.toLowerCase();
-    const isInstalledNow =
-      output.includes('executing transaction') && output.includes('anaconda-ai');
+    const isInstalledNow = output.includes('executing transaction') && output.includes('anaconda-ai');
     const isAlreadyInstalled = output.includes('all requested packages already installed');
 
     expect(
@@ -38,7 +37,7 @@ export class AnacondaAiSetupCli {
     verifyShellExitCode(result, 'sites list command');
   }
 
-  // True if `anaconda sites list` output contains the given site name. 
+  // True if `anaconda sites list` output contains the given site name.
   public isSiteNameListed(listResult: ShellResult, name: string): boolean {
     const output = `${listResult.output}\n${listResult.stderrOutput}`;
     return output.includes(`│ ${name} `);
