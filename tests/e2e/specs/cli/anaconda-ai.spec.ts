@@ -45,11 +45,11 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
 
   test('anaconda ai launch, stop model command', async ({ anacondaAiCli }) => {
     await test.step('launch model server', async () => {
-      const result = await anacondaAiCli.runLaunchModelCommand(
+      const launchResult = await anacondaAiCli.runLaunchModelCommand(
         DOWNLOAD_TEST_MODEL_NAME,
         DOWNLOAD_TEST_MODEL_QUANTIZATION,
       );
-      anacondaAiCli.verifyLaunchModelCommand(result, DOWNLOAD_TEST_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
+      anacondaAiCli.verifyLaunchModelCommand(launchResult, DOWNLOAD_TEST_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
     });
 
     await test.step('stop model server', async () => {
@@ -70,12 +70,18 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
   });
 
   test('anaconda ai launch - invalid format returns ValueError', async ({ anacondaAiCli }) => {
-    const result = await anacondaAiCli.runLaunchModelInvalidFormatCommand();
+    const result = await anacondaAiCli.runLaunchModelCommand(
+      INVALID_MODEL_NAME,
+      INVALID_MODEL_QUANTIZATION,
+    );
     anacondaAiCli.verifyLaunchModelInvalidFormatCommand(result);
   });
 
   test('anaconda ai launch - unknown model returns ModelNotFound', async ({ anacondaAiCli }) => {
-    const result = await anacondaAiCli.runLaunchModelNotFoundCommand();
+    const result = await anacondaAiCli.runLaunchModelCommand(
+      INVALID_MODEL_NAME,
+      DOWNLOAD_TEST_MODEL_QUANTIZATION,
+    );
     anacondaAiCli.verifyLaunchModelNotFoundCommand(result);
   });
 });

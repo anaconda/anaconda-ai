@@ -98,8 +98,8 @@ export class AnacondaAiCli {
     const expectedModelFile = `${modelName}_${modelQuantization}.gguf`.toLowerCase();
     expect(output.includes('running'), 'Expected status to be "running"').toBeTruthy();
     expect(
-      output.includes('openai compatible url'),
-      'Expected "OpenAI Compatible URL" field in output',
+      output.includes('inference/serve/'),
+      'Expected "inference/serve/" is running',
     ).toBeTruthy();
     expect(
       output.includes(expectedModelFile),
@@ -145,11 +145,6 @@ export class AnacondaAiCli {
     ).toBeTruthy();
   }
 
-  // Executes `anaconda ai launch abc` (missing slash — invalid format)
-  public async runLaunchModelInvalidFormatCommand(): Promise<ShellResult> {
-    return await shellCommand(cliCommands.launchModelInvalidFormatCmd);
-  }
-
   // Validates that launching with an invalid format exits non-zero with a ValueError
   public verifyLaunchModelInvalidFormatCommand(result: ShellResult): void {
     expect(result.exitCode, 'Expected non-zero exit code for invalid format').not.toBe(0);
@@ -159,11 +154,6 @@ export class AnacondaAiCli {
       output.includes('valueerror') && output.includes('does not look like a quantized model name'),
       'Expected ValueError about invalid model name format',
     ).toBeTruthy();
-  }
-
-  // Executes `anaconda ai launch nonexistent-model/q4_k_m` (valid format, unknown model)
-  public async runLaunchModelNotFoundCommand(): Promise<ShellResult> {
-    return await shellCommand(cliCommands.launchModelNotFoundCmd);
   }
 
   // Validates that launching an unknown model exits non-zero with a ModelNotFound error
