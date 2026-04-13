@@ -1,7 +1,7 @@
 import { shellCommand, stripAnsiSgrAndTrim, verifyShellExitCode, type ShellResult } from 'tests/utils/CliUtils';
 import * as cliCommands from './cliCommands';
 import { expect } from 'tests/test-setup/page-setup';
-import { ModelApi } from '@testdata/model-api';
+import { INVALID_MODEL_ERROR_MESSAGE, ModelApi, ServerApi } from '@testdata/model-api';
 
 // CLI helpers for Anaconda AI package CLI commands.
 export class AnacondaAiCli {
@@ -65,6 +65,13 @@ export class AnacondaAiCli {
       .toBeTruthy();
   }
 
+  public verifyInvalidDownloadModelCommand(result: ShellResult): void {
+    expect(result.exitCode, `Expected invalid download command to fail, but got exit code ${result.exitCode}`,).not.toBe(0);
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    expect(output, 'Expected the model to be invalid').toContain('error');
+    expect(output, 'Expected the error message to be invalid').toContain(INVALID_MODEL_ERROR_MESSAGE);
+  }
+
   private assertModelResponseData(models: ModelApi[]): void {
     models.forEach((model, modelIndex) => {
       expect(model.model, `models[${modelIndex}].model should be defined`).toBeDefined();
@@ -82,4 +89,15 @@ export class AnacondaAiCli {
       });
     });
   }
+
+  public async runAnacondaAiServersListCommand(): Promise<ShellResult> {
+    return await shellCommand(cliCommands.anacondaAiServersListCmd);
+  }
+
+  public verifyAnacondaAiServersListCommand(result: ShellResult): void {
+    verifyShellExitCode(result, 'anaconda ai servers --json');
+
+    const servers = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ServerApi[];
+    expect(Array.isArray(servers), 'servers output should be an array').toBe(true);
+  } 
 }

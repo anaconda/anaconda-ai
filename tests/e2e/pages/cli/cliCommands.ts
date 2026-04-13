@@ -29,6 +29,7 @@ export const authWhoamiCmd = condaRun('anaconda auth whoami');
 
 export const anacondaAiHelpCmd = condaRun('anaconda ai --help');
 
+// Anaconda AI Models Command
 export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
 
 export const anacondaAiBlockedModelsListCmd = condaRun(
@@ -38,3 +39,6 @@ export const anacondaAiBlockedModelsListCmd = condaRun(
 // Download Model Command
 export const downloadModelCmd = (modelName: string, modelQuantization: string): string =>
   condaRun(`anaconda ai download ${modelName}/${modelQuantization}`);
+
+// Anaconda AI Servers Command
+export const anacondaAiServersListCmd = condaRun('anaconda ai servers --json');
