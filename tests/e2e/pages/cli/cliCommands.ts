@@ -42,3 +42,15 @@ export const downloadModelCmd = (modelName: string, modelQuantization: string): 
 
 // Anaconda AI Servers Command
 export const anacondaAiServersListCmd = condaRun('anaconda ai servers --json');
+
+// Launch server for model command
+export const launchModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai launch ${modelName}/${modelQuantization} --detach`);
+
+// Stop server for model command — takes the .gguf filename: <modelName>_<modelQuantization>.gguf
+export const stopModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai stop ${modelName}_${modelQuantization}.gguf`);
+
+// Stop and remove server — same as stop but with --rm to delete it
+export const stopAndRemoveModelCmd = (modelName: string, modelQuantization: string): string =>
+  condaRun(`anaconda ai stop ${modelName}_${modelQuantization}.gguf --rm`);

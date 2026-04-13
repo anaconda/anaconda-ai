@@ -29,4 +29,3 @@ export const DOWNLOAD_TEST_MODEL_QUANTIZATION = 'q4_k_m';
 export const INVALID_MODEL_NAME = 'invalid-model';
 export const INVALID_MODEL_QUANTIZATION = 'invalid-quantization';
 export const INVALID_MODEL_ERROR_MESSAGE = 'you must include the quantization method in the model';
-
