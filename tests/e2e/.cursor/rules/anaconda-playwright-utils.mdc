@@ -1,0 +1,112 @@
+---
+description: Use @anaconda/playwright-utils for Playwright tests. Follow locator strategy (data-qa-id, data-testid, role, label). Use with playwright-cli to verify flows.
+globs: ["**/*.spec.ts", "**/*.test.ts", "tests/**"]
+---
+
+# @anaconda/playwright-utils
+
+Playwright TypeScript utility library with simplified helper functions for browser automation.
+
+## Quick Reference
+
+- **Must call `setPage(page)` before using any utility** — the `@fixture` import handles this automatically
+- Functions accept `string | Locator` as input
+- Import from main package: `import { click, fill, expectElementToBeVisible, logger } from '@anaconda/playwright-utils';`
+- **`logger`** — Winston-based logger, available from the same import. Use only in page objects for informational messages. Never use `console.log()` anywhere in tests.
+
+## Locator Priority (9 tiers, best → worst)
+
+| Tier | Type | Example |
+|------|------|---------|
+| 1 | `data-qa-id` | `getLocatorByTestId('submit-btn')` — **never** raw CSS `[data-qa-id="..."]` for a single element |
+| 2 | `data-testid` (configured testIdAttribute) | `getLocatorByTestId('submit')` — CSS only for other `data-*` like `[data-product-id="..."]` |
+| 3 | `id` | `'#username'` |
+| 4 | `name` | `'[name="email"]'` |
+| 5 | XPath with stable attrs | `'//button[@aria-label="Close"]'` |
+| 6 | CSS with stable attrs | `'button[aria-label="Close"]'` |
+| 7 | Playwright built-ins | `getLocatorByRole(...)`, `getLocatorByText(...)` — only when no stable attr exists |
+| 8–9 | Structural XPath/CSS | Last resort — fragile |
+
+Full strategy and field conventions: @file .claude/skills/anaconda-playwright-utils/references/locators.md
+
+## Anti-patterns — never do these
+
+**❌ Keep a role/text locator when the snapshot shows a stable attribute**
+```typescript
+// Snapshot shows data-qa-id="sign-in-link" → upgrade, do not keep CLI output
+private readonly signIn = () => getLocatorByRole('link', { name: 'Sign In' }); // ❌
+private readonly signIn = () => getLocatorByTestId('sign-in-link');             // ✅
+```
+
+**❌ Use raw CSS for a single `data-qa-id` or `data-testid` element**
+```typescript
+private readonly releaseType = '[data-qa-id="release-type"]';   // ❌
+private readonly submitBtn   = '[data-testid="submit-btn"]';    // ❌
+// ✅ Always use getLocatorByTestId for the configured testIdAttribute
+private readonly releaseType = () => getLocatorByTestId('release-type'); // ✅
+private readonly submitBtn   = () => getLocatorByTestId('submit-btn');   // ✅
+```
+
+**❌ Use `.nth()` / `.first()` / `.last()` when multiple elements match**
+
+Action functions already filter hidden elements — if multiple visible elements match, find a more specific locator using ancestor scoping:
+```typescript
+private readonly pendingBtn = () => getLocatorByText('Pending').first(); // ❌
+
+// Simple 1-level scoping — prefer getLocatorByTestId chaining
+private readonly channelItem = () =>
+  getLocatorByTestId('channel-list').locator('[data-qa-id="channel-item"]'); // ✅
+// Complex scoping (2+ ancestor levels or mixed types) — CSS compound is preferred
+private readonly pendingBtn = '[data-qa-id="channel-list"] [data-qa-id="pending-btn"]'; // ✅ compound scope
+```
+
+**❌ Omit error messages from assertions**
+```typescript
+await expectElementToBeVisible(this.header());                                          // ❌
+await expectElementToBeVisible(this.header(), 'Header should be visible after login');  // ✅
+```
+Every assertion function accepts a descriptive message as its last argument. Always include it.
+
+**❌ Add `waitForPageLoadState` after `clickAndNavigate`**
+```typescript
+await clickAndNavigate(this.loginButton());
+await waitForPageLoadState({ waitUntil: 'load' }); // ❌ redundant — already done internally
+```
+`clickAndNavigate` already waits for `framenavigated`, load state, and element staleness.
+
+**❌ Use `console.log()` in any test file**
+```typescript
+console.log('user logged in');  // ❌ never in page objects or specs
+logger.info('user logged in');  // ✅ use logger from @anaconda/playwright-utils in page objects only
+```
+
+**❌ Put assertions directly in spec files**
+```typescript
+// ❌ — assertions belong in page object verify* methods
+test('should show dashboard', async ({ page }) => {
+  await expectElementToBeVisible('.dashboard');
+});
+// ✅ — spec only calls page object methods
+test('should show dashboard', async ({ dashboardPage }) => {
+  await dashboardPage.verifyDashboardIsDisplayed();
+});
+```
+
+**❌ Put test data inline in spec files**
+```typescript
+// ❌ inline test data
+await userAPI.createUser({ name: 'John', email: 'john@example.com' });
+// ✅ import from testdata folder
+import { testUsers } from '@testdata/users';
+await userAPI.createUser(testUsers.validUser);
+```
+
+## Full API Documentation
+
+@file .claude/skills/anaconda-playwright-utils/SKILL.md
+@file .claude/skills/anaconda-playwright-utils/references/actions.md
+@file .claude/skills/anaconda-playwright-utils/references/assertions.md
+@file .claude/skills/anaconda-playwright-utils/references/locators.md
+@file .claude/skills/anaconda-playwright-utils/references/element-utils.md
+@file .claude/skills/anaconda-playwright-utils/references/api-utils.md
+@file .claude/skills/anaconda-playwright-utils/references/page-utils.md

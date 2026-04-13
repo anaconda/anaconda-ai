@@ -1,0 +1,33 @@
+---
+description: Project-wide instructions and conventions
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Project Conventions (Quick Reference)
+
+## Imports
+- Always import `test` from `@fixture`, never from `@playwright/test` or `@anaconda/playwright-utils` directly in specs
+- Use a single barrel import from `@anaconda/playwright-utils` for all utilities (click, fill, gotoURL, expect, logger, etc.)
+- Use TypeScript path aliases: `@pages/*`, `@testdata/*`, `@fixture`, `@playwright-config`
+
+## Page Object Model
+- All page logic lives in class-based page objects in `tests/pages/` — specs only call page object methods
+- All assertions live in `verify*` methods in page objects — never in spec files
+- All actions (click, fill, gotoURL) go in page object methods — never in spec files
+- Register every new page object in `tests/fixtures/fixture.ts` via `baseTest.extend<>()`
+
+## Locator Priority (9 tiers, best → worst)
+`data-qa-id` → `data-testid`/`data-*` → `id` → `name` → XPath (stable attrs) → CSS (stable attrs) → role/text (tier 7, last resort) → structural XPath/CSS
+
+## Key Rules
+- Use `clickAndNavigate()` for clicks that load a new page; `click()` for same-page interactions only
+- Never add `waitForPageLoadState` after `clickAndNavigate` — it's redundant
+- Never use `.nth()` / `.first()` / `.last()` — use ancestor-scoped selectors instead
+- Every assertion must include a descriptive error message as the last argument
+- Never use `console.log()` — use `logger` from `@anaconda/playwright-utils` in page objects only
+- Store test data in `tests/testdata/` and import it — never hardcode inline in specs
+- Wrap all tests in a `test.describe` block with a tag (`@smoke`, `@reg`)
+
+## Full Reference
+@file CLAUDE.md
