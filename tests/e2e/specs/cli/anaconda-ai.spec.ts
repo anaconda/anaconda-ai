@@ -43,8 +43,8 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     anacondaAiCli.verifyAnacondaAiServersListCommand(result);
   });
 
-  test('anaconda ai launch, stop model command', async ({ anacondaAiCli }) => {
-    await test.step('launch model server', async () => {
+  test('anaconda ai server lifecycle: launch, verify, stop, and delete a model server', async ({ anacondaAiCli }) => {
+    await test.step('step 1: launch model server and verify it is running', async () => {
       const launchResult = await anacondaAiCli.runLaunchModelCommand(
         DOWNLOAD_TEST_MODEL_NAME,
         DOWNLOAD_TEST_MODEL_QUANTIZATION,
@@ -52,7 +52,20 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
       anacondaAiCli.verifyLaunchModelCommand(launchResult, DOWNLOAD_TEST_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
     });
 
-    await test.step('stop model server', async () => {
+    await test.step('step 2: verify server appears in servers list with status "running"', async () => {
+      const serversResult = await anacondaAiCli.runAnacondaAiServersListCommand();
+      anacondaAiCli.verifyRunningServerInList(serversResult, DOWNLOAD_TEST_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
+    });
+
+    await test.step('step 3: launching the same server again returns AnacondaAIException', async () => {
+      const duplicateResult = await anacondaAiCli.runLaunchModelCommand(
+        DOWNLOAD_TEST_MODEL_NAME,
+        DOWNLOAD_TEST_MODEL_QUANTIZATION,
+      );
+      anacondaAiCli.verifyDuplicateLaunchModelCommand(duplicateResult);
+    });
+
+    await test.step('step 4: stop the model server and verify it is stopped', async () => {
       const stopResult = await anacondaAiCli.runStopModelCommand(
         DOWNLOAD_TEST_MODEL_NAME,
         DOWNLOAD_TEST_MODEL_QUANTIZATION,
@@ -60,7 +73,7 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
       anacondaAiCli.verifyStopModelCommand(stopResult, DOWNLOAD_TEST_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
     });
 
-    await test.step('delete model server', async () => {
+    await test.step('step 5: delete the model server and verify it is removed', async () => {
       const deleteResult = await anacondaAiCli.runStopAndRemoveModelCommand(
         DOWNLOAD_TEST_MODEL_NAME,
         DOWNLOAD_TEST_MODEL_QUANTIZATION,

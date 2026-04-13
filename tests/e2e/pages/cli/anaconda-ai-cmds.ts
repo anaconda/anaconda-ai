@@ -53,6 +53,20 @@ export class AnacondaAiCli {
     expect(Array.isArray(servers), 'servers output should be an array').toBe(true);
   }
 
+  // Verifies that a server for the given model appears in the servers list with status "running"
+  public verifyRunningServerInList(result: ShellResult, modelName: string, modelQuantization: string): void {
+    verifyShellExitCode(result, 'anaconda ai servers --json');
+
+    const servers = JSON.parse(stripAnsiSgrAndTrim(result.output)) as ServerApi[];
+    const expectedModelFile = `${modelName}_${modelQuantization}.gguf`;
+    const server = servers.find((s) => s.model === expectedModelFile);
+
+    expect(server, `Expected server for model "${expectedModelFile}" to appear in servers list`).toBeDefined();
+    expect(server!.server_id, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
+    expect(server!.model, `Expected model to be "${expectedModelFile}"`).toBe(expectedModelFile);
+    expect(server!.status, `Expected server status to be "running"`).toBe('running');
+  }
+
   // Executes `anaconda ai download <model>/<quant>` (positional; no --model)
   public async runDownloadModelCommand(modelName: string, modelQuantization: string): Promise<ShellResult> {
     return await shellCommand(cliCommands.downloadModelCmd(modelName, modelQuantization));
@@ -82,12 +96,23 @@ export class AnacondaAiCli {
     ).not.toBe(0);
     const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
     expect(output, 'Expected the model to be invalid').toContain('error');
-    expect(output, 'Expected the error message to be invalid').toContain(INVALID_MODEL_ERROR_MESSAGE);
+    expect(output, 'Expected output should contain invalid model error message').toContain(INVALID_MODEL_ERROR_MESSAGE);
   }
 
   // Executes `anaconda ai launch <model>/<quant> --detach`
   public async runLaunchModelCommand(modelName: string, modelQuantization: string): Promise<ShellResult> {
     return await shellCommand(cliCommands.launchModelCmd(modelName, modelQuantization));
+  }
+
+  // Validates that launching a model that already has a running server fails with AnacondaAIException
+  public verifyDuplicateLaunchModelCommand(result: ShellResult): void {
+    expect(result.exitCode, 'Expected non-zero exit code for duplicate launch').not.toBe(0);
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    expect(
+      output.includes('anacondaaiexception') || output.includes('already exists'),
+      'Expected AnacondaAIException about duplicate server',
+    ).toBeTruthy();
   }
 
   // Validates model server launched successfully
