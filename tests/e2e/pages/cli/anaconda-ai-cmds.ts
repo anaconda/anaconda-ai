@@ -1,7 +1,7 @@
 import { type ShellResult, shellCommand, stripAnsiSgrAndTrim, verifyShellExitCode } from 'tests/utils/CliUtils';
 import * as cliCommands from './cliCommands';
 import { expect } from 'tests/test-setup/page-setup';
-import { INVALID_MODEL_ERROR_MESSAGE, ModelApi, ServerApi } from '@testdata/model-api';
+import { INVALID_MODEL_ERROR_MESSAGE, INVALID_SERVER_NAME, ModelApi, ServerApi } from '@testdata/model-api';
 
 // CLI helpers for Anaconda AI package CLI commands.
 export class AnacondaAiCli {
@@ -59,9 +59,10 @@ export class AnacondaAiCli {
     const server = servers.find(s => s.model === expectedModelFile);
 
     expect(server, `Expected server for model "${expectedModelFile}" to appear in servers list`).toBeDefined();
-    expect(server!.server_id, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
-    expect(server!.model, `Expected model to be "${expectedModelFile}"`).toBe(expectedModelFile);
-    expect(server!.status, `Expected server status to be "running"`).toBe('running');
+    const { server_id, model, status } = server as ServerApi;
+    expect(server_id, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
+    expect(model, `Expected model to be "${expectedModelFile}"`).toBe(expectedModelFile);
+    expect(status, `Expected server status to be "running"`).toBe('running');
   }
 
   // Executes `anaconda ai download <model>/<quant>` (positional; no --model)
@@ -160,6 +161,22 @@ export class AnacondaAiCli {
     expect(
       output.includes(expectedModelFile),
       `Expected model "${expectedModelFile}" to appear in output`,
+    ).toBeTruthy();
+  }
+
+  // Executes `anaconda ai stop <serverName>` with a non-existent server name
+  public async runStopModelNotFoundCommand(): Promise<ShellResult> {
+    return await shellCommand(cliCommands.stopModelNotFoundCmd(INVALID_SERVER_NAME));
+  }
+
+  // Validates that stopping a non-existent server exits non-zero with a ServerNotFoundError
+  public verifyStopModelNotFoundCommand(result: ShellResult): void {
+    expect(result.exitCode, 'Expected non-zero exit code for unknown server').not.toBe(0);
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    expect(
+      output.includes('servernotfounderror') || output.includes('was not found'),
+      'Expected ServerNotFoundError for unknown server',
     ).toBeTruthy();
   }
 

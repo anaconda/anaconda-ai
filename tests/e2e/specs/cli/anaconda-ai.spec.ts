@@ -101,4 +101,9 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     const result = await anacondaAiCli.runLaunchModelCommand(INVALID_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
     anacondaAiCli.verifyLaunchModelNotFoundCommand(result);
   });
+
+  test('anaconda ai stop - unknown server returns ServerNotFoundError', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runStopModelNotFoundCommand();
+    anacondaAiCli.verifyStopModelNotFoundCommand(result);
+  });
 });
