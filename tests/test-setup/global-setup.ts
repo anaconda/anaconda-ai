@@ -3,10 +3,12 @@
  * Runs the Anaconda AI package install before any tests.
  */
 import { AnacondaAiSetupCli } from '../e2e/pages/cli/anaconda-ai-setup';
-import { baseDomain, SELF_HOSTED_SITE_NAME } from '@testdata/site-data';
+import { SELF_HOSTED_SITE_NAME, baseDomain } from '@testdata/site-data';
 
 async function setupAnacondaAi(cli: AnacondaAiSetupCli): Promise<void> {
-  console.log(`[Global Setup] Installing and verifying Anaconda AI in "anaconda-cli" (version: ${process.env.ANACONDA_AI_VERSION ?? 'not set'})`,);
+  console.log(
+    `[Global Setup] Installing and verifying Anaconda AI in "anaconda-cli" (version: ${process.env.ANACONDA_AI_VERSION ?? 'not set'})`,
+  );
 
   // Install the Anaconda AI package
   const installResult = await cli.runInstallAiPackageCommand();

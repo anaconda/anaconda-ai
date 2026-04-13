@@ -4,7 +4,7 @@ import { AnacondaAiCli } from '@pages/cli/anaconda-ai-cmds';
 export const test = baseTest.extend<{
   anacondaAiCli: AnacondaAiCli;
 }>({
-  anacondaAiCli: async ({ }, use) => {
+  anacondaAiCli: async ({}, use) => {
     await use(new AnacondaAiCli());
   },
 });
