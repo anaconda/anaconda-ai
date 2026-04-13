@@ -32,10 +32,6 @@
     "typeRoots": ["node_modules/@types"],
     "skipLibCheck": true
   },
-  "include": [
-    "tests/e2e/**/*.ts",
-    "tests/test-setup/**/*.ts",
-    "playwright.config.ts"
-, "tests/utils/CliUtils.ts"  ],
+  "include": ["tests/e2e/**/*.ts", "tests/test-setup/**/*.ts", "playwright.config.ts", "tests/utils/CliUtils.ts"],
   "exclude": ["node_modules"]
 }
