@@ -22,7 +22,6 @@ from .base import (
     BaseVectorDb,
     VectorDbTableSchema,
     TableInfo,
-    BaseSystemPrompts,
 )
 from ..utils import find_free_port
 
@@ -225,13 +224,45 @@ class AINavigatorServer(Server):
 
 
 class AINavigatorServers(BaseServers):
+    def _build_file_uuid_index(self) -> Dict[str, str]:
+        """Build a mapping of file UUID -> QuantizedFile.identifier from the models list."""
+        index: Dict[str, str] = {}
+        for model in self.client.models.list():
+            for qf in model.quantized_files:
+                index[qf.sha256] = qf.identifier
+        return index
+
+    @staticmethod
+    def _resolve_model_file_name(
+        server_data: dict, file_uuid_index: Dict[str, str]
+    ) -> None:
+        """Replace serverConfig.modelFileName with the correct identifier if the
+        server response contains a modelFile with a known file UUID."""
+        model_file = server_data.get("modelFile")
+        if model_file is None:
+            return
+
+        file_uuid = model_file.get("id") or model_file.get("uuid")
+        if file_uuid is None:
+            return
+
+        identifier = file_uuid_index.get(str(file_uuid))
+        if identifier is None:
+            return
+
+        server_config = server_data.get("serverConfig")
+        if server_config is not None:
+            server_config["modelFileName"] = identifier
+
     def list(self) -> Sequence[AINavigatorServer]:
         res = self.client.get("api/servers")
         res.raise_for_status()
+        file_uuid_index = self._build_file_uuid_index()
         servers = []
         for s in res.json()["data"]:
             if "id" not in s:
                 continue
+            self._resolve_model_file_name(s, file_uuid_index)
             server = AINavigatorServer(**s, client=self.client)
             server._client = self.client
             if not server.is_running:
@@ -244,6 +275,8 @@ class AINavigatorServers(BaseServers):
         res.raise_for_status()
 
         data: dict = res.json()["data"]
+        file_uuid_index = self._build_file_uuid_index()
+        self._resolve_model_file_name(data, file_uuid_index)
         s = AINavigatorServer(**data, client=self.client)
         return s
 
