@@ -29,7 +29,7 @@ anaconda = "anaconda_ai.integrations.llm"
 
 [project.optional-dependencies]
 all = [
-  "anaconda-ai[langchain,dspy,instructor,litellm,llm,llama-index,panel,pydantic-ai]"
+  "anaconda-ai[langchain,dspy,instructor,litellm,llm,llama-index,panel,pydantic-ai,sagemaker]"
 ]
 dev = [
   "mypy",
@@ -57,6 +57,7 @@ publish = [
   "wheel"
 ]
 pydantic-ai = ["pydantic-ai>=1.50"]
+sagemaker = ["sagemaker>=2.200.0"]
 
 [tool.distutils.bdist_wheel]
 universal = true
@@ -111,6 +112,10 @@ module = "llama_index.embeddings.openai.*"
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = "llm.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "sagemaker.*"
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
