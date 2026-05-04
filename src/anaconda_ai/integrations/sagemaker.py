@@ -458,7 +458,7 @@ class AnacondaModel:
         # llama.cpp tuning
         env = _set_env_var(self.ctx_size, "LLAMA_ARG_CTX_SIZE", env)
         env = _set_env_var(self.n_gpu_layers, "LLAMA_ARG_N_GPU_LAYERS", env)
-        env = _set_env_var(self.parallel, "LLAMA_ARG_PARALLEL", env)
+        env = _set_env_var(self.parallel, "LLAMA_ARG_N_PARALLEL", env)
         env = _set_env_var(
             int(self.flash_attn) if self.flash_attn is not None else None,
             "LLAMA_ARG_FLASH_ATTN",
@@ -469,6 +469,27 @@ class AnacondaModel:
             "LLAMA_ARG_CONT_BATCHING",
             env,
         )
+        env = _set_env_var(self.batch_size, "LLAMA_ARG_BATCH", env)
+        env = _set_env_var(self.ubatch_size, "LLAMA_ARG_UBATCH", env)
+        env = _set_env_var(self.threads, "LLAMA_ARG_THREADS", env)
+        env = _set_env_var(self.threads_http, "LLAMA_ARG_THREADS_HTTP", env)
+        env = _set_env_var(self.cache_type_k, "LLAMA_ARG_CACHE_TYPE_K", env)
+        env = _set_env_var(self.cache_type_v, "LLAMA_ARG_CACHE_TYPE_V", env)
+        env = _set_env_var(
+            int(self.mlock) if self.mlock is not None else None,
+            "LLAMA_ARG_MLOCK",
+            env,
+        )
+
+        # llama.cpp chat
+        env = _set_env_var(self.chat_template, "LLAMA_ARG_CHAT_TEMPLATE", env)
+        env = _set_env_var(
+            int(self.jinja) if self.jinja is not None else None,
+            "LLAMA_ARG_JINJA",
+            env,
+        )
+        env = _set_env_var(self.reasoning, "LLAMA_ARG_REASONING", env)
+        env = _set_env_var(self.reasoning_budget, "LLAMA_ARG_THINK_BUDGET", env)
 
         # Container tuning
         env = _set_env_var(self.inference_timeout, "INFERENCE_TIMEOUT_SECONDS", env)
