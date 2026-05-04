@@ -1,7 +1,7 @@
-import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from typing import Any, Dict, Iterator, NamedTuple, Optional
@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterator, NamedTuple, Optional
 import boto3
 from botocore.exceptions import ClientError
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 from sagemaker.core.resources import Endpoint, EndpointConfig, Model as SageMakerModel
 from sagemaker.core.shapes.shapes import (
     ContainerDefinition,
@@ -222,7 +221,7 @@ class _StageConfig(NamedTuple):
 def _default_stage_bucket(boto_session: boto3.Session) -> str:
     sts = boto_session.client("sts")
     account_id = sts.get_caller_identity()["Account"]
-    return f"anaconda-model-staging-{account_id}"
+    return f"sagemaker-anaconda-staging-{account_id}"
 
 
 def _ensure_bucket_exists(
@@ -268,8 +267,6 @@ def _resolve_stage_config(
 
 def _sanitize_name(model_id: str) -> str:
     """SageMaker resource names must match [a-zA-Z0-9]([\\-a-zA-Z0-9]*[a-zA-Z0-9])?"""
-    import re
-
     name = model_id.lower()
     name = re.sub(r"[^a-z0-9-]", "-", name)
     name = re.sub(r"-+", "-", name)
@@ -298,8 +295,10 @@ class AnacondaPredictor:
             content_type="application/json",
             accept="application/json",
         )
-        body = response.get("Body", b"")
+        body = response.body
         if isinstance(body, bytes):
+            return json.loads(body)
+        if isinstance(body, str):
             return json.loads(body)
         return json.loads(body.read())
 
@@ -339,11 +338,7 @@ class AnacondaPredictor:
 
     def delete_endpoint(self) -> None:
         self._endpoint.delete()
-
-    def delete_model(self) -> None:
-        model = SageMakerModel.get(self._endpoint.endpoint_name)
-        if model:
-            model.delete()
+        self._endpoint.wait_for_delete()
 
 
 class AnacondaModel:
@@ -443,15 +438,6 @@ class AnacondaModel:
 
         return env
 
-    def _build_container_def(
-        self, model_data_source: Optional[ModelDataSource] = None
-    ) -> ContainerDefinition:
-        return ContainerDefinition(
-            image=self.image_uri,
-            environment=self.env,
-            model_data_source=model_data_source,
-        )
-
     # ------------------------------------------------------------------
     # S3 staging
     # ------------------------------------------------------------------
@@ -490,43 +476,45 @@ class AnacondaModel:
                 AssumeRolePolicyDocument=_CODEBUILD_ASSUME_ROLE_POLICY,
                 Description="Anaconda model staging via CodeBuild",
             )
-            iam.put_role_policy(
-                RoleName=_IAM_ROLE_NAME,
-                PolicyName="AnacondaModelStagePolicy",
-                PolicyDocument=json.dumps(
-                    {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "s3:PutObject",
-                                    "s3:GetObject",
-                                    "s3:DeleteObject",
-                                ],
-                                "Resource": f"arn:aws:s3:::{bucket}/*",
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "logs:CreateLogGroup",
-                                    "logs:CreateLogStream",
-                                    "logs:PutLogEvents",
-                                ],
-                                "Resource": f"arn:aws:logs:{region}:{account_id}:log-group:/aws/codebuild/{_CODEBUILD_PROJECT_NAME}*",
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": ["ssm:GetParameters"],
-                                "Resource": f"arn:aws:ssm:{region}:{account_id}:parameter{_SSM_API_KEY_PARAM}",
-                            },
-                        ],
-                    }
-                ),
-            )
             # IAM role propagation takes a few seconds
             time.sleep(10)
             console.print("  IAM role created ✓")
+
+        stage_policy = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": [
+                            "s3:PutObject",
+                            "s3:GetObject",
+                            "s3:DeleteObject",
+                        ],
+                        "Resource": f"arn:aws:s3:::{bucket}/*",
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Action": [
+                            "logs:CreateLogGroup",
+                            "logs:CreateLogStream",
+                            "logs:PutLogEvents",
+                        ],
+                        "Resource": f"arn:aws:logs:{region}:{account_id}:log-group:/aws/codebuild/{_CODEBUILD_PROJECT_NAME}*",
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Action": ["ssm:GetParameters"],
+                        "Resource": f"arn:aws:ssm:{region}:{account_id}:parameter{_SSM_API_KEY_PARAM}",
+                    },
+                ],
+            }
+        )
+        iam.put_role_policy(
+            RoleName=_IAM_ROLE_NAME,
+            PolicyName="AnacondaModelStagePolicy",
+            PolicyDocument=stage_policy,
+        )
 
         # --- SSM Parameter ---
         try:
@@ -602,82 +590,35 @@ class AnacondaModel:
         console: Optional[Console] = None,
     ) -> None:
         codebuild = self._boto_session.client("codebuild", region_name=region)
-        logs_client = self._boto_session.client("logs", region_name=region)
-
-        log_group = f"/aws/codebuild/{_CODEBUILD_PROJECT_NAME}"
-        # Build ID format: "project:uuid" — log stream is the uuid part
-        log_stream = build_id.split(":")[-1]
 
         _console = console or Console()
         size_gb = self.quantized_file.size_bytes / (1024**3)
+        status = "IN_PROGRESS"
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("{task.completed:.2f}/{task.total:.2f} GB"),
-            console=_console,
-        ) as progress:
-            task: TaskID = progress.add_task(f"Staging {self.model_id}", total=size_gb)
-
-            next_token = None
+        with _console.status(
+            f"  Staging {self.model_id} ({size_gb:.2f} GB)..."
+        ) as spinner:
             while True:
                 build_resp = codebuild.batch_get_builds(ids=[build_id])
                 build = build_resp["builds"][0]
                 status = build["buildStatus"]
+                phase = build.get("currentPhase", "QUEUED")
 
                 if status != "IN_PROGRESS":
-                    if status == "SUCCEEDED":
-                        progress.update(task, completed=size_gb)
                     break
 
-                # Poll CloudWatch for [STAGE] progress lines
-                try:
-                    log_kwargs: Dict[str, Any] = {
-                        "logGroupName": log_group,
-                        "logStreamName": log_stream,
-                        "startFromHead": True,
-                    }
-                    if next_token:
-                        log_kwargs["nextToken"] = next_token
-
-                    log_resp = logs_client.get_log_events(**log_kwargs)
-                    next_token = log_resp.get("nextForwardToken")
-
-                    for event in log_resp.get("events", []):
-                        msg = event.get("message", "")
-                        if "[STAGE]" in msg:
-                            logger.debug("CodeBuild: %s", msg.strip())
-                except ClientError:
-                    pass
-
+                spinner.update(
+                    f"  Staging {self.model_id} ({size_gb:.2f} GB) — {phase}"
+                )
                 time.sleep(5)
 
         if status != "SUCCEEDED":
+            log_group = f"/aws/codebuild/{_CODEBUILD_PROJECT_NAME}"
+            log_stream = build_id.split(":")[-1]
             raise RuntimeError(
                 f"CodeBuild staging failed with status={status}. "
                 f"Build ID: {build_id}. Check CloudWatch logs at "
                 f"{log_group}/{log_stream}"
-            )
-
-    def _verify_staged_checksum(
-        self, bucket: str, key: str, region: Optional[str] = None
-    ) -> None:
-        s3 = self._boto_session.client("s3", region_name=region)
-        resp = s3.get_object(Bucket=bucket, Key=key)
-
-        sha = hashlib.sha256()
-        for chunk in resp["Body"].iter_chunks(chunk_size=8 * 1024 * 1024):
-            sha.update(chunk)
-
-        actual = sha.hexdigest()
-        expected = self.quantized_file.sha256
-        if actual != expected:
-            s3.delete_object(Bucket=bucket, Key=key)
-            raise RuntimeError(
-                f"Checksum mismatch after staging. "
-                f"Expected {expected}, got {actual}. "
-                f"Corrupt file deleted from S3."
             )
 
     def _stage_model(
@@ -707,10 +648,7 @@ class AnacondaModel:
 
         build_id = self._start_codebuild(bucket, key, resolved_region)
         self._poll_progress(build_id, resolved_region, _console)
-
-        _console.print("  Verifying checksum...")
-        self._verify_staged_checksum(bucket, key, resolved_region)
-        _console.print("  ✓ sha256 verified")
+        _console.print("  ✓ staged")
 
         return key
 
@@ -741,7 +679,6 @@ class AnacondaModel:
         model_data_download_timeout: Optional[int] = None,
         wait: bool = True,
         tags: Optional[list] = None,
-        **kwargs: Any,
     ) -> AnacondaPredictor:
         env = dict(self.env)
         model_data_source: Optional[ModelDataSource] = None
@@ -770,10 +707,11 @@ class AnacondaModel:
             if container_startup_health_check_timeout is None:
                 container_startup_health_check_timeout = 3600
 
-        suffix = uuid.uuid4().hex[:8]
-        base_name = (
-            endpoint_name or f"anaconda-{_sanitize_name(self.model_id)}-{suffix}"
-        )
+        if endpoint_name:
+            base_name = endpoint_name
+        else:
+            suffix = uuid.uuid4().hex[:8]
+            base_name = f"anaconda-{_sanitize_name(self.model_id)}-{suffix}"
         model_name = f"{base_name}-model"
         config_name = f"{base_name}-config"
         ep_name = base_name
