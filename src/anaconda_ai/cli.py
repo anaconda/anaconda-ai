@@ -697,3 +697,85 @@ def mcp_server(
         )
         raise typer.Exit(1) from e
     run(transport=transport, host=host, port=port)
+
+
+@app.command("stage", no_args_is_help=True)
+def stage(
+    model: Annotated[
+        Optional[str],
+        typer.Argument(
+            help="Model name with quantization (e.g. Qwen2.5-7B-Instruct/Q4_K_M)"
+        ),
+    ] = None,
+    list_staged: Annotated[
+        bool, typer.Option("--list", is_flag=True, help="List staged models in S3")
+    ] = False,
+    bucket: Annotated[Optional[str], typer.Option(help="S3 bucket override")] = None,
+    aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
+    """Stage a model to S3 for SageMaker deployment"""
+    try:
+        from anaconda_ai.integrations.sagemaker import (
+            AnacondaModel,
+            _resolve_stage_config,
+        )
+    except ImportError as e:
+        console.print(
+            "[red]SageMaker integration requires the sagemaker-core package.[/] "
+            "Install with: [bold]pip install 'anaconda-ai[sagemaker]'[/]"
+        )
+        raise typer.Exit(1) from e
+
+    import boto3
+
+    boto_session = boto3.Session(profile_name=aws_profile)
+
+    if list_staged:
+        cfg = _resolve_stage_config(boto_session, bucket)
+        s3 = boto_session.client("s3")
+        prefix = cfg.prefix.rstrip("/") + "/" if cfg.prefix else ""
+
+        resp = s3.list_objects_v2(Bucket=cfg.bucket, Prefix=prefix, Delimiter="/")
+        models = []
+        for common_prefix in resp.get("CommonPrefixes", []):
+            model_prefix = common_prefix["Prefix"]
+            sub = s3.list_objects_v2(Bucket=cfg.bucket, Prefix=model_prefix)
+            for obj in sub.get("Contents", []):
+                if obj["Key"].endswith(".gguf"):
+                    model_path = model_prefix[len(prefix) :].rstrip("/")
+                    size_gb = obj["Size"] / (1024**3)
+                    models.append(
+                        {
+                            "model": model_path,
+                            "size_gb": round(size_gb, 2),
+                            "s3_uri": f"s3://{cfg.bucket}/{obj['Key']}",
+                        }
+                    )
+
+        if as_json:
+            console.print_json(data=models)
+        else:
+            if not models:
+                console.print(f"No staged models in s3://{cfg.bucket}/{prefix}")
+            else:
+                table = Table("Model", "Size (GB)", "S3 URI", header_style="bold green")
+                for m in models:
+                    table.add_row(m["model"], f"{m['size_gb']:.2f}", m["s3_uri"])
+                console.print(table)
+        return
+
+    if model is None:
+        console.print("[red]Provide a model name or use --list[/]")
+        raise typer.Exit(1)
+
+    sm = AnacondaModel(model_id=model, site=site, aws_profile=aws_profile)
+    s3_uri = sm.stage(bucket=bucket)
+
+    if as_json:
+        console.print_json(data={"status": "success", "s3_uri": s3_uri})
+    else:
+        console.print(f"[green]Success[/green] {s3_uri}")

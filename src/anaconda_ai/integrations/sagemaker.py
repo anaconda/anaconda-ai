@@ -426,10 +426,10 @@ class AnacondaModel:
         self._quantized_file: Optional[QuantizedFile] = None
 
         self._validate_model_id()
-
-        self.role = _resolve_role(role, self._boto_session)
-        self.image_uri = _resolve_image_uri(image_uri, self._boto_session.region_name)
         self.env = self._configure_environment_variables()
+
+        self.role = role
+        self.image_uri = image_uri
 
     @property
     def quantized_file(self) -> QuantizedFile:
@@ -744,6 +744,11 @@ class AnacondaModel:
         wait: bool = True,
         tags: Optional[list] = None,
     ) -> AnacondaPredictor:
+        role = self.role or _resolve_role(None, self._boto_session)
+        image_uri = self.image_uri or _resolve_image_uri(
+            None, self._boto_session.region_name
+        )
+
         env = dict(self.env)
         model_data_source: Optional[ModelDataSource] = None
 
@@ -771,9 +776,7 @@ class AnacondaModel:
             if container_startup_health_check_timeout is None:
                 container_startup_health_check_timeout = 3600
 
-        config_hash = _model_config_hash(
-            self.image_uri, env, self.role, model_data_source
-        )
+        config_hash = _model_config_hash(image_uri, env, role, model_data_source)
         model_name = f"anaconda-{_sanitize_name(self.model_id)}-{config_hash}"
 
         if endpoint_name:
@@ -793,13 +796,13 @@ class AnacondaModel:
             logger.info("Reusing existing SageMaker model: %s", model_name)
         except Exception:
             container = ContainerDefinition(
-                image=self.image_uri,
+                image=image_uri,
                 environment=env,
                 model_data_source=model_data_source,
             )
             sm_model = SageMakerModel.create(
                 model_name=model_name,
-                execution_role_arn=self.role,
+                execution_role_arn=role,
                 primary_container=container,
                 tags=tags,
                 session=self._boto_session,
