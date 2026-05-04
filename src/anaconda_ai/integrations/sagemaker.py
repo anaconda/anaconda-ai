@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -273,6 +274,25 @@ def _sanitize_name(model_id: str) -> str:
     return name.strip("-")
 
 
+def _model_config_hash(
+    image_uri: str,
+    env: Dict[str, str],
+    role: str,
+    model_data_source: Optional[ModelDataSource],
+) -> str:
+    """Deterministic short hash of the model config for reuse."""
+    data_source_str = ""
+    if model_data_source and model_data_source.s3_data_source:
+        ds = model_data_source.s3_data_source
+        data_source_str = f"{ds.s3_uri}|{ds.s3_data_type}|{ds.compression_type}"
+
+    content = json.dumps(
+        {"image": image_uri, "env": env, "role": role, "data": data_source_str},
+        sort_keys=True,
+    )
+    return hashlib.sha256(content.encode()).hexdigest()[:12]
+
+
 def _s3_key_for_model(prefix: str, model_id: str) -> str:
     prefix = prefix.rstrip("/") + "/" if prefix else ""
     return f"{prefix}{model_id}/model.gguf"
@@ -360,6 +380,18 @@ class AnacondaModel:
         parallel: Optional[int] = None,
         flash_attn: Optional[bool] = None,
         cont_batching: Optional[bool] = None,
+        batch_size: Optional[int] = None,
+        ubatch_size: Optional[int] = None,
+        threads: Optional[int] = None,
+        threads_http: Optional[int] = None,
+        cache_type_k: Optional[str] = None,
+        cache_type_v: Optional[str] = None,
+        mlock: Optional[bool] = None,
+        # llama.cpp chat
+        chat_template: Optional[str] = None,
+        jinja: Optional[bool] = None,
+        reasoning: Optional[str] = None,
+        reasoning_budget: Optional[int] = None,
         # Container tuning
         inference_timeout: Optional[int] = None,
         health_timeout: Optional[int] = None,
@@ -375,6 +407,17 @@ class AnacondaModel:
         self.parallel = parallel
         self.flash_attn = flash_attn
         self.cont_batching = cont_batching
+        self.batch_size = batch_size
+        self.ubatch_size = ubatch_size
+        self.threads = threads
+        self.threads_http = threads_http
+        self.cache_type_k = cache_type_k
+        self.cache_type_v = cache_type_v
+        self.mlock = mlock
+        self.chat_template = chat_template
+        self.jinja = jinja
+        self.reasoning = reasoning
+        self.reasoning_budget = reasoning_budget
         self.inference_timeout = inference_timeout
         self.health_timeout = health_timeout
         self.log_request_body = log_request_body
@@ -707,30 +750,40 @@ class AnacondaModel:
             if container_startup_health_check_timeout is None:
                 container_startup_health_check_timeout = 3600
 
+        config_hash = _model_config_hash(
+            self.image_uri, env, self.role, model_data_source
+        )
+        model_name = f"anaconda-{_sanitize_name(self.model_id)}-{config_hash}"
+
         if endpoint_name:
             base_name = endpoint_name
         else:
             suffix = uuid.uuid4().hex[:8]
             base_name = f"anaconda-{_sanitize_name(self.model_id)}-{suffix}"
-        model_name = f"{base_name}-model"
         config_name = f"{base_name}-config"
         ep_name = base_name
 
-        container = ContainerDefinition(
-            image=self.image_uri,
-            environment=env,
-            model_data_source=model_data_source,
-        )
-
         region = self._boto_session.region_name
-        sm_model = SageMakerModel.create(
-            model_name=model_name,
-            execution_role_arn=self.role,
-            primary_container=container,
-            tags=tags,
-            session=self._boto_session,
-            region=region,
-        )
+
+        try:
+            sm_model = SageMakerModel.get(
+                model_name, session=self._boto_session, region=region
+            )
+            logger.info("Reusing existing SageMaker model: %s", model_name)
+        except Exception:
+            container = ContainerDefinition(
+                image=self.image_uri,
+                environment=env,
+                model_data_source=model_data_source,
+            )
+            sm_model = SageMakerModel.create(
+                model_name=model_name,
+                execution_role_arn=self.role,
+                primary_container=container,
+                tags=tags,
+                session=self._boto_session,
+                region=region,
+            )
 
         variant = ProductionVariant(
             variant_name="AllTraffic",
