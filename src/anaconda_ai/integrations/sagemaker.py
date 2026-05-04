@@ -5,7 +5,7 @@ import os
 import re
 import time
 import uuid
-from typing import Any, Dict, Iterator, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -296,69 +296,6 @@ def _model_config_hash(
 def _s3_key_for_model(prefix: str, model_id: str) -> str:
     prefix = prefix.rstrip("/") + "/" if prefix else ""
     return f"{prefix}{model_id}/model.gguf"
-
-
-class AnacondaPredictor:
-    """Wraps a deployed SageMaker Endpoint for prediction."""
-
-    def __init__(self, endpoint: Endpoint, boto_session: boto3.Session):
-        self._endpoint = endpoint
-        self._boto_session = boto_session
-
-    @property
-    def endpoint_name(self) -> str:
-        return self._endpoint.endpoint_name
-
-    def predict(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        response = self._endpoint.invoke(
-            body=json.dumps(data),
-            content_type="application/json",
-            accept="application/json",
-        )
-        body = response.body
-        if isinstance(body, bytes):
-            return json.loads(body)
-        if isinstance(body, str):
-            return json.loads(body)
-        return json.loads(body.read())
-
-    def predict_stream(
-        self, data: Dict[str, Any], **kwargs: Any
-    ) -> Iterator[Dict[str, Any]]:
-        """Invoke with streaming. Returns an iterator of parsed SSE events."""
-        data = dict(data, stream=True)
-
-        runtime = self._boto_session.client("sagemaker-runtime")
-        response = runtime.invoke_endpoint_with_response_stream(
-            EndpointName=self.endpoint_name,
-            ContentType="application/json",
-            Body=json.dumps(data),
-            **kwargs,
-        )
-
-        for event in response["Body"]:
-            chunk = event.get("PayloadPart", {}).get("Bytes", b"")
-            if not chunk:
-                continue
-
-            for line in chunk.decode("utf-8").splitlines():
-                line = line.strip()
-                if not line or not line.startswith("data: "):
-                    continue
-
-                payload = line[len("data: ") :]
-                if payload == "[DONE]":
-                    return
-
-                try:
-                    yield json.loads(payload)
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse SSE payload: %s", payload)
-                    continue
-
-    def delete_endpoint(self) -> None:
-        self._endpoint.delete()
-        self._endpoint.wait_for_delete()
 
 
 class AnacondaModel:
@@ -739,7 +676,7 @@ class AnacondaModel:
         model_data_download_timeout: Optional[int] = None,
         wait: bool = True,
         tags: Optional[list] = None,
-    ) -> AnacondaPredictor:
+    ) -> Endpoint:
         role = self.role or _resolve_role(None, self._boto_session)
         image_uri = self.image_uri or _resolve_image_uri(
             None, self._boto_session.region_name
@@ -833,4 +770,4 @@ class AnacondaModel:
         if wait:
             endpoint.wait_for_status("InService")
 
-        return AnacondaPredictor(endpoint, self._boto_session)
+        return endpoint

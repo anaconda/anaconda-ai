@@ -880,14 +880,14 @@ def deploy(
         reasoning_budget=reasoning_budget,
     )
 
-    predictor = sm.deploy(
+    endpoint = sm.deploy(
         instance_type=instance_type,
         endpoint_name=endpoint_name,
         stage_to_s3=not no_stage,
         stage_bucket=bucket,
     )
 
-    ep = predictor.endpoint_name
+    ep = endpoint.endpoint_name
     region = sm._boto_session.region_name
     profile = aws_profile or "default"
 
