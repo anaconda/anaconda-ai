@@ -887,12 +887,39 @@ def deploy(
         stage_bucket=bucket,
     )
 
+    ep = predictor.endpoint_name
+    region = sm._boto_session.region_name
+    profile = aws_profile or "default"
+
     if as_json:
         console.print_json(
             data={
                 "status": "success",
-                "endpoint_name": predictor.endpoint_name,
+                "endpoint_name": ep,
+                "region": region,
+                "console_url": f"https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/endpoints/{ep}",
             }
         )
     else:
-        console.print(f"[green]Success[/green] endpoint={predictor.endpoint_name}")
+        console.print(f"""\n[bold green]✓[/] Endpoint [bold]{ep}[/] InService
+
+[bold]Python:[/]
+  from sagemaker.core.resources import Endpoint
+  import boto3, json
+
+  endpoint = Endpoint.get("{ep}", session=boto3.Session(profile_name="{profile}"), region="{region}")
+  response = endpoint.invoke(
+      body=json.dumps({{"messages": [{{"role": "user", "content": "Hello"}}], "max_tokens": 256}}),
+      content_type="application/json",
+  )
+  print(json.loads(response.body))
+
+[bold]AWS CLI:[/]
+  aws sagemaker-runtime invoke-endpoint \\
+    --endpoint-name {ep} \\
+    --content-type application/json \\
+    --body '{{"messages":[{{"role":"user","content":"Hello"}}],"max_tokens":256}}' \\
+    /dev/stdout
+
+[bold]Console:[/]
+  https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/endpoints/{ep}""")
