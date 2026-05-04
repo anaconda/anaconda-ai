@@ -387,8 +387,6 @@ class AnacondaModel:
         cache_type_k: Optional[str] = None,
         cache_type_v: Optional[str] = None,
         mlock: Optional[bool] = None,
-        # llama.cpp chat
-        chat_template: Optional[str] = None,
         jinja: Optional[bool] = None,
         reasoning: Optional[str] = None,
         reasoning_budget: Optional[int] = None,
@@ -414,7 +412,6 @@ class AnacondaModel:
         self.cache_type_k = cache_type_k
         self.cache_type_v = cache_type_v
         self.mlock = mlock
-        self.chat_template = chat_template
         self.jinja = jinja
         self.reasoning = reasoning
         self.reasoning_budget = reasoning_budget
@@ -482,7 +479,6 @@ class AnacondaModel:
         )
 
         # llama.cpp chat
-        env = _set_env_var(self.chat_template, "LLAMA_ARG_CHAT_TEMPLATE", env)
         env = _set_env_var(
             int(self.jinja) if self.jinja is not None else None,
             "LLAMA_ARG_JINJA",
