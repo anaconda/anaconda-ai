@@ -779,3 +779,120 @@ def stage(
         console.print_json(data={"status": "success", "s3_uri": s3_uri})
     else:
         console.print(f"[green]Success[/green] {s3_uri}")
+
+
+@app.command("deploy", no_args_is_help=True)
+def deploy(
+    model: str = typer.Argument(help="Model name with quantization"),
+    instance_type: Annotated[
+        str, typer.Option(help="SageMaker instance type (e.g. ml.g5.2xlarge)")
+    ] = "ml.g5.2xlarge",
+    image_uri: Annotated[str, typer.Option(help="Container image ECR URI")] = ...,
+    # SageMaker
+    endpoint_name: Annotated[
+        Optional[str], typer.Option(help="Endpoint name (auto-generated if omitted)")
+    ] = None,
+    role: Annotated[
+        Optional[str], typer.Option(help="SageMaker execution role ARN")
+    ] = None,
+    no_stage: Annotated[
+        bool,
+        typer.Option(
+            "--no-stage", is_flag=True, help="Skip S3 staging, download in container"
+        ),
+    ] = False,
+    bucket: Annotated[Optional[str], typer.Option(help="S3 bucket for staging")] = None,
+    aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
+    # llama.cpp tuning
+    ctx_size: Annotated[Optional[int], typer.Option(help="Context window size")] = None,
+    n_gpu_layers: Annotated[
+        Optional[int], typer.Option(help="GPU layers to offload")
+    ] = None,
+    parallel: Annotated[
+        Optional[int], typer.Option(help="Parallel inference slots")
+    ] = None,
+    flash_attn: Annotated[
+        Optional[bool],
+        typer.Option("--flash-attn/--no-flash-attn", help="Flash attention"),
+    ] = None,
+    cont_batching: Annotated[
+        Optional[bool],
+        typer.Option("--cont-batching/--no-cont-batching", help="Continuous batching"),
+    ] = None,
+    batch_size: Annotated[
+        Optional[int], typer.Option(help="Logical batch size")
+    ] = None,
+    ubatch_size: Annotated[
+        Optional[int], typer.Option(help="Physical batch size")
+    ] = None,
+    cache_type_k: Annotated[
+        Optional[str], typer.Option(help="KV cache type for K (f16, q8_0, q4_0)")
+    ] = None,
+    cache_type_v: Annotated[
+        Optional[str], typer.Option(help="KV cache type for V (f16, q8_0, q4_0)")
+    ] = None,
+    mlock: Annotated[
+        Optional[bool], typer.Option("--mlock/--no-mlock", help="Lock model in RAM")
+    ] = None,
+    jinja: Annotated[
+        Optional[bool], typer.Option("--jinja/--no-jinja", help="Jinja template engine")
+    ] = None,
+    reasoning: Annotated[
+        Optional[str], typer.Option(help="Reasoning mode (on, off, auto)")
+    ] = None,
+    reasoning_budget: Annotated[
+        Optional[int], typer.Option(help="Thinking token budget")
+    ] = None,
+    # Standard
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
+    """Deploy a model to SageMaker"""
+    try:
+        from anaconda_ai.integrations.sagemaker import AnacondaModel
+    except ImportError as e:
+        console.print(
+            "[red]SageMaker integration requires the sagemaker-core package.[/] "
+            "Install with: [bold]pip install 'anaconda-ai[sagemaker]'[/]"
+        )
+        raise typer.Exit(1) from e
+
+    sm = AnacondaModel(
+        model_id=model,
+        site=site,
+        role=role,
+        image_uri=image_uri,
+        aws_profile=aws_profile,
+        ctx_size=ctx_size,
+        n_gpu_layers=n_gpu_layers,
+        parallel=parallel,
+        flash_attn=flash_attn,
+        cont_batching=cont_batching,
+        batch_size=batch_size,
+        ubatch_size=ubatch_size,
+        cache_type_k=cache_type_k,
+        cache_type_v=cache_type_v,
+        mlock=mlock,
+        jinja=jinja,
+        reasoning=reasoning,
+        reasoning_budget=reasoning_budget,
+    )
+
+    predictor = sm.deploy(
+        instance_type=instance_type,
+        endpoint_name=endpoint_name,
+        stage_to_s3=not no_stage,
+        stage_bucket=bucket,
+    )
+
+    if as_json:
+        console.print_json(
+            data={
+                "status": "success",
+                "endpoint_name": predictor.endpoint_name,
+            }
+        )
+    else:
+        console.print(f"[green]Success[/green] endpoint={predictor.endpoint_name}")
