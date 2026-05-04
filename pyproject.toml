@@ -57,7 +57,7 @@ publish = [
   "wheel"
 ]
 pydantic-ai = ["pydantic-ai>=1.50"]
-sagemaker = ["sagemaker>=2.200.0"]
+sagemaker = ["sagemaker-core>=2.0.0"]
 
 [tool.distutils.bdist_wheel]
 universal = true

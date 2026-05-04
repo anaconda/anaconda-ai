@@ -1,7 +1,7 @@
 import json
 from os.path import expandvars
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import platformdirs
 from pydantic import BaseModel, field_validator, field_serializer, Field
@@ -85,8 +85,19 @@ class Backends(BaseModel):
     )
 
 
+class SageMakerStageConfig(BaseModel):
+    bucket: Optional[str] = None
+    prefix: str = "anaconda-models/"
+    region: Optional[str] = None
+
+
+class Stage(BaseModel):
+    sagemaker: SageMakerStageConfig = Field(default_factory=SageMakerStageConfig)
+
+
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
+    stage: Stage = Field(default_factory=Stage)
     backend: Literal["ai-catalyst", "ai-navigator", "anaconda-desktop"] = "ai-navigator"
     stop_server_on_exit: bool = True
     server_operations_timeout: int = 60
