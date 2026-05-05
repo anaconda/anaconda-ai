@@ -883,7 +883,7 @@ def deploy(
     endpoint = sm.deploy(
         instance_type=instance_type,
         endpoint_name=endpoint_name,
-        stage_to_s3=not no_stage,
+        stage=not no_stage,
         stage_bucket=bucket,
     )
 

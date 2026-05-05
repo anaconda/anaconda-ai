@@ -10,6 +10,7 @@ from typing import Any, Dict, NamedTuple, Optional
 import boto3
 from botocore.exceptions import ClientError
 from rich.console import Console
+from rich.status import Status
 from sagemaker.core.resources import Endpoint, EndpointConfig, Model as SageMakerModel
 from sagemaker.core.shapes.shapes import (
     ContainerDefinition,
@@ -358,6 +359,8 @@ class AnacondaModel:
 
         self._boto_session = boto3.Session(profile_name=aws_profile, region_name=region)
         self._quantized_file: Optional[QuantizedFile] = None
+        self._staged_s3_uri: Optional[str] = None
+        self._built_model: Optional[SageMakerModel] = None
 
         self._validate_model_id()
         self.env = self._configure_environment_variables()
@@ -378,6 +381,9 @@ class AnacondaModel:
             backend="ai-catalyst",
         )
         self._quantized_file = client.models._find_quantization(self.model_id)
+        self.model_id = (
+            f"{self._quantized_file._model.name}/{self._quantized_file.quant_method}"
+        )
 
     def _configure_environment_variables(self) -> Dict[str, str]:
         env: Dict[str, str] = {}
@@ -662,21 +668,29 @@ class AnacondaModel:
         """
         cfg = _resolve_stage_config(self._boto_session, bucket, prefix, region)
         key = self._stage_model(cfg.bucket, cfg.prefix, cfg.region, console)
-        return f"s3://{cfg.bucket}/{key}"
+        self._staged_s3_uri = f"s3://{cfg.bucket}/{key}"
+        return self._staged_s3_uri
 
-    def deploy(
+    @property
+    def is_staged(self) -> bool:
+        return self._staged_s3_uri is not None
+
+    def build(
         self,
-        instance_type: str,
-        initial_instance_count: int = 1,
-        endpoint_name: Optional[str] = None,
-        stage_to_s3: bool = True,
+        stage: bool = True,
         stage_bucket: Optional[str] = None,
         stage_prefix: Optional[str] = None,
-        container_startup_health_check_timeout: Optional[int] = None,
-        model_data_download_timeout: Optional[int] = None,
-        wait: bool = True,
+        model_name: Optional[str] = None,
         tags: Optional[list] = None,
-    ) -> Endpoint:
+    ) -> SageMakerModel:
+        """Register a deployable model in SageMaker.
+
+        If stage=True (default), stages the model to S3 first.
+        If stage=False, the container will download from the Anaconda catalog at startup.
+        """
+        if stage and not self.is_staged:
+            self.stage(bucket=stage_bucket, prefix=stage_prefix)
+
         role = self.role or _resolve_role(None, self._boto_session)
         image_uri = self.image_uri or _resolve_image_uri(
             None, self._boto_session.region_name
@@ -685,32 +699,75 @@ class AnacondaModel:
         env = dict(self.env)
         model_data_source: Optional[ModelDataSource] = None
 
-        if stage_to_s3:
-            cfg = _resolve_stage_config(self._boto_session, stage_bucket, stage_prefix)
-            resolved_region = cfg.region or self._boto_session.region_name
-            key = self._stage_model(cfg.bucket, cfg.prefix, resolved_region)
-
-            # S3Prefix URI must point to the directory (trailing /) not the file
-            s3_prefix = key.rsplit("/", 1)[0] + "/"
+        if self.is_staged:
+            s3_prefix = self._staged_s3_uri.rsplit("/", 1)[0] + "/"
             model_data_source = ModelDataSource(
                 s3_data_source=S3ModelDataSource(
-                    s3_uri=f"s3://{cfg.bucket}/{s3_prefix}",
+                    s3_uri=s3_prefix,
                     s3_data_type="S3Prefix",
                     compression_type="None",
                 )
             )
-            # Container doesn't need catalog auth when model is preloaded
             env.pop("ANACONDA_AUTH_API_KEY", None)
             env.pop("ANACONDA_MODEL_ID", None)
 
-            if container_startup_health_check_timeout is None:
-                container_startup_health_check_timeout = 600
-        else:
-            if container_startup_health_check_timeout is None:
-                container_startup_health_check_timeout = 3600
-
         config_hash = _model_config_hash(image_uri, env, role, model_data_source)
-        model_name = f"anaconda-{_sanitize_name(self.model_id)}-{config_hash}"
+        resolved_name = (
+            model_name or f"anaconda-{_sanitize_name(self.model_id)}-{config_hash}"
+        )
+
+        region = self._boto_session.region_name
+
+        try:
+            sm_model = SageMakerModel.get(
+                resolved_name, session=self._boto_session, region=region
+            )
+            logger.info("Reusing existing SageMaker model: %s", resolved_name)
+        except Exception:
+            container = ContainerDefinition(
+                image=image_uri,
+                environment=env,
+                model_data_source=model_data_source,
+            )
+            sm_model = SageMakerModel.create(
+                model_name=resolved_name,
+                execution_role_arn=role,
+                primary_container=container,
+                tags=tags,
+                session=self._boto_session,
+                region=region,
+            )
+
+        self._built_model = sm_model
+        return sm_model
+
+    def deploy(
+        self,
+        instance_type: str,
+        initial_instance_count: int = 1,
+        endpoint_name: Optional[str] = None,
+        stage: bool = True,
+        stage_bucket: Optional[str] = None,
+        stage_prefix: Optional[str] = None,
+        container_startup_health_check_timeout: Optional[int] = None,
+        model_data_download_timeout: Optional[int] = None,
+        wait: bool = True,
+        tags: Optional[list] = None,
+    ) -> Endpoint:
+        """Deploy to a SageMaker endpoint.
+
+        Calls build() automatically if not already called.
+        """
+        if self._built_model is None:
+            self.build(
+                stage=stage,
+                stage_bucket=stage_bucket,
+                stage_prefix=stage_prefix,
+                tags=tags,
+            )
+
+        if container_startup_health_check_timeout is None:
+            container_startup_health_check_timeout = 600 if self.is_staged else 3600
 
         if endpoint_name:
             base_name = endpoint_name
@@ -722,29 +779,9 @@ class AnacondaModel:
 
         region = self._boto_session.region_name
 
-        try:
-            sm_model = SageMakerModel.get(
-                model_name, session=self._boto_session, region=region
-            )
-            logger.info("Reusing existing SageMaker model: %s", model_name)
-        except Exception:
-            container = ContainerDefinition(
-                image=image_uri,
-                environment=env,
-                model_data_source=model_data_source,
-            )
-            sm_model = SageMakerModel.create(
-                model_name=model_name,
-                execution_role_arn=role,
-                primary_container=container,
-                tags=tags,
-                session=self._boto_session,
-                region=region,
-            )
-
         variant = ProductionVariant(
             variant_name="AllTraffic",
-            model_name=sm_model.model_name,
+            model_name=self._built_model.model_name,
             instance_type=instance_type,
             initial_instance_count=initial_instance_count,
             container_startup_health_check_timeout_in_seconds=container_startup_health_check_timeout,
@@ -768,6 +805,38 @@ class AnacondaModel:
         )
 
         if wait:
-            endpoint.wait_for_status("InService")
+            self._wait_for_endpoint(endpoint)
 
         return endpoint
+
+    def _wait_for_endpoint(self, endpoint: Endpoint, poll: int = 10) -> None:
+        console = Console()
+        start = time.time()
+        text = f"{endpoint.endpoint_name} (Creating)"
+
+        with Status(text, console=console) as display:
+            while True:
+                endpoint.refresh()
+                status = endpoint.endpoint_status
+                elapsed = int(time.time() - start)
+                minutes, seconds = divmod(elapsed, 60)
+
+                if status == "InService":
+                    break
+
+                if status == "Failed":
+                    reason = getattr(endpoint, "failure_reason", "unknown")
+                    raise RuntimeError(f"Endpoint failed: {reason}")
+
+                text = (
+                    f"{endpoint.endpoint_name} ({status}) ({minutes}m {seconds:02d}s)"
+                )
+                display.update(text)
+                time.sleep(poll)
+
+        elapsed = int(time.time() - start)
+        minutes, seconds = divmod(elapsed, 60)
+        console.print(
+            f"[bold green]✓[/] {endpoint.endpoint_name} (InService) ({minutes}m {seconds:02d}s)",
+            highlight=False,
+        )
