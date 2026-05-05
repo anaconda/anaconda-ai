@@ -17,6 +17,7 @@ Below you will find documentation for
 * [Pydantic AI](#pydanticai)
 * [Instructor](#instructor)
 * [Panel ChatInterface](#panel)
+* [AWS Sagemaker](#sagemaker)
 
 ## Install
 
@@ -541,6 +542,94 @@ the AnacondaModelHandler supports the following keyword arguments
 * `site`: Anaconda Platform site for backends that support multiple sites, None means use default
 * `client_options`: Optional dict passed as kwargs to chat.completions.create
 * `extra_options`: Optional dict passed to `AnacondaAIClient.servers.create()`
+
+## SageMaker
+
+Deploy Anaconda AI Catalog models to AWS SageMaker real-time endpoints.
+
+```text
+pip install 'anaconda-ai[sagemaker]'
+```
+
+Requires the [anaconda-sagemaker-runtime](https://github.com/anaconda/anaconda-sagemaker-runtime)
+container image built and pushed to your ECR repository.
+
+### Python SDK
+
+```python
+from anaconda_ai.integrations.sagemaker import AnacondaModel
+import json
+
+IMAGE_URI = "<account_id>.dkr.ecr.<region>.amazonaws.com/anaconda-sagemaker-runtime:latest"
+
+model = AnacondaModel(
+    model_id="Qwen2.5-7B-Instruct/Q4_K_M",
+    image_uri=IMAGE_URI,
+)
+
+# Deploy (container downloads model from catalog at startup)
+endpoint = model.deploy(instance_type="ml.g5.2xlarge")
+
+# Invoke
+response = endpoint.invoke(
+    body=json.dumps({"messages": [{"role": "user", "content": "What is conda?"}], "max_tokens": 256}),
+    content_type="application/json",
+)
+print(json.loads(response.body))
+
+# Cleanup
+endpoint.delete()
+```
+
+For faster cold starts (~4 min vs ~6 min), pre-stage the model to S3:
+
+```python
+endpoint = model.deploy(instance_type="ml.g5.2xlarge", stage=True)
+```
+
+The `stage()` and `build()` steps can also be called explicitly:
+
+```python
+model.stage()                                          # upload GGUF to S3 via CodeBuild
+model.build()                                          # register SageMaker Model resource
+endpoint = model.deploy(instance_type="ml.g5.2xlarge") # create endpoint
+```
+
+### CLI
+
+```bash
+IMAGE_URI="<account_id>.dkr.ecr.<region>.amazonaws.com/anaconda-sagemaker-runtime:latest"
+
+# Deploy (container downloads from catalog)
+anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI
+
+# Deploy with S3 staging (faster cold start)
+anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI --stage
+
+# Stage a model to S3 without deploying
+anaconda ai stage Qwen2.5-7B-Instruct/Q4_K_M
+
+# List staged models
+anaconda ai stage --list
+```
+
+### llama-server tuning
+
+```python
+model = AnacondaModel(
+    model_id="Qwen2.5-7B-Instruct/Q4_K_M",
+    image_uri=IMAGE_URI,
+    ctx_size=16384,
+    parallel=8,
+    flash_attn=True,
+    cache_type_k="q8_0",
+)
+```
+
+```bash
+anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI \
+    --ctx-size 16384 --parallel 8 --flash-attn --cache-type-k q8_0
+```
 
 ## Setup for development
 
