@@ -710,6 +710,10 @@ def stage(
     list_staged: Annotated[
         bool, typer.Option("--list", is_flag=True, help="List staged models in S3")
     ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", is_flag=True, help="Re-upload even if already staged"),
+    ] = False,
     bucket: Annotated[Optional[str], typer.Option(help="S3 bucket override")] = None,
     aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
     site: Annotated[
@@ -773,7 +777,7 @@ def stage(
         raise typer.Exit(1)
 
     sm = AnacondaModel(model_id=model, site=site, aws_profile=aws_profile)
-    s3_uri = sm.stage(bucket=bucket)
+    s3_uri = sm.stage(bucket=bucket, force=force)
 
     if as_json:
         console.print_json(data={"status": "success", "s3_uri": s3_uri})

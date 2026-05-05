@@ -630,12 +630,13 @@ class AnacondaModel:
         prefix: str,
         region: Optional[str] = None,
         console: Optional[Console] = None,
+        force: bool = False,
     ) -> str:
         _console = console or Console()
         resolved_region = region or self._boto_session.region_name
         key = _s3_key_for_model(prefix, self.model_id)
 
-        if self._is_staged(bucket, key, resolved_region):
+        if not force and self._is_staged(bucket, key, resolved_region):
             _console.print(f"Model already staged at s3://{bucket}/{key}")
             return key
 
@@ -660,6 +661,7 @@ class AnacondaModel:
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
         region: Optional[str] = None,
+        force: bool = False,
         console: Optional[Console] = None,
     ) -> str:
         """Explicitly stage the model to S3. Returns the S3 URI.
@@ -667,7 +669,9 @@ class AnacondaModel:
         Can be called independently of deploy() for pre-staging in CI/CD.
         """
         cfg = _resolve_stage_config(self._boto_session, bucket, prefix, region)
-        key = self._stage_model(cfg.bucket, cfg.prefix, cfg.region, console)
+        key = self._stage_model(
+            cfg.bucket, cfg.prefix, cfg.region, console, force=force
+        )
         self._staged_s3_uri = f"s3://{cfg.bucket}/{key}"
         return self._staged_s3_uri
 
