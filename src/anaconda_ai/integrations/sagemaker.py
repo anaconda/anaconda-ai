@@ -677,7 +677,7 @@ class AnacondaModel:
 
     def build(
         self,
-        stage: bool = True,
+        stage: bool = False,
         stage_bucket: Optional[str] = None,
         stage_prefix: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -746,7 +746,7 @@ class AnacondaModel:
         instance_type: str,
         initial_instance_count: int = 1,
         endpoint_name: Optional[str] = None,
-        stage: bool = True,
+        stage: bool = False,
         stage_bucket: Optional[str] = None,
         stage_prefix: Optional[str] = None,
         container_startup_health_check_timeout: Optional[int] = None,

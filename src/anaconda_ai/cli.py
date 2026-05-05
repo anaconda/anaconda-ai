@@ -795,10 +795,12 @@ def deploy(
     role: Annotated[
         Optional[str], typer.Option(help="SageMaker execution role ARN")
     ] = None,
-    no_stage: Annotated[
+    stage: Annotated[
         bool,
         typer.Option(
-            "--no-stage", is_flag=True, help="Skip S3 staging, download in container"
+            "--stage",
+            is_flag=True,
+            help="Stage model to S3 before deploying (faster cold start)",
         ),
     ] = False,
     bucket: Annotated[Optional[str], typer.Option(help="S3 bucket for staging")] = None,
@@ -883,7 +885,7 @@ def deploy(
     endpoint = sm.deploy(
         instance_type=instance_type,
         endpoint_name=endpoint_name,
-        stage=not no_stage,
+        stage=stage,
         stage_bucket=bucket,
     )
 
