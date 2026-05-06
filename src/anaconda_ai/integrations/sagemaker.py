@@ -360,6 +360,18 @@ class AnacondaModel:
         self.log_request_body = log_request_body
 
         self._boto_session = boto3.Session(profile_name=aws_profile, region_name=region)
+
+        credentials = self._boto_session.get_credentials()
+        if credentials is None:
+            profile_hint = " --aws-profile <name>" if not aws_profile else ""
+            raise ValueError(
+                "No AWS credentials found. Either:\n"
+                f"  - Pass aws_profile= (or CLI:{profile_hint})\n"
+                "  - Set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars\n"
+                "  - Configure ~/.aws/credentials\n"
+                "  - Run: aws configure"
+            )
+
         self._quantized_file: Optional[QuantizedFile] = None
         self._staged_s3_uri: Optional[str] = None
         self._built_model: Optional[SageMakerModel] = None
