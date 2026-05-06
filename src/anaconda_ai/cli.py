@@ -857,6 +857,22 @@ def deploy(
     reasoning_budget: Annotated[
         Optional[int], typer.Option(help="Thinking token budget")
     ] = None,
+    # Endpoint config
+    volume_size: Annotated[
+        Optional[int], typer.Option(help="EBS volume size in GB")
+    ] = None,
+    routing_strategy: Annotated[
+        str, typer.Option(help="Traffic routing (LEAST_OUTSTANDING_REQUESTS or RANDOM)")
+    ] = "LEAST_OUTSTANDING_REQUESTS",
+    kms_key_id: Annotated[
+        Optional[str], typer.Option(help="KMS key ARN for encryption")
+    ] = None,
+    security_group_ids: Annotated[
+        Optional[str], typer.Option(help="Comma-separated security group IDs for VPC")
+    ] = None,
+    subnets: Annotated[
+        Optional[str], typer.Option(help="Comma-separated subnet IDs for VPC")
+    ] = None,
     # Standard
     site: Annotated[
         Optional[str], typer.Option("--at", help="Site defined in config")
@@ -915,11 +931,24 @@ def deploy(
   https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/models/{model_name}""")
         return
 
+    vpc = None
+    if security_group_ids and subnets:
+        from sagemaker.core.shapes.shapes import VpcConfig
+
+        vpc = VpcConfig(
+            security_group_ids=security_group_ids.split(","),
+            subnets=subnets.split(","),
+        )
+
     endpoint = sm.deploy(
         instance_type=instance_type,
         endpoint_name=endpoint_name,
         stage=stage,
         stage_bucket=bucket,
+        volume_size_in_gb=volume_size,
+        routing_strategy=routing_strategy,
+        vpc_config=vpc,
+        kms_key_id=kms_key_id,
     )
 
     ep = endpoint.endpoint_name

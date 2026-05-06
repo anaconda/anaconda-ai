@@ -16,7 +16,9 @@ from sagemaker.core.shapes.shapes import (
     ContainerDefinition,
     ModelDataSource,
     ProductionVariant,
+    ProductionVariantRoutingConfig,
     S3ModelDataSource,
+    VpcConfig,
 )
 
 from anaconda_auth.config import AnacondaAuthConfig
@@ -755,6 +757,10 @@ class AnacondaModel:
         stage_prefix: Optional[str] = None,
         container_startup_health_check_timeout: Optional[int] = None,
         model_data_download_timeout: Optional[int] = None,
+        volume_size_in_gb: Optional[int] = None,
+        routing_strategy: str = "LEAST_OUTSTANDING_REQUESTS",
+        vpc_config: Optional[VpcConfig] = None,
+        kms_key_id: Optional[str] = None,
         wait: bool = True,
         tags: Optional[list] = None,
     ) -> Endpoint:
@@ -790,11 +796,17 @@ class AnacondaModel:
             initial_instance_count=initial_instance_count,
             container_startup_health_check_timeout_in_seconds=container_startup_health_check_timeout,
             model_data_download_timeout_in_seconds=model_data_download_timeout,
+            volume_size_in_gb=volume_size_in_gb,
+            routing_config=ProductionVariantRoutingConfig(
+                routing_strategy=routing_strategy
+            ),
         )
 
         EndpointConfig.create(
             endpoint_config_name=config_name,
             production_variants=[variant],
+            kms_key_id=kms_key_id,
+            vpc_config=vpc_config,
             tags=tags,
             session=self._boto_session,
             region=region,
