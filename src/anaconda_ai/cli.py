@@ -979,11 +979,12 @@ def deploy(
   print(json.loads(response.body))
 
 [bold]AWS CLI:[/]
-  aws sagemaker-runtime invoke-endpoint \\
+  aws sagemaker-runtime invoke-endpoint --profile {profile} --region {region} \\
     --endpoint-name {ep} \\
     --content-type application/json \\
+    --cli-binary-format raw-in-base64-out \\
     --body '{{"messages":[{{"role":"user","content":"Hello"}}],"max_tokens":256}}' \\
-    /dev/stdout
+    /dev/stderr 1>/dev/null 2>&1
 
 [bold]Console:[/]
   https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/endpoints/{ep}""")
