@@ -606,6 +606,9 @@ anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI
 # Deploy with S3 staging (faster cold start)
 anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI --stage
 
+# Register model only (no endpoint), can be combined with --stage
+anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI --build-only
+
 # Stage a model to S3 without deploying
 anaconda ai stage Qwen2.5-7B-Instruct/Q4_K_M
 

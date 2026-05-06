@@ -807,6 +807,14 @@ def deploy(
             help="Stage model to S3 before deploying (faster cold start)",
         ),
     ] = False,
+    build_only: Annotated[
+        bool,
+        typer.Option(
+            "--build-only",
+            is_flag=True,
+            help="Register model only, do not create endpoint",
+        ),
+    ] = False,
     bucket: Annotated[Optional[str], typer.Option(help="S3 bucket for staging")] = None,
     aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
     # llama.cpp tuning
@@ -885,6 +893,27 @@ def deploy(
         reasoning=reasoning,
         reasoning_budget=reasoning_budget,
     )
+
+    if build_only:
+        sm_model = sm.build(stage=stage, stage_bucket=bucket)
+        model_name = sm_model.model_name
+        region = sm._boto_session.region_name
+
+        if as_json:
+            console.print_json(
+                data={
+                    "status": "success",
+                    "model_name": model_name,
+                    "region": region,
+                    "console_url": f"https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/models/{model_name}",
+                }
+            )
+        else:
+            console.print(f"""\n[bold green]✓[/] Model [bold]{model_name}[/] registered
+
+[bold]Console:[/]
+  https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/models/{model_name}""")
+        return
 
     endpoint = sm.deploy(
         instance_type=instance_type,
