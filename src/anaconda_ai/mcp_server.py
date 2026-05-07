@@ -39,8 +39,38 @@ def list_models(
     """
     try:
         client = AnacondaAIClient(backend=backend, site=site)
-        return [m.model_dump() for m in client.models.list()]
-        # return _models_to_data(client)
+        models = client.models.list()
+        try:
+            servers = client.servers.list()
+        except Exception:
+            servers = []
+
+        data: list[dict[str, Any]] = []
+        for model in sorted(models, key=lambda m: m.name):
+            quant_data = []
+            for quant in model.quantized_files:
+                if not quant.is_allowed:
+                    continue
+                running = any(
+                    s.config.model_name.endswith(quant.identifier) for s in servers
+                )
+                quant_data.append(
+                    {
+                        "method": quant.quant_method,
+                        "downloaded": quant.is_downloaded,
+                        "running": running,
+                    }
+                )
+            if quant_data:
+                data.append(
+                    {
+                        "model": model.name,
+                        "parameters": model.num_parameters,
+                        "trained_for": model.trained_for,
+                        "quantizations": quant_data,
+                    }
+                )
+        return data
     except (AnacondaAIException, UnknownBackendError) as e:
         return [{"error": str(e)}]
 
@@ -57,8 +87,16 @@ def list_servers(
     try:
         client = AnacondaAIClient(backend=backend, site=site)
         servers = client.servers.list()
-        return [s.model_dump(exclude={"api_key"}) for s in servers]
-        # return _servers_to_data(servers)
+        return [
+            {
+                "server_id": s.id,
+                "model": s.config.model_name,
+                "status": s.status,
+                "url": s.url,
+                "openai_url": s.openai_url,
+            }
+            for s in servers
+        ]
     except (AnacondaAIException, UnknownBackendError) as e:
         return [{"error": str(e)}]
 
@@ -69,21 +107,29 @@ def start_server(
     backend: Optional[str] = None,
     site: Optional[str] = None,
     name: Optional[str] = None,
+    extra_options: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Create and start an inference server for a quantized model.
 
     model: Quantized model name, e.g. 'OpenHermes-2.5-Mistral-7B/Q4_K_M' or 'model_name/Q5_K_M'.
     Optionally pass backend/site. If name is provided it may be used as server name (backend-dependent).
     Downloads the model if needed, then starts the server. Returns server_id, model, status, openai_url.
+
+    extra_options: Optional dict of server configuration. The AI Navigator backend supports
+    llama-server options (https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
+    passed as snake_case keys. To enable boolean flags set the value to True.
+    For example: {"ctx_size": 512, "jinja": True, "n_gpu_layers": 40}
     """
     try:
         client = AnacondaAIClient(backend=backend, site=site)
-        extra_options: Optional[dict[str, Any]] = None
+        opts: Optional[dict[str, Any]] = extra_options.copy() if extra_options else None
         if name is not None:
-            extra_options = {"name": name}
+            if opts is None:
+                opts = {}
+            opts["name"] = name
         server = client.servers.create(
             model=model,
-            extra_options=extra_options,
+            extra_options=opts,
             show_progress=False,
         )
         server.start(show_progress=False, leave_running=True, wait=False)
