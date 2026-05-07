@@ -789,15 +789,24 @@ def stage(
 def deploy(
     model: str = typer.Argument(help="Model name with quantization"),
     instance_type: Annotated[
-        str, typer.Option(help="SageMaker instance type (e.g. ml.g5.2xlarge)")
+        str,
+        typer.Option(
+            help="SageMaker instance type (e.g. ml.g5.2xlarge)",
+            rich_help_panel="Endpoint",
+        ),
     ] = "ml.g5.2xlarge",
-    image_uri: Annotated[str, typer.Option(help="Container image ECR URI")] = ...,
-    # SageMaker
+    image_uri: Annotated[
+        str, typer.Option(help="Container image ECR URI", rich_help_panel="Endpoint")
+    ] = ...,
     endpoint_name: Annotated[
-        Optional[str], typer.Option(help="Endpoint name (auto-generated if omitted)")
+        Optional[str],
+        typer.Option(
+            help="Endpoint name (auto-generated if omitted)", rich_help_panel="Endpoint"
+        ),
     ] = None,
     role: Annotated[
-        Optional[str], typer.Option(help="SageMaker execution role ARN")
+        Optional[str],
+        typer.Option(help="SageMaker execution role ARN", rich_help_panel="AWS"),
     ] = None,
     stage: Annotated[
         bool,
@@ -805,6 +814,7 @@ def deploy(
             "--stage",
             is_flag=True,
             help="Stage model to S3 before deploying (faster cold start)",
+            rich_help_panel="Staging",
         ),
     ] = False,
     build_only: Annotated[
@@ -813,71 +823,131 @@ def deploy(
             "--build-only",
             is_flag=True,
             help="Register model only, do not create endpoint",
+            rich_help_panel="Endpoint",
         ),
     ] = False,
-    bucket: Annotated[Optional[str], typer.Option(help="S3 bucket for staging")] = None,
-    aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
-    # llama.cpp tuning
-    ctx_size: Annotated[Optional[int], typer.Option(help="Context window size")] = None,
+    bucket: Annotated[
+        Optional[str],
+        typer.Option(help="S3 bucket for staging", rich_help_panel="Staging"),
+    ] = None,
+    aws_profile: Annotated[
+        Optional[str], typer.Option(help="AWS profile name", rich_help_panel="AWS")
+    ] = None,
+    ctx_size: Annotated[
+        Optional[int],
+        typer.Option(help="Context window size", rich_help_panel="llama-server"),
+    ] = None,
     n_gpu_layers: Annotated[
-        Optional[int], typer.Option(help="GPU layers to offload")
+        Optional[int],
+        typer.Option(help="GPU layers to offload", rich_help_panel="llama-server"),
     ] = None,
     parallel: Annotated[
-        Optional[int], typer.Option(help="Parallel inference slots")
+        Optional[int],
+        typer.Option(help="Parallel inference slots", rich_help_panel="llama-server"),
     ] = None,
     flash_attn: Annotated[
         Optional[bool],
-        typer.Option("--flash-attn/--no-flash-attn", help="Flash attention"),
+        typer.Option(
+            "--flash-attn/--no-flash-attn",
+            help="Flash attention",
+            rich_help_panel="llama-server",
+        ),
     ] = None,
     cont_batching: Annotated[
         Optional[bool],
-        typer.Option("--cont-batching/--no-cont-batching", help="Continuous batching"),
+        typer.Option(
+            "--cont-batching/--no-cont-batching",
+            help="Continuous batching",
+            rich_help_panel="llama-server",
+        ),
     ] = None,
     batch_size: Annotated[
-        Optional[int], typer.Option(help="Logical batch size")
+        Optional[int],
+        typer.Option(help="Logical batch size", rich_help_panel="llama-server"),
     ] = None,
     ubatch_size: Annotated[
-        Optional[int], typer.Option(help="Physical batch size")
+        Optional[int],
+        typer.Option(help="Physical batch size", rich_help_panel="llama-server"),
     ] = None,
     cache_type_k: Annotated[
-        Optional[str], typer.Option(help="KV cache type for K (f16, q8_0, q4_0)")
+        Optional[str],
+        typer.Option(
+            help="KV cache type for K (f16, q8_0, q4_0)", rich_help_panel="llama-server"
+        ),
     ] = None,
     cache_type_v: Annotated[
-        Optional[str], typer.Option(help="KV cache type for V (f16, q8_0, q4_0)")
+        Optional[str],
+        typer.Option(
+            help="KV cache type for V (f16, q8_0, q4_0)", rich_help_panel="llama-server"
+        ),
     ] = None,
     mlock: Annotated[
-        Optional[bool], typer.Option("--mlock/--no-mlock", help="Lock model in RAM")
+        Optional[bool],
+        typer.Option(
+            "--mlock/--no-mlock",
+            help="Lock model in RAM",
+            rich_help_panel="llama-server",
+        ),
     ] = None,
     jinja: Annotated[
-        Optional[bool], typer.Option("--jinja/--no-jinja", help="Jinja template engine")
+        Optional[bool],
+        typer.Option(
+            "--jinja/--no-jinja",
+            help="Jinja template engine",
+            rich_help_panel="llama-server",
+        ),
     ] = None,
     reasoning: Annotated[
-        Optional[str], typer.Option(help="Reasoning mode (on, off, auto)")
+        Optional[str],
+        typer.Option(
+            help="Reasoning mode (on, off, auto)", rich_help_panel="llama-server"
+        ),
     ] = None,
     reasoning_budget: Annotated[
-        Optional[int], typer.Option(help="Thinking token budget")
+        Optional[int],
+        typer.Option(help="Thinking token budget", rich_help_panel="llama-server"),
     ] = None,
-    # Endpoint config
     volume_size: Annotated[
-        Optional[int], typer.Option(help="EBS volume size in GB")
+        Optional[int],
+        typer.Option(help="EBS volume size in GB", rich_help_panel="Endpoint"),
     ] = None,
     routing_strategy: Annotated[
-        str, typer.Option(help="Traffic routing (LEAST_OUTSTANDING_REQUESTS or RANDOM)")
+        str,
+        typer.Option(
+            help="Traffic routing (LEAST_OUTSTANDING_REQUESTS or RANDOM)",
+            rich_help_panel="Endpoint",
+        ),
     ] = "LEAST_OUTSTANDING_REQUESTS",
     kms_key_id: Annotated[
-        Optional[str], typer.Option(help="KMS key ARN for encryption")
+        Optional[str],
+        typer.Option(help="KMS key ARN for encryption", rich_help_panel="Endpoint"),
     ] = None,
     security_group_ids: Annotated[
-        Optional[str], typer.Option(help="Comma-separated security group IDs for VPC")
+        Optional[str],
+        typer.Option(
+            help="Comma-separated security group IDs for VPC",
+            rich_help_panel="Endpoint",
+        ),
     ] = None,
     subnets: Annotated[
-        Optional[str], typer.Option(help="Comma-separated subnet IDs for VPC")
+        Optional[str],
+        typer.Option(
+            help="Comma-separated subnet IDs for VPC", rich_help_panel="Endpoint"
+        ),
     ] = None,
-    # Standard
     site: Annotated[
-        Optional[str], typer.Option("--at", help="Site defined in config")
+        Optional[str],
+        typer.Option("--at", help="Site defined in config", rich_help_panel="Anaconda"),
     ] = None,
-    as_json: AS_JSON = False,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            is_flag=True,
+            help="Print output as JSON",
+            rich_help_panel="Anaconda",
+        ),
+    ] = False,
 ) -> None:
     """Deploy a model to SageMaker"""
     try:
