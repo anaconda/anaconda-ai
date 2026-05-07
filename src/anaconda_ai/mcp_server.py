@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any, Optional
 
 from anaconda_ai.clients import AnacondaAIClient
@@ -73,6 +74,55 @@ def list_models(
         return data
     except (AnacondaAIException, UnknownBackendError) as e:
         return [{"error": str(e)}]
+
+
+@mcp.tool()
+def download_model(
+    model: str,
+    backend: Optional[str] = None,
+    site: Optional[str] = None,
+) -> dict[str, Any]:
+    """Download a quantized model file.
+
+    model: Quantized model name, e.g. 'OpenHermes-2.5-Mistral-7B/Q4_K_M'.
+    Returns immediately if the model is already downloaded. Otherwise starts the
+    download in the background and returns once progress is confirmed.
+    Use list_models to check download status.
+    """
+    try:
+        client = AnacondaAIClient(backend=backend, site=site)
+        quant = client.models._find_quantization(model)
+
+        if quant.is_downloaded:
+            return {
+                "status": "already_downloaded",
+                "model": model,
+                "size_bytes": quant.size_bytes,
+                "local_path": str(quant.local_path),
+            }
+
+        error_holder: list[BaseException] = []
+
+        def _do_download() -> None:
+            try:
+                client.models.download(quant, show_progress=False)
+            except BaseException as exc:
+                error_holder.append(exc)
+
+        t = threading.Thread(target=_do_download, daemon=True)
+        t.start()
+        t.join(timeout=10)
+
+        if error_holder:
+            return {"error": str(error_holder[0])}
+
+        return {
+            "status": "downloading",
+            "model": model,
+            "size_bytes": quant.size_bytes,
+        }
+    except (AnacondaAIException, UnknownBackendError, ValueError) as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
