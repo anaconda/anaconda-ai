@@ -797,7 +797,7 @@ def deploy(
     ] = "ml.g5.2xlarge",
     image_uri: Annotated[
         str, typer.Option(help="Container image ECR URI", rich_help_panel="Endpoint")
-    ] = ...,
+    ] = ...,  # type: ignore[assignment]
     endpoint_name: Annotated[
         Optional[str],
         typer.Option(

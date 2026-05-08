@@ -581,8 +581,16 @@ class AnacondaModel:
         quant = self.quantized_file
 
         overrides = [
-            {"name": "MODEL_UUID", "value": str(quant.model_uuid), "type": "PLAINTEXT"},
-            {"name": "FILE_UUID", "value": str(quant.file_uuid), "type": "PLAINTEXT"},
+            {
+                "name": "MODEL_UUID",
+                "value": str(getattr(quant, "model_uuid")),
+                "type": "PLAINTEXT",
+            },
+            {
+                "name": "FILE_UUID",
+                "value": str(getattr(quant, "file_uuid")),
+                "type": "PLAINTEXT",
+            },
             {"name": "ANACONDA_DOMAIN", "value": domain, "type": "PLAINTEXT"},
             {"name": "TARGET_BUCKET", "value": bucket, "type": "PLAINTEXT"},
             {"name": "TARGET_KEY", "value": key, "type": "PLAINTEXT"},
@@ -718,6 +726,7 @@ class AnacondaModel:
         model_data_source: Optional[ModelDataSource] = None
 
         if self.is_staged:
+            assert self._staged_s3_uri is not None
             s3_prefix = self._staged_s3_uri.rsplit("/", 1)[0] + "/"
             model_data_source = ModelDataSource(
                 s3_data_source=S3ModelDataSource(
@@ -801,6 +810,7 @@ class AnacondaModel:
 
         region = self._boto_session.region_name
 
+        assert self._built_model is not None
         variant = ProductionVariant(
             variant_name="AllTraffic",
             model_name=self._built_model.model_name,
