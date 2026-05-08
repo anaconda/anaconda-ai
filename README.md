@@ -18,6 +18,7 @@ Below you will find documentation for
 * [Instructor](#instructor)
 * [Panel ChatInterface](#panel)
 * [AWS Sagemaker](#sagemaker)
+* [MCP Server](#mcp)
 
 ## Install
 
@@ -633,6 +634,71 @@ model = AnacondaModel(
 anaconda ai deploy Qwen2.5-7B-Instruct/Q4_K_M --image-uri $IMAGE_URI \
     --ctx-size 16384 --parallel 8 --flash-attn --cache-type-k q8_0
 ```
+## MCP
+
+An [MCP](https://modelcontextprotocol.io/) server exposing Anaconda AI model and server management as tools for LLM agents.
+
+```text
+pip install 'anaconda-ai[mcp]'
+```
+
+Start via CLI:
+
+```text
+anaconda ai mcp --transport stdio
+```
+
+Or via Python module:
+
+```text
+python -m anaconda_ai.mcp_server --transport stdio
+```
+
+### Configuration
+
+Add to your MCP client config (e.g. Claude Desktop, Cursor):
+
+```json
+{
+  "mcpServers": {
+    "anaconda-ai": {
+      "command": "anaconda",
+      "args": ["ai", "mcp", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+If `anaconda` is not on PATH (e.g. inside a conda environment), use the full path to `python`:
+
+```json
+{
+  "mcpServers": {
+    "anaconda-ai": {
+      "command": "/path/to/conda/env/bin/python",
+      "args": ["-m", "anaconda_ai.mcp_server", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+|Tool|Description|
+|----|-----------|
+|`list_models`|List models with quantizations, download status, and running status|
+|`download_model`|Start downloading a quantized model file; returns immediately once download is confirmed in progress|
+|`list_servers`|List running inference servers with status and URLs|
+|`start_server`|Create and start an inference server for a quantized model|
+|`stop_server`|Stop a running server by ID|
+|`remove_server`|Remove a server configuration (optionally stopping it first)|
+
+All tools accept optional `backend` and `site` parameters to target a specific backend.
+
+The `start_server` tool accepts an `extra_options` dict supporting
+[llama-server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
+passed as snake_case keys (e.g. `ctx_size`, `jinja`, `n_gpu_layers`, `parallel`).
+To enable boolean flags set the value to `true`.
 
 ## Setup for development
 
