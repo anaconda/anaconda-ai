@@ -697,3 +697,364 @@ def mcp_server(
         )
         raise typer.Exit(1) from e
     run(transport=transport, host=host, port=port)
+
+
+@app.command("stage", no_args_is_help=True)
+def stage(
+    model: Annotated[
+        Optional[str],
+        typer.Argument(
+            help="Model name with quantization (e.g. Qwen2.5-7B-Instruct/Q4_K_M)"
+        ),
+    ] = None,
+    list_staged: Annotated[
+        bool, typer.Option("--list", is_flag=True, help="List staged models in S3")
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", is_flag=True, help="Re-upload even if already staged"),
+    ] = False,
+    bucket: Annotated[Optional[str], typer.Option(help="S3 bucket override")] = None,
+    aws_profile: Annotated[Optional[str], typer.Option(help="AWS profile name")] = None,
+    site: Annotated[
+        Optional[str], typer.Option("--at", help="Site defined in config")
+    ] = None,
+    as_json: AS_JSON = False,
+) -> None:
+    """Stage a model to S3 for SageMaker deployment"""
+    try:
+        from anaconda_ai.integrations.sagemaker import (
+            AnacondaModel,
+            _resolve_stage_config,
+        )
+    except ImportError as e:
+        console.print(
+            "[red]SageMaker integration requires the sagemaker-core package.[/] "
+            "Install with: [bold]pip install 'anaconda-ai[sagemaker]'[/]"
+        )
+        raise typer.Exit(1) from e
+
+    import boto3
+
+    boto_session = boto3.Session(profile_name=aws_profile)
+
+    if list_staged:
+        cfg = _resolve_stage_config(boto_session, bucket)
+        s3 = boto_session.client("s3")
+        prefix = cfg.prefix.rstrip("/") + "/" if cfg.prefix else ""
+
+        resp = s3.list_objects_v2(Bucket=cfg.bucket, Prefix=prefix, Delimiter="/")
+        models = []
+        for common_prefix in resp.get("CommonPrefixes", []):
+            model_prefix = common_prefix["Prefix"]
+            sub = s3.list_objects_v2(Bucket=cfg.bucket, Prefix=model_prefix)
+            for obj in sub.get("Contents", []):
+                if obj["Key"].endswith(".gguf"):
+                    model_path = model_prefix[len(prefix) :].rstrip("/")
+                    size_gb = obj["Size"] / (1024**3)
+                    models.append(
+                        {
+                            "model": model_path,
+                            "size_gb": round(size_gb, 2),
+                            "s3_uri": f"s3://{cfg.bucket}/{obj['Key']}",
+                        }
+                    )
+
+        if as_json:
+            console.print_json(data=models)
+        else:
+            if not models:
+                console.print(f"No staged models in s3://{cfg.bucket}/{prefix}")
+            else:
+                table = Table("Model", "Size (GB)", "S3 URI", header_style="bold green")
+                for m in models:
+                    table.add_row(m["model"], f"{m['size_gb']:.2f}", m["s3_uri"])
+                console.print(table)
+        return
+
+    if model is None:
+        console.print("[red]Provide a model name or use --list[/]")
+        raise typer.Exit(1)
+
+    sm = AnacondaModel(model_id=model, site=site, aws_profile=aws_profile)
+    s3_uri = sm.stage(bucket=bucket, force=force)
+
+    if as_json:
+        console.print_json(data={"status": "success", "s3_uri": s3_uri})
+    else:
+        console.print(f"[green]Success[/green] {s3_uri}")
+
+
+@app.command("deploy", no_args_is_help=True)
+def deploy(
+    model: str = typer.Argument(help="Model name with quantization"),
+    instance_type: Annotated[
+        str,
+        typer.Option(
+            help="SageMaker instance type (e.g. ml.g5.2xlarge)",
+            rich_help_panel="Endpoint",
+        ),
+    ] = "ml.g5.2xlarge",
+    image_uri: Annotated[
+        str, typer.Option(help="Container image ECR URI", rich_help_panel="Endpoint")
+    ] = ...,  # type: ignore[assignment]
+    endpoint_name: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Endpoint name (auto-generated if omitted)", rich_help_panel="Endpoint"
+        ),
+    ] = None,
+    role: Annotated[
+        Optional[str],
+        typer.Option(help="SageMaker execution role ARN", rich_help_panel="AWS"),
+    ] = None,
+    stage: Annotated[
+        bool,
+        typer.Option(
+            "--stage",
+            is_flag=True,
+            help="Stage model to S3 before deploying (faster cold start)",
+            rich_help_panel="Staging",
+        ),
+    ] = False,
+    build_only: Annotated[
+        bool,
+        typer.Option(
+            "--build-only",
+            is_flag=True,
+            help="Register model only, do not create endpoint",
+            rich_help_panel="Endpoint",
+        ),
+    ] = False,
+    bucket: Annotated[
+        Optional[str],
+        typer.Option(help="S3 bucket for staging", rich_help_panel="Staging"),
+    ] = None,
+    aws_profile: Annotated[
+        Optional[str], typer.Option(help="AWS profile name", rich_help_panel="AWS")
+    ] = None,
+    ctx_size: Annotated[
+        Optional[int],
+        typer.Option(help="Context window size", rich_help_panel="llama-server"),
+    ] = None,
+    n_gpu_layers: Annotated[
+        Optional[int],
+        typer.Option(help="GPU layers to offload", rich_help_panel="llama-server"),
+    ] = None,
+    parallel: Annotated[
+        Optional[int],
+        typer.Option(help="Parallel inference slots", rich_help_panel="llama-server"),
+    ] = None,
+    flash_attn: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--flash-attn/--no-flash-attn",
+            help="Flash attention",
+            rich_help_panel="llama-server",
+        ),
+    ] = None,
+    cont_batching: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--cont-batching/--no-cont-batching",
+            help="Continuous batching",
+            rich_help_panel="llama-server",
+        ),
+    ] = None,
+    batch_size: Annotated[
+        Optional[int],
+        typer.Option(help="Logical batch size", rich_help_panel="llama-server"),
+    ] = None,
+    ubatch_size: Annotated[
+        Optional[int],
+        typer.Option(help="Physical batch size", rich_help_panel="llama-server"),
+    ] = None,
+    cache_type_k: Annotated[
+        Optional[str],
+        typer.Option(
+            help="KV cache type for K (f16, q8_0, q4_0)", rich_help_panel="llama-server"
+        ),
+    ] = None,
+    cache_type_v: Annotated[
+        Optional[str],
+        typer.Option(
+            help="KV cache type for V (f16, q8_0, q4_0)", rich_help_panel="llama-server"
+        ),
+    ] = None,
+    mlock: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--mlock/--no-mlock",
+            help="Lock model in RAM",
+            rich_help_panel="llama-server",
+        ),
+    ] = None,
+    jinja: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--jinja/--no-jinja",
+            help="Jinja template engine",
+            rich_help_panel="llama-server",
+        ),
+    ] = None,
+    reasoning: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Reasoning mode (on, off, auto)", rich_help_panel="llama-server"
+        ),
+    ] = None,
+    reasoning_budget: Annotated[
+        Optional[int],
+        typer.Option(help="Thinking token budget", rich_help_panel="llama-server"),
+    ] = None,
+    volume_size: Annotated[
+        Optional[int],
+        typer.Option(help="EBS volume size in GB", rich_help_panel="Endpoint"),
+    ] = None,
+    routing_strategy: Annotated[
+        str,
+        typer.Option(
+            help="Traffic routing (LEAST_OUTSTANDING_REQUESTS or RANDOM)",
+            rich_help_panel="Endpoint",
+        ),
+    ] = "LEAST_OUTSTANDING_REQUESTS",
+    kms_key_id: Annotated[
+        Optional[str],
+        typer.Option(help="KMS key ARN for encryption", rich_help_panel="Endpoint"),
+    ] = None,
+    security_group_ids: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Comma-separated security group IDs for VPC",
+            rich_help_panel="Endpoint",
+        ),
+    ] = None,
+    subnets: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Comma-separated subnet IDs for VPC", rich_help_panel="Endpoint"
+        ),
+    ] = None,
+    site: Annotated[
+        Optional[str],
+        typer.Option("--at", help="Site defined in config", rich_help_panel="Anaconda"),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            is_flag=True,
+            help="Print output as JSON",
+            rich_help_panel="Anaconda",
+        ),
+    ] = False,
+) -> None:
+    """Deploy a model to SageMaker"""
+    try:
+        from anaconda_ai.integrations.sagemaker import AnacondaModel
+    except ImportError as e:
+        console.print(
+            "[red]SageMaker integration requires the sagemaker-core package.[/] "
+            "Install with: [bold]pip install 'anaconda-ai[sagemaker]'[/]"
+        )
+        raise typer.Exit(1) from e
+
+    sm = AnacondaModel(
+        model_id=model,
+        site=site,
+        role=role,
+        image_uri=image_uri,
+        aws_profile=aws_profile,
+        ctx_size=ctx_size,
+        n_gpu_layers=n_gpu_layers,
+        parallel=parallel,
+        flash_attn=flash_attn,
+        cont_batching=cont_batching,
+        batch_size=batch_size,
+        ubatch_size=ubatch_size,
+        cache_type_k=cache_type_k,
+        cache_type_v=cache_type_v,
+        mlock=mlock,
+        jinja=jinja,
+        reasoning=reasoning,
+        reasoning_budget=reasoning_budget,
+    )
+
+    if build_only:
+        sm_model = sm.build(stage=stage, stage_bucket=bucket)
+        model_name = sm_model.model_name
+        region = sm._boto_session.region_name
+
+        if as_json:
+            console.print_json(
+                data={
+                    "status": "success",
+                    "model_name": model_name,
+                    "region": region,
+                    "console_url": f"https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/models/{model_name}",
+                }
+            )
+        else:
+            console.print(f"""\n[bold green]✓[/] Model [bold]{model_name}[/] registered
+
+[bold]Console:[/]
+  https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/models/{model_name}""")
+        return
+
+    vpc = None
+    if security_group_ids and subnets:
+        from sagemaker.core.shapes.shapes import VpcConfig
+
+        vpc = VpcConfig(
+            security_group_ids=security_group_ids.split(","),
+            subnets=subnets.split(","),
+        )
+
+    endpoint = sm.deploy(
+        instance_type=instance_type,
+        endpoint_name=endpoint_name,
+        stage=stage,
+        stage_bucket=bucket,
+        volume_size_in_gb=volume_size,
+        routing_strategy=routing_strategy,
+        vpc_config=vpc,
+        kms_key_id=kms_key_id,
+    )
+
+    ep = endpoint.endpoint_name
+    region = sm._boto_session.region_name
+    profile = aws_profile or "default"
+
+    if as_json:
+        console.print_json(
+            data={
+                "status": "success",
+                "endpoint_name": ep,
+                "region": region,
+                "console_url": f"https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/endpoints/{ep}",
+            }
+        )
+    else:
+        console.print(f"""\n[bold green]✓[/] Endpoint [bold]{ep}[/] InService
+
+[bold]Python:[/]
+  from sagemaker.core.resources import Endpoint
+  import boto3, json
+
+  endpoint = Endpoint.get("{ep}", session=boto3.Session(profile_name="{profile}"), region="{region}")
+  response = endpoint.invoke(
+      body=json.dumps({{"messages": [{{"role": "user", "content": "Hello"}}], "max_tokens": 256}}),
+      content_type="application/json",
+  )
+  print(json.loads(response.body))
+
+[bold]AWS CLI:[/]
+  aws sagemaker-runtime invoke-endpoint --profile {profile} --region {region} \\
+    --endpoint-name {ep} \\
+    --content-type application/json \\
+    --cli-binary-format raw-in-base64-out \\
+    --body '{{"messages":[{{"role":"user","content":"Hello"}}],"max_tokens":256}}' \\
+    /dev/stderr 1>/dev/null 2>&1
+
+[bold]Console:[/]
+  https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/endpoints/{ep}""")
