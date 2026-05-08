@@ -85,7 +85,7 @@ class AnacondaChatModel(OpenAIChatModel, AnacondaMixin):
         openai_client = self._get_openai_client(
             model_name, extra_options, anaconda_client
         )
-        self.client = openai_client
+        object.__setattr__(self, "client", openai_client)
 
         self.profile = AnacondaModelProfile().update(self.profile)
 
@@ -116,7 +116,7 @@ class AnacondaEmbeddingModel(OpenAIEmbeddingModel, AnacondaMixin):
         openai_client = self._get_openai_client(
             model_name, extra_options, anaconda_client
         )
-        self._client = openai_client
+        object.__setattr__(self, "_client", openai_client)
 
     @property
     def model_name(self) -> str:
