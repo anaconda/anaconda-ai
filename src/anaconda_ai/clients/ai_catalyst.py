@@ -188,8 +188,8 @@ class AICatalystModel(Model):
 
     def __init__(self, client: "AICatalystClient", **data: Any) -> None:
         raw_files = data.get("quantized_files", [])
-        quants = []
-        collections = []
+        quants: list = []
+        collections: list = []
         for entry in raw_files:
             if isinstance(entry, dict):
                 if entry.get("format", "").lower() == "gguf":

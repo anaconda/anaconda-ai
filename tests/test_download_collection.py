@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -65,7 +66,7 @@ def _make_regular_quant() -> AICatalystQuantizedFile:
     quant = AICatalystQuantizedFile(
         file_uuid=UUID("11111111-1111-1111-1111-111111111111"),
         model_uuid=UUID(SAMPLE_MODEL_UUID),
-        generated_on="2026-05-19T08:45:21Z",
+        generated_on=datetime(2026, 5, 19, 8, 45, 21, tzinfo=timezone.utc),
         quant_engine="llama.cpp",
         published=True,
         context_window_size=4096,
@@ -74,7 +75,6 @@ def _make_regular_quant() -> AICatalystQuantizedFile:
         quant_method="Q4_K_M",
         format="gguf",
         max_ram_usage=6000000,
-        is_collection=False,
     )
     mock_model = MagicMock()
     mock_model.name = "Qwen3-4B-Thinking-2507"
@@ -154,8 +154,6 @@ class TestDownloadCollectionCatalyst:
         mock_model.name = "Qwen3-4B-Thinking-2507"
         mock_model.get_collection.return_value = collection
 
-        catalyst_models.get = MagicMock(return_value=mock_model)
-
         manifest_response = MagicMock()
         manifest_response.json.return_value = SAMPLE_MANIFEST
         manifest_response.raise_for_status = MagicMock()
@@ -176,15 +174,16 @@ class TestDownloadCollectionCatalyst:
         mock_stream_response.iter_content.return_value = [b"x" * 100]
         mock_stream_response.raise_for_status = MagicMock()
 
-        with patch(
-            "anaconda_ai.clients.ai_catalyst.requests.get",
-            return_value=mock_stream_response,
-        ):
-            catalyst_models.download_collection(
-                "Qwen3-4B-Thinking-2507",
-                path=tmp_path,
-                show_progress=False,
-            )
+        with patch.object(catalyst_models, "get", return_value=mock_model):
+            with patch(
+                "anaconda_ai.clients.ai_catalyst.requests.get",
+                return_value=mock_stream_response,
+            ):
+                catalyst_models.download_collection(
+                    "Qwen3-4B-Thinking-2507",
+                    path=tmp_path,
+                    show_progress=False,
+                )
 
         assert (tmp_path / "model-00001-of-00002.safetensors").exists()
         assert (tmp_path / "config.json").exists()
@@ -200,8 +199,6 @@ class TestDownloadCollectionCatalyst:
         mock_model.name = "Qwen3-4B-Thinking-2507"
         mock_model.get_collection.return_value = collection
 
-        catalyst_models.get = MagicMock(return_value=mock_model)
-
         manifest_response = MagicMock()
         manifest_response.json.return_value = SAMPLE_MANIFEST
         manifest_response.raise_for_status = MagicMock()
@@ -211,11 +208,12 @@ class TestDownloadCollectionCatalyst:
         (tmp_path / "model-00001-of-00002.safetensors").write_bytes(b"x" * 100)
         (tmp_path / "config.json").write_bytes(b"y" * 100)
 
-        catalyst_models.download_collection(
-            "Qwen3-4B-Thinking-2507",
-            path=tmp_path,
-            show_progress=False,
-        )
+        with patch.object(catalyst_models, "get", return_value=mock_model):
+            catalyst_models.download_collection(
+                "Qwen3-4B-Thinking-2507",
+                path=tmp_path,
+                show_progress=False,
+            )
 
         assert mock_catalyst_client.get.call_count == 1
 
@@ -229,8 +227,6 @@ class TestDownloadCollectionCatalyst:
         mock_model = MagicMock()
         mock_model.name = "Qwen3-4B-Thinking-2507"
         mock_model.get_collection.return_value = collection
-
-        catalyst_models.get = MagicMock(return_value=mock_model)
 
         manifest_response = MagicMock()
         manifest_response.json.return_value = SAMPLE_MANIFEST
@@ -253,16 +249,17 @@ class TestDownloadCollectionCatalyst:
         mock_stream_response.iter_content.return_value = [wrong_size_data]
         mock_stream_response.raise_for_status = MagicMock()
 
-        with patch(
-            "anaconda_ai.clients.ai_catalyst.requests.get",
-            return_value=mock_stream_response,
-        ):
-            with pytest.raises(RuntimeError, match="Size mismatch"):
-                catalyst_models.download_collection(
-                    "Qwen3-4B-Thinking-2507",
-                    path=tmp_path,
-                    show_progress=False,
-                )
+        with patch.object(catalyst_models, "get", return_value=mock_model):
+            with patch(
+                "anaconda_ai.clients.ai_catalyst.requests.get",
+                return_value=mock_stream_response,
+            ):
+                with pytest.raises(RuntimeError, match="Size mismatch"):
+                    catalyst_models.download_collection(
+                        "Qwen3-4B-Thinking-2507",
+                        path=tmp_path,
+                        show_progress=False,
+                    )
 
     def test_unpublished_raises(
         self, catalyst_models: AICatalystModels, mock_catalyst_client: MagicMock
@@ -274,10 +271,9 @@ class TestDownloadCollectionCatalyst:
         mock_model.name = "Qwen3-4B-Thinking-2507"
         mock_model.get_collection.return_value = collection
 
-        catalyst_models.get = MagicMock(return_value=mock_model)
-
-        with pytest.raises(RuntimeError, match="not published"):
-            catalyst_models.download_collection("Qwen3-4B-Thinking-2507")
+        with patch.object(catalyst_models, "get", return_value=mock_model):
+            with pytest.raises(RuntimeError, match="not published"):
+                catalyst_models.download_collection("Qwen3-4B-Thinking-2507")
 
 
 class TestDownloadCollectionNavigator:
