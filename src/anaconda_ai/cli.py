@@ -47,7 +47,8 @@ def _list_models(
     table = Table(
         Column("Model", no_wrap=True),
         "Params (B)",
-        "Quantizations\ndownloaded in bold\ngreen for active servers",
+        "Quantizations\ndownloaded in [bold]bold[/bold]\nserving in [green]green[/green]",
+        "Collections",
         "Trained for",
         header_style="bold green",
     )
@@ -89,15 +90,26 @@ def _list_models(
 
             quantizations.append(method)
 
-        if quantizations:
-            quants = ", ".join(quantizations)
+        collection_formats = []
+        collection_data = []
+        for coll in sorted(model.collections, key=lambda c: getattr(c, "format", "")):
+            fmt = getattr(coll, "format", "unknown")
+            collection_formats.append(fmt)
+            collection_data.append({"format": fmt})
+
+        if quantizations or collection_formats:
+            quants = ", ".join(quantizations) if quantizations else "[dim]—[/dim]"
+            colls = (
+                ", ".join(collection_formats) if collection_formats else "[dim]—[/dim]"
+            )
             parameters = f"{model.num_parameters / 1e9:8.2f}"
-            table.add_row(model.name, parameters, quants, model.trained_for)
+            table.add_row(model.name, parameters, quants, colls, model.trained_for)
             data.append(
                 {
                     "model": model.name,
                     "parameters": model.num_parameters,
                     "quantizations": quant_data,
+                    "collections": collection_data,
                     "trained_for": model.trained_for,
                 }
             )
