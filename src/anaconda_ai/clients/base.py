@@ -150,6 +150,10 @@ class QuantizedFile(BaseModel):
         self._model._client.models.delete(self)
 
 
+class Collection(BaseModel):
+    _model: "Model" = PrivateAttr()
+
+
 class Model(BaseModel):
     name: str
     description: str
@@ -157,6 +161,7 @@ class Model(BaseModel):
     trained_for: str
     context_window_size: int
     quantized_files: Sequence[QuantizedFile]
+    collections: Sequence[Collection] = []
     _client: GenericClient = PrivateAttr()
 
     def __init__(self, client: GenericClient, **data: Any) -> None:
@@ -170,6 +175,8 @@ class Model(BaseModel):
         self.quantized_files = sorted(
             self.quantized_files, key=lambda q: q.quant_method
         )
+        for coll in self.collections:
+            coll._model = self
         return self
 
     def get_quantization(self, method: str) -> QuantizedFile:
@@ -198,16 +205,14 @@ class Model(BaseModel):
         quant = self.get_quantization(method)
         quant.delete()
 
-    def get_collection(self, format: str = "safetensors") -> "QuantizedFile":
-        for quant in self.quantized_files:
+    def get_collection(self, format: str = "safetensors") -> "Collection":
+        for coll in self.collections:
             if (
-                getattr(quant, "is_collection", False)
-                and getattr(quant, "format", "").lower() == format.lower()
-                and getattr(quant, "collection_type", None) == "original"
-                and getattr(quant, "filename", None)
-                == "original-safetensors-collection"
+                getattr(coll, "format", "").lower() == format.lower()
+                and getattr(coll, "collection_type", None) == "original"
+                and getattr(coll, "filename", None) == "original-safetensors-collection"
             ):
-                return quant
+                return coll
         raise QuantizedFileNotFound(f"No {format} collection found for {self.name}.")
 
 

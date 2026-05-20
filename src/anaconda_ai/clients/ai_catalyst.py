@@ -1,3 +1,4 @@
+import concurrent.futures
 import datetime as dt
 from functools import cached_property, lru_cache
 from pathlib import Path
@@ -7,6 +8,8 @@ from uuid import UUID
 
 import json
 import requests
+import rich.progress
+from rich.console import Console
 from pydantic import PrivateAttr, ValidationError, computed_field, BaseModel
 from requests.exceptions import HTTPError
 
@@ -20,6 +23,7 @@ from anaconda_ai.exceptions import AnacondaAIException, QuantizedFileNotFound
 
 from ..config import AnacondaAIConfig
 from .base import (
+    Collection,
     GenericClient,
     Model,
     BaseModels,
@@ -134,6 +138,24 @@ class AICatalystQuantizedFile(QuantizedFile):
         return f"/api/ai/model/models/{self.model_uuid}/files/{self.file_uuid}/download"
 
 
+class AICatalystCollection(Collection):
+    file_uuid: UUID
+    model_uuid: UUID
+    filename: str
+    format: str
+    collection_type: str
+    file_count: int
+    total_size_bytes: int
+    size_bytes: int
+    published: bool
+    is_collection: bool = True
+    _model: "AICatalystModel" = PrivateAttr()
+
+    @property
+    def collection_download_url(self) -> str:
+        return f"/api/ai/model/models/{self.model_uuid}/collections/{self.file_uuid}/download"
+
+
 class Tag(BaseModel):
     id: int
     name: str
@@ -160,10 +182,26 @@ class AICatalystModel(Model):
     groups: List[Group]
     tags: List[Tag]
     quantized_files: List[AICatalystQuantizedFile]
+    collections: List[AICatalystCollection] = []
     converted_files: List[AICatalystConvertedFiles]
     _client: "AICatalystClient" = PrivateAttr()
 
     def __init__(self, client: "AICatalystClient", **data: Any) -> None:
+        raw_files = data.get("quantized_files", [])
+        quants = []
+        collections = []
+        for entry in raw_files:
+            if isinstance(entry, dict):
+                if entry.get("format", "").lower() == "gguf":
+                    quants.append(entry)
+                else:
+                    collections.append(entry)
+            elif isinstance(entry, AICatalystCollection):
+                collections.append(entry)
+            else:
+                quants.append(entry)
+        data["quantized_files"] = quants
+        data["collections"] = collections
         super().__init__(client=client, **data)
 
 
@@ -255,6 +293,115 @@ class AICatalystModels(BaseModels):
 
     def _delete(self, model_quantization: AICatalystQuantizedFile) -> None:  # type: ignore[override]
         model_quantization.local_path.unlink()
+
+    def download_collection(
+        self,
+        model_name: str,
+        path: Optional[Union[Path, str]] = None,
+        force: bool = False,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+    ) -> None:
+        model_info = self.get(model_name)
+        collection = model_info.get_collection("safetensors")
+
+        if not isinstance(collection, AICatalystCollection):
+            raise RuntimeError("Collection is not an AICatalystCollection")
+
+        if not collection.published:
+            raise RuntimeError(f"Collection for {model_info.name} is not published")
+
+        manifest_url = collection.collection_download_url
+        res = self.client.get(manifest_url, headers={"X-Anaconda-Api-Version": "1"})
+        res.raise_for_status()
+        manifest = res.json()
+
+        files = manifest["files"]
+        if not files:
+            raise RuntimeError(
+                f"Collection manifest for {model_info.name} contains no files"
+            )
+
+        output_dir = Path(path) if path is not None else Path.cwd()
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        files_to_download = []
+        for file_entry in files:
+            dest = output_dir / file_entry["filename"]
+            if (
+                not force
+                and dest.exists()
+                and dest.stat().st_size == file_entry["size_bytes"]
+            ):
+                continue
+            files_to_download.append(file_entry)
+
+        if not files_to_download:
+            return
+
+        console_obj = Console() if console is None else console
+        progress = rich.progress.Progress(
+            rich.progress.TextColumn("[progress.description]{task.description}"),
+            rich.progress.BarColumn(),
+            rich.progress.DownloadColumn(),
+            rich.progress.TransferSpeedColumn(),
+            rich.progress.TimeRemainingColumn(elapsed_when_finished=True),
+            console=console_obj,
+            refresh_per_second=10,
+        )
+
+        task_ids = {}
+        for file_entry in files_to_download:
+            task_id = progress.add_task(
+                description=file_entry["filename"],
+                total=file_entry["size_bytes"],
+                visible=show_progress,
+            )
+            task_ids[file_entry["filename"]] = task_id
+
+        def _download_file(file_entry: Dict[str, Any]) -> None:
+            filename = file_entry["filename"]
+            download_path = file_entry["download_path"]
+            expected_size = file_entry["size_bytes"]
+            dest = output_dir / filename
+
+            url_res = self.client.get(
+                f"{download_path}?redirect=false",
+                headers={"X-Anaconda-Api-Version": "1"},
+            )
+            url_res.raise_for_status()
+            signed_url = url_res.json()["download_url"]
+
+            response = requests.get(signed_url, stream=True)
+            response.raise_for_status()
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            downloaded_bytes = 0
+            with open(dest, "wb") as f:
+                for chunk in response.iter_content(1024 * 1024):
+                    f.write(chunk)
+                    downloaded_bytes += len(chunk)
+                    progress.update(task_ids[filename], completed=downloaded_bytes)
+
+            actual_size = dest.stat().st_size
+            if actual_size != expected_size:
+                dest.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Size mismatch for {filename}: expected {expected_size}, got {actual_size}"
+                )
+
+        with progress:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(_download_file, entry): entry
+                    for entry in files_to_download
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    exc = future.exception()
+                    if exc is not None:
+                        for f in futures:
+                            f.cancel()
+                        raise exc
 
 
 class AICatalystServerConfig(ServerConfig):
