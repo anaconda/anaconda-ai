@@ -301,9 +301,14 @@ class AICatalystModels(BaseModels):
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
+        format: str = "safetensors",
     ) -> None:
+        if format != "safetensors":
+            raise ValueError(
+                f"Unsupported collection format: {format!r}. Only 'safetensors' is supported."
+            )
         model_info = self.get(model_name)
-        collection = model_info.get_collection("safetensors")
+        collection = model_info.get_collection(format)
 
         if not isinstance(collection, AICatalystCollection):
             raise RuntimeError("Collection is not an AICatalystCollection")

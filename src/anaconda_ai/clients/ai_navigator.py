@@ -156,6 +156,7 @@ class AINavigatorModels(BaseModels):
         force: bool = False,
         show_progress: bool = True,
         console: Optional[Console] = None,
+        format: str = "safetensors",
     ) -> None:
         raise NotImplementedError(
             "Safetensors collection download is only supported with the ai-catalyst backend"
