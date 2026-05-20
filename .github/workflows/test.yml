@@ -41,7 +41,8 @@ jobs:
             conda create -n build --file ./etc/build.linux-64.lock
         - name: conda build
           run: |
-            source $CONDA/bin/activate && conda activate build
+            eval "$(conda shell.bash hook)"
+            conda activate build
             mkdir -p ./conda-bld
             VERSION=`hatch version` conda build -c ai-staging -c conda-forge -c defaults -c anaconda-cloud/label/dev --override-channels conda.recipe --output-folder ./conda-bld
         - name: Upload the build artifact
