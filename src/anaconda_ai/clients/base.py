@@ -198,6 +198,18 @@ class Model(BaseModel):
         quant = self.get_quantization(method)
         quant.delete()
 
+    def get_collection(self, format: str = "safetensors") -> "QuantizedFile":
+        for quant in self.quantized_files:
+            if (
+                getattr(quant, "is_collection", False)
+                and getattr(quant, "format", "").lower() == format.lower()
+                and getattr(quant, "collection_type", None) == "original"
+                and getattr(quant, "filename", None)
+                == "original-safetensors-collection"
+            ):
+                return quant
+        raise QuantizedFileNotFound(f"No {format} collection found for {self.name}.")
+
 
 class BaseModels:
     client: GenericClient
@@ -301,6 +313,18 @@ class BaseModels:
             model_quantization = self._find_quantization(model_quantization)
 
         self._delete(model_quantization)
+
+    def download_collection(
+        self,
+        model_name: str,
+        path: Optional[Union[Path, str]] = None,
+        force: bool = False,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "Safetensors collection download is only supported with the ai-catalyst backend"
+        )
 
 
 class ServerConfig(BaseModel):

@@ -229,6 +229,11 @@ def models(
 @app.command(name="download")
 def download(
     model: str = typer.Argument(help="Model name with quantization"),
+    safetensors: bool = typer.Option(
+        False,
+        "--safetensors",
+        help="Download safetensors collection (ai-catalyst only)",
+    ),
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
@@ -248,9 +253,15 @@ def download(
 ) -> None:
     """Download a model"""
     client = AnacondaAIClient(backend=backend, site=site)
-    client.models.download(
-        model, show_progress=not as_json, force=force, console=console, path=output
-    )
+
+    if safetensors:
+        client.models.download_collection(
+            model, show_progress=not as_json, force=force, console=console, path=output
+        )
+    else:
+        client.models.download(
+            model, show_progress=not as_json, force=force, console=console, path=output
+        )
 
     if as_json:
         console.print_json(data={"status": "success"})

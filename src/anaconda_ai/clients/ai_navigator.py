@@ -149,6 +149,18 @@ class AINavigatorModels(BaseModels):
         res = self.client.delete(model_quantization._url)
         res.raise_for_status()
 
+    def download_collection(
+        self,
+        model_name: str,
+        path: Optional[Union[Path, str]] = None,
+        force: bool = False,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "Safetensors collection download is only supported with the ai-catalyst backend"
+        )
+
 
 class AINavigatorServerParams(BaseModel, extra="allow"):
     host: Optional[str] = None
