@@ -150,6 +150,10 @@ class QuantizedFile(BaseModel):
         self._model._client.models.delete(self)
 
 
+class Collection(BaseModel):
+    _model: "Model" = PrivateAttr()
+
+
 class Model(BaseModel):
     name: str
     description: str
@@ -157,6 +161,7 @@ class Model(BaseModel):
     trained_for: str
     context_window_size: int
     quantized_files: Sequence[QuantizedFile]
+    collections: Sequence[Collection] = []
     _client: GenericClient = PrivateAttr()
 
     def __init__(self, client: GenericClient, **data: Any) -> None:
@@ -170,6 +175,8 @@ class Model(BaseModel):
         self.quantized_files = sorted(
             self.quantized_files, key=lambda q: q.quant_method
         )
+        for coll in self.collections:
+            coll._model = self
         return self
 
     def get_quantization(self, method: str) -> QuantizedFile:
@@ -197,6 +204,16 @@ class Model(BaseModel):
     ) -> None:
         quant = self.get_quantization(method)
         quant.delete()
+
+    def get_collection(self, format: str = "safetensors") -> "Collection":
+        for coll in self.collections:
+            if (
+                getattr(coll, "format", "").lower() == format.lower()
+                and getattr(coll, "collection_type", None) == "original"
+                and getattr(coll, "filename", None) == "original-safetensors-collection"
+            ):
+                return coll
+        raise QuantizedFileNotFound(f"No {format} collection found for {self.name}.")
 
 
 class BaseModels:
@@ -301,6 +318,23 @@ class BaseModels:
             model_quantization = self._find_quantization(model_quantization)
 
         self._delete(model_quantization)
+
+    def download_collection(
+        self,
+        model_name: str,
+        path: Optional[Union[Path, str]] = None,
+        force: bool = False,
+        show_progress: bool = True,
+        console: Optional[Console] = None,
+        format: str = "safetensors",
+    ) -> None:
+        if format != "safetensors":
+            raise ValueError(
+                f"Unsupported collection format: {format!r}. Only 'safetensors' is supported."
+            )
+        raise NotImplementedError(
+            "Safetensors collection download is only supported with the ai-catalyst backend"
+        )
 
 
 class ServerConfig(BaseModel):

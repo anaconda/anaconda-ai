@@ -85,7 +85,7 @@ download model files, start and stop servers through the backend.
 |Command|Description|
 |-------|-----------|
 |models|Show all models or detailed information about a single model with downloaded model files indicated in bold|
-|download|Download a model file using model name and quantization|
+|download|Download a model file using model name and quantization, or download a safetensors collection with `--safetensors`|
 |launch|Launch a server for a model file|
 |servers|Show all running servers or detailed information about a single server|
 |stop|Stop a running server by id|
@@ -125,6 +125,7 @@ The `.models` attribute provides actions to list available models and download s
 |`.list()`|`List[Model]`|List all available and downloaded models|
 |`.get('<model-name>')`|`Model`|retrieve metadata about a model|
 |`.download('<model>/<quantization>')`|None|Download a model quantization file|
+|`.download_collection('<model>')`|None|Download a safetensors collection (ai-catalyst only). Accepts `format=` kwarg (default: `"safetensors"`)|
 |`.delete('<model>/<quantization>')`|None|Delete a downloaded model quantization file|
 
 The `Model` class holds metadata for each available model
@@ -136,8 +137,10 @@ The `Model` class holds metadata for each available model
 |`.num_parameters`|int|Number of parameters for the model|
 |`.trained_for`|str|Either `'sentence-similarity'` or `'text-generation'`|
 |`.context_window_size`|int|Length of the context window for the model|
-|`.quantized_files`|`List[QuantizedFile]`|List of available quantization files|
+|`.quantized_files`|`List[QuantizedFile]`|List of available GGUF quantization files|
+|`.collections`|`List[Collection]`|List of available file collections (e.g. safetensors)|
 |`.get_quantization('<method>')`|`QuantizedFile`|Retrieve metadata for a single quantization file|
+|`.get_collection('<format>')`|`Collection`|Retrieve a collection by format (default: `"safetensors"`)|
 |`.download('<method>')`|None|Direct call to download a quantization file|
 |`.delete('<method>')`|None|Delete a downloaded quantization file|
 
@@ -169,6 +172,61 @@ There are three methods to download a quantization file:
 If the model file has already been downloaded this function returns
 immediately. Otherwise a progress bar is shown showing the download
 progress.
+
+#### Collections
+
+Collections group multiple related files (safetensors weight shards, tokenizer configs, chat templates, etc.)
+into a single logical entry. Downloading a collection gives you everything needed to use the model with
+the `transformers` library.
+
+Each `Collection` object provides (ai-catalyst backend):
+
+|Attribute|Return|Description|
+|---------|------|-----------|
+|`.file_uuid`|UUID|Unique identifier for the collection|
+|`.model_uuid`|UUID|UUID of the parent model|
+|`.filename`|str|Collection name|
+|`.format`|str|Format of the collection (e.g. `"safetensors"`)|
+|`.collection_type`|str|Type of collection (e.g. `"original"`)|
+|`.file_count`|int|Number of files in the collection|
+|`.total_size_bytes`|int|Combined size of all files|
+|`.published`|bool|Whether the collection is published|
+
+##### Downloading collections
+
+Download a safetensors collection via the SDK:
+
+```python
+from anaconda_ai import AnacondaAIClient
+
+client = AnacondaAIClient(backend="ai-catalyst")
+client.models.download_collection("Qwen3-4B-Thinking-2507")
+```
+
+Or specify an output directory:
+
+```python
+client.models.download_collection("Qwen3-4B-Thinking-2507", path="./my-model")
+```
+
+The `format` kwarg defaults to `"safetensors"` and is the only supported value currently:
+
+```python
+client.models.download_collection("Qwen3-4B-Thinking-2507", format="safetensors")
+```
+
+Via the CLI:
+
+```bash
+anaconda ai download --safetensors Qwen3-4B-Thinking-2507
+anaconda ai download --safetensors Qwen3-4B-Thinking-2507 --output ./my-model
+```
+
+Files are downloaded in parallel (5 concurrent) to the current directory by default,
+or to the path specified by `--output`. The directory is created if it does not exist.
+Each file shows its own progress bar. File sizes are verified after download.
+
+Collection downloads are only supported with the `ai-catalyst` backend.
 
 ### Servers
 

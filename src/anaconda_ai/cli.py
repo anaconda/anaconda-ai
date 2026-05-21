@@ -47,7 +47,8 @@ def _list_models(
     table = Table(
         Column("Model", no_wrap=True),
         "Params (B)",
-        "Quantizations\ndownloaded in bold\ngreen for active servers",
+        "Quantizations\ndownloaded in [bold]bold[/bold]\nserving in [green]green[/green]",
+        "Collections",
         "Trained for",
         header_style="bold green",
     )
@@ -89,15 +90,26 @@ def _list_models(
 
             quantizations.append(method)
 
-        if quantizations:
-            quants = ", ".join(quantizations)
+        collection_formats = []
+        collection_data = []
+        for coll in sorted(model.collections, key=lambda c: getattr(c, "format", "")):
+            fmt = getattr(coll, "format", "unknown")
+            collection_formats.append(fmt)
+            collection_data.append({"format": fmt})
+
+        if quantizations or collection_formats:
+            quants = ", ".join(quantizations) if quantizations else "[dim]—[/dim]"
+            colls = (
+                ", ".join(collection_formats) if collection_formats else "[dim]—[/dim]"
+            )
             parameters = f"{model.num_parameters / 1e9:8.2f}"
-            table.add_row(model.name, parameters, quants, model.trained_for)
+            table.add_row(model.name, parameters, quants, colls, model.trained_for)
             data.append(
                 {
                     "model": model.name,
                     "parameters": model.num_parameters,
                     "quantizations": quant_data,
+                    "collections": collection_data,
                     "trained_for": model.trained_for,
                 }
             )
@@ -229,6 +241,11 @@ def models(
 @app.command(name="download")
 def download(
     model: str = typer.Argument(help="Model name with quantization"),
+    safetensors: bool = typer.Option(
+        False,
+        "--safetensors",
+        help="Download safetensors collection (ai-catalyst only)",
+    ),
     force: bool = typer.Option(
         False, help="Force re-download of model if already downloaded."
     ),
@@ -248,9 +265,15 @@ def download(
 ) -> None:
     """Download a model"""
     client = AnacondaAIClient(backend=backend, site=site)
-    client.models.download(
-        model, show_progress=not as_json, force=force, console=console, path=output
-    )
+
+    if safetensors:
+        client.models.download_collection(
+            model, show_progress=not as_json, force=force, console=console, path=output
+        )
+    else:
+        client.models.download(
+            model, show_progress=not as_json, force=force, console=console, path=output
+        )
 
     if as_json:
         console.print_json(data={"status": "success"})
