@@ -89,6 +89,15 @@ class AICatalystQuantizedFilePolicy(BaseModel):
     allowed_groups: List[str]
     download_status: str
 
+    def permits(self, user_groups: List[str]) -> bool:
+        if self.is_blocked:
+            return False
+        if not any(g in self.allowed_groups for g in user_groups):
+            return False
+        if self.missing_license_acceptance:
+            return False
+        return self.download_status == "downloaded"
+
 
 class AICatalystQuantizedFile(QuantizedFile):
     file_uuid: UUID
@@ -106,20 +115,7 @@ class AICatalystQuantizedFile(QuantizedFile):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_allowed(self) -> bool:
-        if self.policy is None:
-            return True
-
-        if self.policy.is_blocked:
-            return False
-        elif any([g in self.policy.allowed_groups for g in self._model._client.groups]):
-            if self.policy.missing_license_acceptance:
-                return False
-            elif self.policy.download_status != "downloaded":
-                return False
-            else:
-                return True
-        else:
-            return False
+        return self.policy is None or self.policy.permits(self._model._client.groups)
 
     @property
     def local_path(self) -> Path:
@@ -149,7 +145,13 @@ class AICatalystCollection(Collection):
     size_bytes: int
     published: bool
     is_collection: bool = True
+    policy: Optional[AICatalystQuantizedFilePolicy] = None
     _model: "AICatalystModel" = PrivateAttr()
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_allowed(self) -> bool:
+        return self.policy is None or self.policy.permits(self._model._client.groups)
 
     @property
     def collection_download_url(self) -> str:
@@ -315,6 +317,15 @@ class AICatalystModels(BaseModels):
 
         if not collection.published:
             raise RuntimeError(f"Collection for {model_info.name} is not published")
+
+        if not collection.is_allowed:
+            if collection.policy:
+                msg = collection.policy.model_dump_json(indent=2)
+            else:
+                msg = "<unknown>"
+            raise ModelNotAvailableError(
+                f"Collection for {model_info.name} cannot be downloaded\nPolicy:\n{msg}"
+            )
 
         manifest_url = collection.collection_download_url
         res = self.client.get(manifest_url, headers={"X-Anaconda-Api-Version": "1"})
