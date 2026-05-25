@@ -44,8 +44,9 @@ import { getLocator, getLocatorByRole, getLocatorByText } from '@anaconda/playwr
 import { getText, isElementVisible, waitForElementToBeVisible } from '@anaconda/playwright-utils/element-utils';
 import { gotoURL, switchPage, getPage, setPage } from '@anaconda/playwright-utils/page-utils';
 import { getRequest, postRequest } from '@anaconda/playwright-utils/api-utils';
+import { SMALL_TIMEOUT, STANDARD_TIMEOUT, ACTION_TIMEOUT, TEST_TIMEOUT } from '@anaconda/playwright-utils/constants';
 import { ClickOptions, FillOptions } from '@anaconda/playwright-utils/types';
-import logger from '@anaconda/playwright-utils'; // named default export for logger
+import { logger } from '@anaconda/playwright-utils'; // named export
 ```
 
 ## Core Pattern
@@ -136,19 +137,19 @@ Playwright auto-retrying assertions.
 
 Find elements on the page.
 
-| Function                  | Signature                           | Description                                                                   |
-| ------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
-| `getLocator`              | `(input, options?: LocatorOptions)` | Get locator from selector or Locator                                          |
-| `getVisibleLocator`       | `(input, options?)`                 | Get locator filtered to visible elements                                      |
-| `getLocatorByTestId`      | `(testId)`                          | Get locator by the configured `testIdAttribute` (`data-qa-id`, `data-testid`) |
-| `getLocatorByText`        | `(text, options?)`                  | Get locator by text content                                                   |
-| `getLocatorByRole`        | `(role, options?)`                  | Get locator by ARIA role                                                      |
-| `getLocatorByLabel`       | `(text, options?)`                  | Get locator by label                                                          |
-| `getLocatorByPlaceholder` | `(text, options?)`                  | Get locator by placeholder                                                    |
-| `getAllLocators`          | `(input, options?)`                 | Get all matching locators                                                     |
-| `getFrame`                | `(frameSelector, options?)`         | Get a Frame by name/URL                                                       |
-| `getFrameLocator`         | `(frameInput)`                      | Get a FrameLocator                                                            |
-| `getLocatorInFrame`       | `(frameInput, input)`               | Get locator within a frame                                                    |
+| Function                  | Signature                           | Description                                                                                    |
+| ------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `getLocator`              | `(input, options?: LocatorOptions)` | Get locator from selector or Locator                                                           |
+| `getVisibleLocator`       | `(input, options?)`                 | Get locator filtered to visible elements                                                       |
+| `getLocatorByTestId`      | `(testId)`                          | Get locator by the configured `testIdAttribute` (`data-qa-id` by default in Anaconda projects) |
+| `getLocatorByText`        | `(text, options?)`                  | Get locator by text content                                                                    |
+| `getLocatorByRole`        | `(role, options?)`                  | Get locator by ARIA role                                                                       |
+| `getLocatorByLabel`       | `(text, options?)`                  | Get locator by label                                                                           |
+| `getLocatorByPlaceholder` | `(text, options?)`                  | Get locator by placeholder                                                                     |
+| `getAllLocators`          | `(input, options?)`                 | Get all matching locators                                                                      |
+| `getFrame`                | `(frameSelector, options?)`         | Get a Frame by name/URL                                                                        |
+| `getFrameLocator`         | `(frameInput)`                      | Get a FrameLocator                                                                             |
+| `getLocatorInFrame`       | `(frameInput, input)`               | Get locator within a frame                                                                     |
 
 ### Element Utils (`element-utils`)
 
@@ -208,6 +209,34 @@ HTTP requests via Playwright's API context.
 | `patchRequest`         | `(url, options?)` | Send PATCH request        |
 | `deleteRequest`        | `(url, options?)` | Send DELETE request       |
 
+## Constants
+
+Timeout constants for use in `options.timeout` overrides and `playwright.config.ts`. Import from the main entry or the `./constants` subpath.
+
+```typescript
+import { SMALL_TIMEOUT, STANDARD_TIMEOUT } from '@anaconda/playwright-utils';
+// or tree-shakable:
+import {
+  SMALL_TIMEOUT,
+  STANDARD_TIMEOUT,
+  BIG_TIMEOUT,
+  ACTION_TIMEOUT,
+  TEST_TIMEOUT,
+} from '@anaconda/playwright-utils/constants';
+```
+
+| Constant             | Value | Use Case                                            |
+| -------------------- | ----- | --------------------------------------------------- |
+| `INSTANT_TIMEOUT`    | 1s    | Immediate checks (element already visible)          |
+| `SMALL_TIMEOUT`      | 5s    | Quick state changes (toggle, show/hide)             |
+| `STANDARD_TIMEOUT`   | 15s   | Most page interactions (default for explicit waits) |
+| `BIG_TIMEOUT`        | 30s   | Slow API responses, heavy page loads                |
+| `MAX_TIMEOUT`        | 60s   | Very slow operations                                |
+| `EXPECT_TIMEOUT`     | 5s    | `playwright.config.ts` → `expect.timeout`           |
+| `ACTION_TIMEOUT`     | 5s    | `playwright.config.ts` → `use.actionTimeout`        |
+| `NAVIGATION_TIMEOUT` | 30s   | `playwright.config.ts` → `use.navigationTimeout`    |
+| `TEST_TIMEOUT`       | 120s  | `playwright.config.ts` → `timeout`                  |
+
 ## Example Test
 
 Tests are always structured with three files: a **Page Object class**, a **Fixture** registration, and a **Spec** file. All actions and assertions live in the page object class — the spec only calls page object methods via injected fixtures.
@@ -230,12 +259,12 @@ import { urlData } from '@testdata/urls-testdata';
 import { validUser, invalidUser } from '@testdata/user-testdata';
 
 export class LoginPage {
-  // Static selectors — plain strings for simple CSS/XPath
+  // Static selectors — raw CSS/XPath strings (no library call at class instantiation)
   private readonly usernameInput = '#username';
   private readonly welcomeMessage = '[data-test="welcome-message"]';
   private readonly errorMessage = '[data-test="error-message"]';
 
-  // Dynamic locators — arrow functions for chained or compound locators
+  // Arrow functions — any library locator call (any tier); defers getPage() to test execution
   private readonly passwordInput = () => getLocator('#password').or(getLocatorByPlaceholder('Password'));
   private readonly loginButton = () => getLocatorByRole('button', { name: 'Login' });
 
@@ -317,48 +346,50 @@ test.describe('Login @smoke', () => {
 
 When using `playwright-cli` to explore pages, translate the generated Playwright code to `@anaconda/playwright-utils` equivalents:
 
-| playwright-cli Generated Code                      | @anaconda/playwright-utils Equivalent        |
-| -------------------------------------------------- | -------------------------------------------- |
-| `await page.goto(url)`                             | `await gotoURL(url)`                         |
-| `await page.goBack()`                              | `await goBack()`                             |
-| `await page.reload()`                              | `await reloadPage()`                         |
-| `await page.locator(sel).click()`                  | `await click(sel)`                           |
-| `await page.locator(sel).click()` + navigation     | `await clickAndNavigate(sel)`                |
-| `await page.locator(sel).dblclick()`               | `await doubleClick(sel)`                     |
-| `await page.locator(sel).fill(val)`                | `await fill(sel, val)`                       |
-| `await page.locator(sel).fill(val)` + Enter        | `await fillAndEnter(sel, val)`               |
-| `await page.locator(sel).hover()`                  | `await hover(sel)`                           |
-| `await page.locator(sel).check()`                  | `await check(sel)`                           |
-| `await page.locator(sel).uncheck()`                | `await uncheck(sel)`                         |
-| `await page.locator(sel).selectOption(val)`        | `await selectByValue(sel, val)`              |
-| `await page.locator(sel).dragTo(dest)`             | `await dragAndDrop(sel, dest)`               |
-| `await page.keyboard.press(key)`                   | `await pressPageKeyboard(key)`               |
-| `page.getByRole(role, opts)`                       | `getLocatorByRole(role, opts)`               |
-| `page.getByText(text)`                             | `getLocatorByText(text)`                     |
-| `page.getByTestId(id)`                             | `getLocatorByTestId(id)`                     |
-| `page.getByLabel(text)`                            | `getLocatorByLabel(text)`                    |
-| `page.getByPlaceholder(text)`                      | `getLocatorByPlaceholder(text)`              |
-| `await expect(loc).toBeVisible()`                  | `await expectElementToBeVisible(input)`      |
-| `await expect(loc).toBeHidden()`                   | `await expectElementToBeHidden(input)`       |
-| `await expect(loc).toHaveText(t)`                  | `await expectElementToHaveText(input, t)`    |
-| `await expect(loc).toContainText(t)`               | `await expectElementToContainText(input, t)` |
-| `await expect(loc).toHaveValue(v)`                 | `await expectElementToHaveValue(input, v)`   |
-| `await expect(loc).toBeChecked()`                  | `await expectElementToBeChecked(input)`      |
-| `await expect(loc).toBeEnabled()`                  | `await expectElementToBeEnabled(input)`      |
-| `await expect(loc).toBeDisabled()`                 | `await expectElementToBeDisabled(input)`     |
-| `await expect(page).toHaveURL(url)`                | `await expectPageToHaveURL(url)`             |
-| `await expect(page).toHaveTitle(t)`                | `await expectPageToHaveTitle(t)`             |
-| `await page.locator(sel).innerText()`              | `await getText(sel)`                         |
-| `await page.locator(sel).inputValue()`             | `await getInputValue(sel)`                   |
-| `await page.locator(sel).getAttribute(a)`          | `await getAttribute(sel, a)`                 |
-| `await page.locator(sel).isVisible()`              | `await isElementVisible(sel)`                |
-| `await page.locator(sel).isHidden()`               | `await isElementHidden(sel)`                 |
-| `await page.locator(sel).count()`                  | `await getLocatorCount(sel)`                 |
-| `await request.get(url, opts)`                     | `await getRequest(url, opts)`                |
-| `await request.post(url, opts)`                    | `await postRequest(url, opts)`               |
-| `await request.put(url, opts)`                     | `await putRequest(url, opts)`                |
-| `await request.delete(url, opts)`                  | `await deleteRequest(url, opts)`             |
-| `await page.locator(sel).scrollIntoViewIfNeeded()` | `await scrollLocatorIntoView(sel)`           |
+| playwright-cli Generated Code                           | @anaconda/playwright-utils Equivalent        |
+| ------------------------------------------------------- | -------------------------------------------- |
+| `await page.goto(url)`                                  | `await gotoURL(url)`                         |
+| `await page.goBack()`                                   | `await goBack()`                             |
+| `await page.reload()`                                   | `await reloadPage()`                         |
+| `await page.locator(sel).click()`                       | `await click(sel)`                           |
+| `await page.locator(sel).click()` + navigation          | `await clickAndNavigate(sel)`                |
+| `await page.locator(sel).dblclick()`                    | `await doubleClick(sel)`                     |
+| `await page.locator(sel).fill(val)`                     | `await fill(sel, val)`                       |
+| `await page.locator(sel).fill(val)` + Enter             | `await fillAndEnter(sel, val)`               |
+| `await page.locator(sel).clear()`                       | `await clear(sel)`                           |
+| `await page.locator(sel).clear()` (when standard fails) | `await clearByJS(sel)`                       |
+| `await page.locator(sel).hover()`                       | `await hover(sel)`                           |
+| `await page.locator(sel).check()`                       | `await check(sel)`                           |
+| `await page.locator(sel).uncheck()`                     | `await uncheck(sel)`                         |
+| `await page.locator(sel).selectOption(val)`             | `await selectByValue(sel, val)`              |
+| `await page.locator(sel).dragTo(dest)`                  | `await dragAndDrop(sel, dest)`               |
+| `await page.keyboard.press(key)`                        | `await pressPageKeyboard(key)`               |
+| `page.getByRole(role, opts)`                            | `getLocatorByRole(role, opts)`               |
+| `page.getByText(text)`                                  | `getLocatorByText(text)`                     |
+| `page.getByTestId(id)`                                  | `getLocatorByTestId(id)`                     |
+| `page.getByLabel(text)`                                 | `getLocatorByLabel(text)`                    |
+| `page.getByPlaceholder(text)`                           | `getLocatorByPlaceholder(text)`              |
+| `await expect(loc).toBeVisible()`                       | `await expectElementToBeVisible(input)`      |
+| `await expect(loc).toBeHidden()`                        | `await expectElementToBeHidden(input)`       |
+| `await expect(loc).toHaveText(t)`                       | `await expectElementToHaveText(input, t)`    |
+| `await expect(loc).toContainText(t)`                    | `await expectElementToContainText(input, t)` |
+| `await expect(loc).toHaveValue(v)`                      | `await expectElementToHaveValue(input, v)`   |
+| `await expect(loc).toBeChecked()`                       | `await expectElementToBeChecked(input)`      |
+| `await expect(loc).toBeEnabled()`                       | `await expectElementToBeEnabled(input)`      |
+| `await expect(loc).toBeDisabled()`                      | `await expectElementToBeDisabled(input)`     |
+| `await expect(page).toHaveURL(url)`                     | `await expectPageToHaveURL(url)`             |
+| `await expect(page).toHaveTitle(t)`                     | `await expectPageToHaveTitle(t)`             |
+| `await page.locator(sel).innerText()`                   | `await getText(sel)`                         |
+| `await page.locator(sel).inputValue()`                  | `await getInputValue(sel)`                   |
+| `await page.locator(sel).getAttribute(a)`               | `await getAttribute(sel, a)`                 |
+| `await page.locator(sel).isVisible()`                   | `await isElementVisible(sel)`                |
+| `await page.locator(sel).isHidden()`                    | `await isElementHidden(sel)`                 |
+| `await page.locator(sel).count()`                       | `await getLocatorCount(sel)`                 |
+| `await request.get(url, opts)`                          | `await getRequest(url, opts)`                |
+| `await request.post(url, opts)`                         | `await postRequest(url, opts)`               |
+| `await request.put(url, opts)`                          | `await putRequest(url, opts)`                |
+| `await request.delete(url, opts)`                       | `await deleteRequest(url, opts)`             |
+| `await page.locator(sel).scrollIntoViewIfNeeded()`      | `await scrollLocatorIntoView(sel)`           |
 
 See `references/` for detailed documentation on specific modules:
 

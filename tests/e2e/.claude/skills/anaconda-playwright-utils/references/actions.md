@@ -71,6 +71,8 @@ await doubleClick('.text-field'); // Select all text
 Clicks using JavaScript `el.click()`. Bypasses visibility checks. Use only when standard click fails.
 
 ```typescript
+import { SMALL_TIMEOUT, clickByJS } from '@anaconda/playwright-utils';
+
 // Only use if click() fails due to overlapping elements or CSS issues
 await clickByJS('.hidden-button', { timeout: SMALL_TIMEOUT });
 ```
@@ -134,6 +136,8 @@ await clear('#input-field'); // Clears existing content
 Clears input using JavaScript, dispatches `input` and `change` events. Use only when `clear()` doesn't work.
 
 ```typescript
+import { SMALL_TIMEOUT, clearByJS } from '@anaconda/playwright-utils';
+
 // Only if clear() fails to trigger change events
 await clearByJS('.special-input', { timeout: SMALL_TIMEOUT });
 ```
@@ -455,4 +459,19 @@ All option types extend Playwright's native options with:
 type ClickOptions = PlaywrightClickOptions & VisibilityOption & StabilityOption & LoadstateOption;
 type FillOptions = PlaywrightFillOptions & VisibilityOption & StabilityOption;
 // ... similar pattern for all option types
+```
+
+Use `stable: true` when an element animates or repositions before the action:
+
+```typescript
+import { SMALL_TIMEOUT, click, fill } from '@anaconda/playwright-utils';
+
+// Button slides in — wait for it to stop moving before clicking
+await click('.add-to-cart-btn', { stable: true });
+
+// Price field re-renders after discount applied — wait before filling
+await fill('.price-input', '100', { stable: true });
+
+// With a custom timeout for slow animations
+await click('.animated-modal-btn', { stable: true, timeout: SMALL_TIMEOUT });
 ```

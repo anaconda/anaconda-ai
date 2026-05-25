@@ -83,8 +83,10 @@ Returns an array of all pages (tabs) in the current browser context.
 **Example:**
 
 ```typescript
+import { getAllPages, logger } from '@anaconda/playwright-utils';
+
 const pages = getAllPages();
-logger.info(`Total tabs open: ${pages.length}`);
+logger.info(`Total tabs open: ${pages.length}`); // log only for multi-tab debug — remove in production
 ```
 
 ### `switchPage(winNum: number, options?): Promise<void>`
@@ -276,12 +278,14 @@ Saves the current browser storage state (cookies, localStorage, sessionStorage) 
 **Example:**
 
 ```typescript
+import { logger, saveStorageState } from '@anaconda/playwright-utils';
+
 // Save to file
 await saveStorageState('./auth-state.json');
 
 // Get state without saving
 const state = await saveStorageState();
-logger.info(`Cookies captured: ${state.cookies?.length ?? 0}`);
+logger.info(`Cookies captured: ${state.cookies?.length ?? 0}`); // log only during auth setup
 ```
 
 **Usage with authentication (save auth state for reuse):**

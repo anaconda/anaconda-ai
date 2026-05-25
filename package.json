@@ -10,7 +10,7 @@
     "cli"
   ],
   "devDependencies": {
-    "@anaconda/playwright-utils": "1.3.6",
+    "@anaconda/playwright-utils": "1.4.5",
     "@playwright/test": "^1.49.0",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
@@ -27,6 +27,7 @@
     "build": "tsc",
     "validate": "tsc --noEmit",
     "test:e2e": "playwright test",
+    "prepare": "husky",
     "test:e2e:chromium": "playwright test --retries 0 --project=chromiumheadless",
     "test:e2e:headed": "playwright test -j 1 --retries 0 --headed --project=chromium",
     "test:e2e:functional": "playwright test --project=chromium -g '@functional'",
@@ -39,12 +40,12 @@
     "lint": "cross-env eslint 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts'",
     "lint:fix": "cross-env eslint 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts' --fix",
     "format": "cross-env prettier --write 'tests/e2e/**/*.ts' 'tests/test-setup/**/*.ts' 'playwright.config.ts' '**/*.json' '**/*.md' '!package-lock.json' '!dist/**/*' '!build/**/*'",
-    "postinstall": "playwright install chromium"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
+    "postinstall": "playwright install chromium",
+    "check:code-quality": "playwright-utils-check-code-quality",
+    "check:code-quality:staged": "playwright-utils-check-code-quality --staged",
+    "quality:full": "playwright-utils-quality-full",
+    "quality:report": "playwright-utils-full-quality-report",
+    "precommit": "playwright-utils-precommit"
   },
   "lint-staged": {
     "*.{json,md}": "cross-env prettier --write",

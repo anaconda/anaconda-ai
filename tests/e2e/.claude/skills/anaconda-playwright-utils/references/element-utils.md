@@ -152,6 +152,8 @@ Use these for explicit synchronization when element state changes are expected. 
 Waits for an element to be visible. Throws on timeout.
 
 ```typescript
+import { SMALL_TIMEOUT, waitForElementToBeVisible } from '@anaconda/playwright-utils';
+
 await waitForElementToBeVisible('.modal', { timeout: SMALL_TIMEOUT });
 // Continue execution only after modal is visible
 ```
@@ -161,6 +163,8 @@ await waitForElementToBeVisible('.modal', { timeout: SMALL_TIMEOUT });
 Waits for an element to be hidden or detached from the DOM. Throws on timeout.
 
 ```typescript
+import { STANDARD_TIMEOUT, waitForElementToBeHidden } from '@anaconda/playwright-utils';
+
 // Wait for loading spinner to disappear
 await waitForElementToBeHidden('.loading-spinner', { timeout: STANDARD_TIMEOUT });
 // Now safe to interact with page
@@ -279,6 +283,8 @@ test('spec file', async () => {
 
 ```typescript
 import {
+  // constants
+  SMALL_TIMEOUT,
   // element-utils
   getText,
   getAllTexts,

@@ -37,7 +37,6 @@ const response = await getRequest('https://api.example.com/users/1');
 await expect(response).toBeOK();
 
 const user = await response.json();
-logger.info(`Retrieved user: ${user.name}`);
 ```
 
 ### `postRequest(url, options?): Promise<APIResponse>`
@@ -56,7 +55,6 @@ const response = await postRequest('https://api.example.com/users', {
 
 expect(response.status(), { message: 'POST should return 201 Created' }).toBe(201);
 const newUser = await response.json();
-logger.info(`Created user ID: ${newUser.id}`);
 ```
 
 ### `putRequest(url, options?): Promise<APIResponse>`
@@ -94,8 +92,15 @@ Performs an HTTP DELETE request.
 
 ```typescript
 const response = await deleteRequest('https://api.example.com/users/1');
-expect(response.status()).toBe(204); // No content
+expect(response.status(), { message: 'DELETE should return 204 No Content' }).toBe(204);
 ```
+
+## Response Assertion Patterns
+
+Choose the right pattern based on what you need to verify:
+
+- **`await expect(response).toBeOK()`** — verifies any 2xx status; use for most GET/POST/PUT/PATCH calls
+- **`expect(response.status(), { message: '...' }).toBe(201)`** — use when the exact status code matters (e.g., 201 Created vs 200 OK, 204 No Content vs 200 OK)
 
 ## Response Handling
 
@@ -192,7 +197,7 @@ await postRequest('/api/upload', {
 
 ```typescript
 // tests/pages/api/items-api.ts
-import { expect, getRequest, logger } from '@anaconda/playwright-utils';
+import { expect, getRequest } from '@anaconda/playwright-utils';
 
 export class ItemsAPI {
   private readonly baseURL = 'https://api.example.com';
@@ -206,8 +211,6 @@ export class ItemsAPI {
     expect(items.length, { message: 'Items list should not be empty' }).toBeGreaterThan(0);
     expect(items[0], { message: 'Each item should have an id field' }).toHaveProperty('id');
     expect(items[0], { message: 'Each item should have a name field' }).toHaveProperty('name');
-
-    logger.info(`Verified ${items.length} items exist`);
   }
 }
 ```
@@ -254,7 +257,7 @@ API utils work well with page object patterns for separating API testing concern
 
 ```typescript
 // tests/pages/api/user-api.ts
-import { deleteRequest, expect, getRequest, logger, postRequest } from '@anaconda/playwright-utils';
+import { deleteRequest, expect, getRequest, postRequest } from '@anaconda/playwright-utils';
 
 export class UserAPI {
   private readonly baseURL = 'https://api.example.com';
@@ -262,9 +265,7 @@ export class UserAPI {
   async getUser(id: number) {
     const response = await getRequest(`${this.baseURL}/users/${id}`);
     await expect(response).toBeOK();
-    const user = await response.json();
-    logger.info(`Retrieved user: ${user.name}`);
-    return user;
+    return response.json();
   }
 
   async createUser(userData: Record<string, unknown>) {
@@ -272,15 +273,12 @@ export class UserAPI {
       data: userData,
     });
     expect(response.status(), { message: 'POST /users should return 201 Created' }).toBe(201);
-    const newUser = await response.json();
-    logger.info(`Created user with ID: ${newUser.id}`);
-    return newUser;
+    return response.json();
   }
 
   async deleteUser(id: number): Promise<void> {
     const response = await deleteRequest(`${this.baseURL}/users/${id}`);
     expect(response.status(), { message: `DELETE /users/${id} should return 204 No Content` }).toBe(204);
-    logger.info(`Deleted user ID: ${id}`);
   }
 
   async verifyUserExists(email: string) {
@@ -289,7 +287,6 @@ export class UserAPI {
     const users = await response.json();
     expect(Array.isArray(users), { message: 'Users response should be an array' }).toBeTruthy();
     expect(users.length, { message: `At least one user with email ${email} should exist` }).toBeGreaterThan(0);
-    logger.info(`Verified user exists: ${email}`);
   }
 }
 ```
