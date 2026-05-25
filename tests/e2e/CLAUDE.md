@@ -1,100 +1,80 @@
 # Playwright TypeScript Project
 
-## Project Overview
+## Prerequisites
 
-A Playwright TypeScript end-to-end testing framework for Web (Desktop & Mobile), API, and Electron apps. Built on top of `@anaconda/playwright-utils` which provides simplified utility functions for actions, assertions, locators, elements, page management, and API requests.
+The Playwright agents (planner / generator / healer) shell out to `playwright-cli` for live browser interaction. It must be **globally installed** on each developer machine that uses the agents — run `npx anaconda-pw-setup` to install or verify it, or install manually: `npm install -g @playwright/cli`. Re-run setup after upgrading `@anaconda/playwright-utils` to check for a newer recommended version.
 
-**Repository**: `anaconda/playwright-ts-utils`
-**Default test target**: https://www.saucedemo.com (configurable via `URL` env var or `.env` file)
-**AI Tools**: Claude Code and Cursor (skills and agents shared via `.claude/` and `.cursor/rules/`). In **Cursor IDE**, whenever you use **`@.claude/skills/`**, include **`@.cursor/`** in the same context—see [AI Skills and Agents](#ai-skills-and-agents).
+## Load This First (AI Assistants)
+
+> **CRITICAL:** Before writing any test code, load `.claude/skills/anaconda-playwright-utils/SKILL.md`. This defines all 103 library functions, import patterns, CLI-to-library mappings, and example tests. For detailed function signatures, load the specific `references/*.md` files. In Cursor IDE, include `@.cursor/rules/` to map skills to this project.
 
 ## Project Structure
 
 ```
-playwright-ts-template/
-├── playwright.config.ts          # Playwright configuration (projects, timeouts, reporters)
-├── test-setup/
-│   ├── page-setup.ts             # Sets page context via setPage() before each test
-│   ├── global-setup.ts           # Runs before all tests (initialization hooks)
-│   └── global-teardown.ts        # Runs after all tests (cleanup hooks)
+<project>/
+├── playwright.config.ts          # Playwright configuration
 ├── tests/
+│   ├── test-plans/               # Markdown test plans (planner output; not *.spec.ts)
 │   ├── specs/                    # Test spec files (*.spec.ts)
-│   ├── pages/                    # Page Object classes (class-based POM)
+│   ├── pages/                    # Page Object classes
 │   ├── fixtures/
-│   │   └── fixture.ts            # Custom Playwright fixtures for page objects
+│   │   └── fixture.ts            # Custom fixtures for page objects
 │   ├── testdata/                 # Test data files
-│   └── storage-setup/            # Authentication storage state setup
+│   └── storage-setup/            # Auth storage state setup
 ├── .claude/
 │   ├── skills/
-│   │   ├── anaconda-playwright-utils/ # API docs, locator strategy, browser strategy, function references
-│   │   └── playwright-cli/            # Browser automation CLI commands and references
-│   └── agents/                        # Agent workflows (planner, generator, healer)
-└── .cursor/rules/                 # Cursor rules referencing .claude/ skills and agents via @file
+│   │   ├── anaconda-playwright-utils/  # Library API docs + references
+│   │   └── playwright-cli/             # Browser automation CLI
+│   └── agents/                         # Planner, generator, healer
+└── .cursor/rules/                      # Cursor rules referencing skills
 ```
 
-## Key Conventions
+## Imports and Setup
 
-### Imports and Path Aliases
+### Path Aliases (tsconfig.json)
 
-Use TypeScript path aliases defined in `tsconfig.json`:
+| Alias                | Resolves to                            |
+| -------------------- | -------------------------------------- |
+| `@pages/*`           | `tests/pages/*`                        |
+| `@testdata/*`        | `tests/testdata/*`                     |
+| `@fixture`           | `tests/fixtures/fixture` (single file) |
+| `@playwright-config` | `playwright.config`                    |
 
-- `@pages/*` -> `tests/pages/*`
-- `@testdata/*` -> `tests/testdata/*`
-- `@fixture` -> `tests/fixtures/fixture`
-- `@playwright-config` -> `playwright.config`
+### Singleton Page Pattern
 
-### Page Setup
+Always import `test` from `@fixture`, never from `@playwright/test`. The fixture calls `setPage(page)` before every test — all library functions use this singleton internally. If `setPage` is not called, all library calls fail.
 
-Always import `test` from `@fixture` instead of `@playwright/test`. This ensures `setPage(page)` is called before each test (required by all `@anaconda/playwright-utils` functions) and provides page object class instances as fixtures.
+### Import Convention
 
-```typescript
-import { test } from '@fixture';
-```
-
-The fixture setup (`tests/fixtures/fixture.ts`) extends the base test from `@anaconda/playwright-utils` (which sets `setPage(page)` per test) and registers page object classes as Playwright fixtures.
-
-### Use @anaconda/playwright-utils Functions
-
-Always prefer `@anaconda/playwright-utils` utility functions over raw Playwright API calls.
-
-**Imports:** The package re-exports actions, assertions, locators, element helpers, page helpers, and **constants** (e.g. `STANDARD_TIMEOUT`, `NAVIGATION_TIMEOUT`) from its main entry. **Use one combined import from `@anaconda/playwright-utils`** for everything you need from that library—do not split the same symbols across multiple import lines or duplicate imports from the root package. Subpath imports (e.g. `@anaconda/playwright-utils/action-utils`) are optional (e.g. for tree-shaking); if you use them, avoid mixing redundant root + subpath imports for the same helpers. ESLint in this repo enforces **sorted named imports** (e.g. `sort-imports` may place uppercase exports like `STANDARD_TIMEOUT` before lowercase names—run `npm run lint:fix` if needed).
+One barrel import from `@anaconda/playwright-utils` for all utilities and constants. ESLint enforces sorted named imports.
 
 ```typescript
-// DO: Single barrel import; utility functions + constants as needed
 import {
   STANDARD_TIMEOUT,
   click,
   clickAndNavigate,
   expectElementToBeVisible,
   fill,
-  getLocatorByRole,
   getLocatorByTestId,
-  getLocatorByText,
   gotoURL,
-  logger, // Winston-based logger — use sparingly in page objects only, never in spec files
 } from '@anaconda/playwright-utils';
-import { urlData } from '@testdata/urls-testdata';
-import { userData } from '@testdata/user-testdata';
-
-await gotoURL(urlData.loginPageUrl);
-await fill('#username', userData.username);
-await clickAndNavigate(getLocatorByRole('button', { name: 'Login' }));
-await expectElementToBeVisible('.dashboard', 'Dashboard should be visible after login');
-
-// DON'T: Use raw Playwright API
-await page.goto('https://example.com');
-await page.locator('#username').fill('user');
-await page.getByRole('button', { name: 'Login' }).click();
 ```
 
-### Page Object Model (Class-based)
+### Config Files (project root)
 
-All page objects use class-based POM in `tests/pages/`. Classes use `@anaconda/playwright-utils` functions internally and are registered as Playwright fixtures in `tests/fixtures/fixture.ts`.
+- `playwright.config.ts` — spread `AnacondaConfigDefaults` and `AnacondaProjectDefaults` from `@anaconda/playwright-utils`
+- `tsconfig.json` — strict mode, path aliases above
+- `eslint.config.js` — extends `@anaconda/playwright-utils/eslint` (flat config)
 
-**Page object class** (`tests/pages/login-page.ts`):
+## Page Object Model (3-File Pattern)
+
+Every test uses three files: a **Page Object** class, a **Fixture** registration, and a **Spec** file. All actions and assertions live in the page object — specs only call page object methods.
+
+### Page Object (`tests/pages/login-page.ts`)
 
 ```typescript
 import {
+  click,
   clickAndNavigate,
   expectElementToBeAttached,
   expectElementToBeVisible,
@@ -105,12 +85,14 @@ import {
   gotoURL,
 } from '@anaconda/playwright-utils';
 import { urlData } from '@testdata/urls-testdata';
-import { userData } from '@testdata/user-testdata';
+import { validUser, invalidUser } from '@testdata/user-testdata';
 
 export class LoginPage {
-  // Static selectors — plain strings for simple CSS/XPath
-  private readonly usernameInput = '#user-name';
-  // Dynamic locators — arrow functions for chained or compound locators
+  // Static selectors — raw CSS/XPath strings (no library call at class instantiation; tiers 3–6 + CSS compound scope)
+  private readonly usernameInput = '#username';
+  private readonly errorMessage = '[data-test="error-message"]';
+
+  // Arrow functions — any library locator call (any tier); defers getPage() to test execution
   private readonly passwordInput = () => getLocator('#password').or(getLocatorByPlaceholder('Password'));
   private readonly loginButton = () => getLocatorByRole('button', { name: 'Login' });
 
@@ -118,11 +100,21 @@ export class LoginPage {
     await gotoURL(urlData.loginPageUrl);
   }
 
-  async loginWithValidCredentials(): Promise<void> {
-    await fill(this.usernameInput, userData.username);
-    await fill(this.passwordInput(), userData.pwd);
+  async loginWithValidCredentials(username = validUser.username, password = validUser.pwd): Promise<void> {
+    await fill(this.usernameInput, username);
+    await fill(this.passwordInput(), password);
     await clickAndNavigate(this.loginButton());
-    await expectElementToBeAttached(this.usernameInput, 'User should be logged in');
+  }
+
+  async loginWithInvalidCredentials(username = invalidUser.username, password = invalidUser.pwd): Promise<void> {
+    await fill(this.usernameInput, username);
+    await fill(this.passwordInput(), password);
+    await click(this.loginButton());
+    await expectElementToBeVisible(this.errorMessage, 'Error message should appear for invalid credentials');
+  }
+
+  async verifyLoginSuccessful(): Promise<void> {
+    await expectElementToBeAttached('[data-test="welcome"]', 'User should be logged in successfully');
   }
 
   async verifyLoginPageIsDisplayed(): Promise<void> {
@@ -131,7 +123,7 @@ export class LoginPage {
 }
 ```
 
-**Fixture registration** (`tests/fixtures/fixture.ts`):
+### Fixture (`tests/fixtures/fixture.ts`)
 
 ```typescript
 import { test as baseTest } from '@anaconda/playwright-utils';
@@ -151,229 +143,152 @@ export const test = baseTest.extend<{
 });
 ```
 
-**Spec file** (`tests/specs/products.spec.ts`):
+### Spec (`tests/specs/login.spec.ts`)
 
 ```typescript
 import { test } from '@fixture';
 
-test.describe('Products page @smoke', () => {
+test.describe('Login @smoke', () => {
   test.beforeEach(async ({ loginPage }) => {
     await loginPage.navigateToLoginPage();
+  });
+
+  test('should login with valid credentials', async ({ loginPage }) => {
     await loginPage.loginWithValidCredentials();
+    await loginPage.verifyLoginSuccessful();
   });
 
-  test('should display products page', async ({ productsPage }) => {
-    await productsPage.verifyProductsPageIsDisplayed();
-  });
-
-  test('should show product count', async ({ productsPage }) => {
-    await productsPage.verifyProductCount(6);
+  test('should show error with invalid credentials', async ({ loginPage }) => {
+    await loginPage.loginWithInvalidCredentials();
   });
 });
 ```
 
-When creating new page objects, add them as fixtures in `tests/fixtures/fixture.ts`.
+### POM Rules
 
-### Locator Strategy
+- **Spec files contain only page object method calls** — no `fill()`, `click()`, `expect*()`, or raw `expect()` in specs
+- **Page objects own all actions and assertions** — action methods (verb+noun), `verify*` methods (assertions), `get*` methods (data retrieval)
+- **Register every new page object** in `tests/fixtures/fixture.ts` before using it in specs
+- **Wrap all tests** in a `test.describe` block with tags (`@smoke`, `@reg`)
+- **Use `test.beforeEach`** for shared setup (navigation, login)
+- **Store test data** in `tests/testdata/` — never hardcode values in page objects or specs
 
-Follow the 9-tier priority order in `.claude/skills/anaconda-playwright-utils/references/locators.md` (best to worst):
+## Rules
 
-1. `data-qa-id` attributes (best) -> `getLocatorByTestId()` — **never** raw CSS `[data-qa-id="..."]` for a single element
-2. `data-testid` (configured testIdAttribute) -> `getLocatorByTestId()` — CSS only for other `data-*` like `[data-product-id="..."]`
-3. `id` attributes -> `#id` or `[id="..."]`
+### Library Usage
+
+- **Always use `@anaconda/playwright-utils` functions** — never raw Playwright API (`page.click()`, `page.fill()`, `page.goto()`, `expect(locator)`)
+- **`clickAndNavigate()`** for clicks that trigger page navigation; **`click()`** for same-page/AJAX actions
+- **`fill()`** for inputs; **`pressSequentially()`** only for auto-search/autocomplete fields
+- **Never add `waitForPageLoadState` after `clickAndNavigate`** — it already waits internally
+
+### Assertions
+
+- **Every assertion must include a descriptive error message** as the last argument
+- **Hard assertions** (default) for critical checks; **soft assertions** (`{ soft: true }`) for non-critical — call `assertAllSoftAssertions(test.info())` immediately after each page object method that uses soft assertions
+
+### Locators
+
+- **Use `getLocatorByTestId()`** for `data-qa-id` for a **single standalone element** — never raw CSS `[data-qa-id="..."]` for a single element. CSS compound strings with `data-qa-id` ancestors are valid and preferred at 2+ ancestor levels (see `references/locators.md`). (`getLocatorByTestId()` targets the configured `testIdAttribute` — Anaconda projects set `use.testIdAttribute = 'data-qa-id'` in `playwright.config.ts`; any other `data-*` attribute must use a CSS selector instead.)
+- **Always upgrade locators** — if a DOM snapshot reveals a `data-qa-id` or `data-*` attribute, use it instead of role/text locators
+- **Never use `.nth()`, `.first()`, `.last()`** — disambiguate with ancestor scoping instead (see `references/locators.md`)
+
+### Code Quality
+
+- **No `console.log`** — use `logger` from `@anaconda/playwright-utils` in page objects only, never in specs
+- **Import `test` from `@fixture`** — never from `@playwright/test`
+
+## Locator Priority (9-Tier)
+
+1. `data-qa-id` attributes (best) -> `getLocatorByTestId()` (`use.testIdAttribute = 'data-qa-id'` is configured in Anaconda projects)
+2. Other `data-*` attributes (e.g. `data-testid`, `data-test`) -> CSS selector `[data-testid="..."]`
+3. `id` attributes -> `#id`
 4. `name` attributes -> `[name="..."]`
 5. XPath with unique attributes -> `//button[@aria-label="Submit"]`
-6. CSS with unique attributes -> `button[aria-label="Submit"]`, `input[type="email"]`
-7. Playwright built-in locators (only when no stable selector exists) -> `getLocatorByRole()`, `getLocatorByLabel()`, `getLocatorByPlaceholder()`, `getLocatorByText()`
+6. CSS with unique attributes -> `button[aria-label="Submit"]`
+7. Playwright built-in (only when no stable selector) -> `getLocatorByRole()`, `getLocatorByLabel()`, `getLocatorByText()`
 8. XPath structural (fragile) -> `//div[@class="form"][2]//button`
-9. CSS structural (fragile, last resort) -> `.form-group:nth-child(2) button`
+9. CSS structural (last resort) -> `.form-group:nth-child(2) button`
 
-**Mandatory upgrade rule:** If a DOM snapshot reveals a `data-qa-id` or any `data-*` attribute, always use it — never keep a role/text locator when a stable attribute exists.
+Full guide with scoping patterns: `.claude/skills/anaconda-playwright-utils/references/locators.md`
 
-**Multiple-element matches:** Action functions already filter hidden elements internally. If multiple visible elements still match, find a more specific locator using ancestor scoping — never use `.nth()`, `.first()`, or `.last()`:
-
-```typescript
-// ❌ Avoid — index breaks silently when the page changes
-getLocatorByText('Pending').nth(2);
-
-// ✅ Simple 1-level scoping — prefer getLocatorByTestId chaining
-getLocatorByTestId('channel-list').locator('[data-qa-id="channel-item"]');
-// ✅ Complex scoping (2+ levels or mixed types) — CSS compound is preferred
-('[data-qa-id="channel-list"] [data-qa-id="pending-btn"]');
-// ✅ XPath ancestor scope
-('//tr[@data-qa-id="latest-row"]//button[@aria-label="Pending"]');
-```
-
-### Common Anti-patterns
-
-```typescript
-// ❌ Role/text locator when snapshot shows data-qa-id — always upgrade
-private readonly signIn = () => getLocatorByRole('link', { name: 'Sign In' }); // ❌
-private readonly signIn = () => getLocatorByTestId('sign-in-link');             // ✅
-
-// ❌ Raw CSS for a single data-qa-id or data-testid element — always use getLocatorByTestId
-private readonly releaseType = '[data-qa-id="release-type"]';   // ❌
-private readonly submitBtn   = '[data-testid="submit-btn"]';    // ❌
-private readonly releaseType = () => getLocatorByTestId('release-type'); // ✅
-private readonly submitBtn   = () => getLocatorByTestId('submit-btn');   // ✅
-
-// ❌ Omit error messages from assertions — always include a descriptive message
-await expectElementToBeVisible(this.header());                                          // ❌
-await expectElementToBeVisible(this.header(), 'Header should be visible after login');  // ✅
-
-// ❌ waitForPageLoadState after clickAndNavigate — redundant, already done internally
-await clickAndNavigate(this.loginButton());
-await waitForPageLoadState({ waitUntil: 'load' }); // ❌ remove this line
-```
-
-### Action and Assertion Reference
-
-- **Actions**: `.claude/skills/anaconda-playwright-utils/references/actions.md` - click, fill, select, check, hover, drag, upload, alerts
-- **Assertions**: `.claude/skills/anaconda-playwright-utils/references/assertions.md` - visibility, text, value, attribute, page URL/title, soft assertions
-- **Full API**: `.claude/skills/anaconda-playwright-utils/SKILL.md` - complete function signatures and CLI-to-library mapping
-
-### Test Patterns
-
-- **Always wrap tests in a `test.describe` block** — every spec file must have exactly one top-level `test.describe` containing all its tests
-- Use `test.describe.configure({ mode: 'parallel' });` for parallel execution within a spec
-- Use `test.beforeEach` for navigation setup
-- Use tags like `@smoke`, `@reg` in describe/test names for filtering
-- Use `clickAndNavigate()` when a click triggers page navigation; `click()` for AJAX/same-page actions
-
-## Common Commands
+## Commands
 
 ```bash
-# Run all tests
-npm run test
-
-# Run in chromium headless
-npm run test:chromium -- <spec-file>
-
-# Run in chromium headed (visible browser)
-npm run test:chromium-headed -- <spec-file>
-
-# Run specific test by name
-npm run test:chromium-headed -- -g 'test name'
-
-# Run smoke tests
-npm run test:smoke
-
-# Run with retries and workers
-npm run test:chromium -- <spec-file> -j 3 --retries 2
-
-# View HTML report
-npm run report
-
-# Lint
-npm run lint
-npm run lint:fix
-
-# Format
-npm run format
-
-# UI mode
-npm run ui
-
-# Record tests with codegen
-npm run record
+npx playwright test                              # Run all tests
+npx playwright test <spec-file>                  # Run specific file
+npx playwright test --grep @smoke                # Run by tag
+npx playwright test -g 'login'                   # Run by pattern
+npx playwright test --project=chromium           # Run on specific browser
+npx playwright test <spec-file> -j 3 --retries 2 # Parallel workers + retries
+npx playwright test --ui                         # Open Playwright Inspector
+npx playwright show-report                       # View HTML report
 ```
 
-## Configuration
+### Optional quality scripts (when defined in `package.json`)
 
-- **Playwright config**: `playwright.config.ts` - projects: `setup`, `chromium` (headed), `chromiumheadless`
-- **TypeScript**: `tsconfig.json` - strict mode, ES6 target, CommonJS modules
-- **ESLint**: `eslint.config.js` - extends `@anaconda/playwright-utils/eslint` shared config (flat config format)
-- **Husky**: Pre-commit hooks for lint-staged (ESLint + Prettier)
-- **Timeouts**: Imported from `@anaconda/playwright-utils` (`TEST_TIMEOUT`, `EXPECT_TIMEOUT`, `ACTION_TIMEOUT`, `NAVIGATION_TIMEOUT`)
+Some projects (including library maintenance repos that mirror `@anaconda/playwright-utils` tooling) define:
 
-## AI Skills and Agents
+| Script                       | Consumer wires (bin)                             | Purpose                                                                                                           |
+| ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `format`, `lint`, `lint:fix` | Your Prettier/ESLint commands (not from package) | Required by `quality:full` / `quality:report`                                                                     |
+| `check:code-quality`         | `playwright-utils-check-code-quality`            | Code-quality from install root                                                                                    |
+| `check:code-quality:staged`  | `playwright-utils-check-code-quality --staged`   | Optional: staged QA paths only                                                                                    |
+| `quality:full`               | `playwright-utils-quality-full`                  | Full-repo compact gate; needs `format`, `lint:fix`, `lint`                                                        |
+| `quality:report`             | `playwright-utils-full-quality-report`           | Full-repo report [1]–[4]; [4] `manual-review/secrets` skips `tests/testdata/**/*.ts`; exit **0**/**1** on [1]–[3] |
+| `precommit`                  | `playwright-utils-precommit`                     | QA-scoped Husky hook; do not split into lint-staged + commit-quality-report                                       |
+| (ad-hoc)                     | `playwright-utils-print-manual-review-hint`      | Optional manual hints; [4] is already in `quality:report`                                                         |
 
-This project includes AI skills and agent workflows in `.claude/` for automated test development. Cursor rules in `.cursor/rules/` reference the same skills and agents via `@file` directives, so both Claude Code and Cursor share the same knowledge base.
+**Consumers:** wire bins as above—do not use `bash ./scripts/*.sh` in your `package.json`. **Maintainers of `@anaconda/playwright-utils` itself** use `bash ./scripts/*.sh` in that repo (own bins are not in `node_modules/.bin/` at the package root). See README § Code quality checks.
 
-### Cursor IDE: always include `.cursor/` with `.claude/skills/`
+If your project does not list these scripts, ignore this table. When the **qa-automation-quality** skill is installed, see its `references/qa-automation-guidelines.md` for detail.
 
-When you use **Cursor** for test generation, refactors, or any task that relies on **skills under `.claude/`** (i.e. **`@.claude/skills/`** and every skill inside it), **always add `@.cursor/` in the same context**—for example **`@.cursor`**, **`@.cursor/rules/`**, or the relevant **`.mdc`** rule files. That pairing should be the default for **all** skills in **`@.claude/skills/`**, not only one folder.
+### Prettier-safe markdown patterns
 
-**`.claude/skills/`** holds the detailed references and workflows for each skill; **`.cursor/rules/`** maps them onto _this_ repository (globs, conventions, `@file` links into the same skill docs, and project-wide guidance such as **`project.mdc`** → this **`CLAUDE.md`**). Using **skills plus Cursor rules together** typically yields better-aligned output than either alone.
+`npm run format` runs Prettier on all `**/*.md` files. Two patterns cause Prettier to escape `*`, corrupting the markdown — always use the safe form:
 
-**Install/update skills and agents**: `npx anaconda-pw-setup` (or `--skills` / `--agents` individually, `--force` to update, `--force-claude` to update CLAUDE.md)
+```text
+# BAD: glob inside bold+backtick — Prettier escapes the inner *
+**`path/**/*.ts`**
+
+# GOOD: plain backticks only
+`path/**/*.ts`
+```
+
+```text
+# BAD: bold ending immediately before colon — Prettier escapes the closing **
+**text**:
+
+# GOOD: swap colon for em-dash, or restructure
+**text** —
+```
+
+After editing any `.md` file, run `npm run format` and verify it shows `(unchanged)`.
+
+## Skills and Agents
+
+Installed via `npx anaconda-pw-setup` (flags: `--skills`, `--agents`, `--force`, `--force-claude`).
 
 ### Skills (`.claude/skills/`)
 
-- **anaconda-playwright-utils**: Complete API reference for all 6 utility modules. **Always reference this skill** when writing or modifying test code.
-  - **SKILL.md** — Quick reference tables with all 103 functions, import patterns, example test, CLI-to-library mapping (38 common translations)
-  - **references/actions.md** — Action functions for user interactions
-    - Click actions: click, clickAndNavigate, doubleClick, clickByJS
-    - Input actions: fill, fillAndEnter, fillAndTab, pressSequentially, clear, clearByJS
-    - Selection: selectByValue, selectByText, selectByIndex
-    - Other: check, uncheck, hover, focus, dragAndDrop, uploadFiles, downloadFile
-    - Alerts: acceptAlert, dismissAlert, getAlertText
-  - **references/assertions.md** — Assertion functions for test validation
-    - Element state: expectElementToBeVisible, expectElementToBeHidden, expectElementToBeAttached, expectElementToBeChecked, expectElementToBeEnabled, expectElementToBeDisabled, expectElementToBeEditable
-    - Text: expectElementToHaveText, expectElementToContainText
-    - Value: expectElementToHaveValue, expectElementValueToBeEmpty
-    - Attribute: expectElementToHaveAttribute, expectElementToContainAttribute
-    - Count: expectElementToHaveCount
-    - Page: expectPageToHaveURL, expectPageToContainURL, expectPageToHaveTitle
-    - Soft assertions: Pass `{ soft: true }` option, call `assertAllSoftAssertions(testInfo)` at end
-    - **Best practice:** Use assertions ONLY in page objects (verify\* methods), NOT in spec files
-  - **references/locators.md** — Locator strategy and finding elements
-    - **Locator priority** (9 tiers, best to worst): (1) data-qa-id → (2) data-testid/data-\* → (3) id → (4) name → (5) XPath with unique attrs → (6) CSS with unique attrs → (7) Playwright built-in locators (role/text) → (8) XPath structural → (9) CSS structural
-    - Functions: getLocator, getVisibleLocator, getLocatorByTestId, getLocatorByText, getLocatorByRole, getLocatorByLabel, getLocatorByPlaceholder, getAllLocators
-    - Frame functions: getFrame, getFrameLocator, getLocatorInFrame
-    - **Key concept:** Visible by default (`onlyVisible: true`)
-  - **references/element-utils.md** — Element data retrieval, state checks, and waits (16 functions)
-    - **Data retrieval**: getText, getAllTexts, getInputValue, getAllInputValues, getAttribute, getLocatorCount
-    - **Conditional checks** (return boolean): isElementAttached, isElementVisible, isElementHidden, isElementChecked
-    - **Wait functions**: waitForElementToBeVisible, waitForElementToBeHidden, waitForElementToBeAttached, waitForElementToBeDetached, waitForElementToBeStable, waitForFirstElementToBeAttached
-    - **Critical:** Use element-utils for data extraction and conditionals, NOT for assertions. Use assert-utils for assertions.
-  - **references/api-utils.md** — API request functions for HTTP testing
-    - Functions: getAPIRequestContext, getRequest, postRequest, putRequest, patchRequest, deleteRequest
-    - Returns Playwright's APIResponse object (methods: ok(), status(), json(), text(), headers())
-    - Uses page's request context (shares cookies/storage with browser)
-    - Common patterns: authentication headers, JSON/form data, response validation
-  - **references/page-utils.md** — Page management, navigation, and multi-tab handling
-    - **Singleton pattern**: getPage, setPage, getContext (setPage called automatically by fixture)
-    - **Multi-tab**: getAllPages, switchPage (1-based index), switchToDefaultPage, closePage
-    - **Navigation**: gotoURL, getURL, waitForPageLoadState, reloadPage, goBack
-    - **Utilities**: wait (use sparingly), getWindowSize, saveStorageState
-  - **references/browser-strategy.md** — Token optimization strategy for page exploration
-    - **Tier 1 (Lite):** WebFetch - 200-1000 tokens, static HTML reconnaissance
-    - **Tier 2 (Snapshot):** playwright-cli snapshot - 500-2000 tokens, interactive discovery with DOM snapshots
-    - **Tier 3 (Full Browser):** playwright-cli actions - 50-200 tokens per action, real browser interaction for selector capture
-    - **Decision rules:** Start with Lite, escalate to Snapshot if dynamic content, escalate to Full if interactive exploration needed
-
-- **playwright-cli**: Browser automation CLI for interactive page exploration, snapshots, form filling, screenshots, and debugging. Use `playwright-cli` commands to explore a page before writing tests.
-
-**Skill usage rules:**
-
-1. **Always reference `anaconda-playwright-utils` skill** when generating or modifying test code
-2. **Use specific reference files** for detailed function signatures and usage patterns:
-   - Writing actions → reference `actions.md`
-   - Writing assertions → reference `assertions.md`
-   - Finding elements → reference `locators.md`
-   - Reading element data or conditionals → reference `element-utils.md`
-   - API testing → reference `api-utils.md`
-   - Navigation or multi-tab → reference `page-utils.md`
-3. **Follow locator strategy** from `locators.md` (9-tier priority, prefer data-qa-id over role/text)
-4. **Apply browser strategy** from `browser-strategy.md` when exploring pages (start with WebFetch, escalate as needed)
-5. **Element-utils vs assert-utils distinction:**
-   - element-utils → Data extraction, conditionals (if/while), variable assignments
-   - assert-utils → Test assertions (expect\*), only in page objects not spec files
-6. **Page-utils for multi-tab:** Use switchPage with 1-based index, always switch after opening new tabs
-7. **API-utils for HTTP:** Shares page request context, use for API validation in UI tests
-8. **CLI-to-library mapping:** Translate playwright-cli generated code using SKILL.md mapping table (38 common patterns)
+| Skill                                | When to load                                               |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `anaconda-playwright-utils/SKILL.md` | **Always first** — all 103 functions, imports, CLI mapping |
+| `references/actions.md`              | Click, fill, select, drag, upload, keyboard, alerts        |
+| `references/assertions.md`           | All `expect*` assertion functions                          |
+| `references/locators.md`             | Locator strategy, 9-tier priority, frames                  |
+| `references/element-utils.md`        | Element data retrieval, state checks, waits                |
+| `references/api-utils.md`            | API/HTTP request testing                                   |
+| `references/page-utils.md`           | Navigation, multi-tab, page state                          |
+| `references/browser-strategy.md`     | Token-efficient page exploration (Lite/Snapshot/Full)      |
+| `playwright-cli/SKILL.md`            | Live browser interaction for selector capture              |
 
 ### Agents (`.claude/agents/`)
 
-All agents follow the browser strategy in `.claude/skills/anaconda-playwright-utils/references/browser-strategy.md` and use `@anaconda/playwright-utils` functions when writing test code.
+| Agent                       | Purpose                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| `playwright-test-planner`   | Explores a URL and produces a test plan mapped to library functions |
+| `playwright-test-generator` | Generates test code (POM + fixture + spec) from a plan or URL       |
+| `playwright-test-healer`    | Debugs and fixes failing tests using live browser inspection        |
 
-- **playwright-test-planner**: Explores a web application (WebFetch first, then playwright-cli for interactive discovery) and creates comprehensive test plans in `specs/` directory with steps mapped to `@anaconda/playwright-utils` functions.
-- **playwright-test-generator**: Generates Playwright test code from test plans or from a prompt/URL. Uses playwright-cli to capture real selectors, translates to `@anaconda/playwright-utils` functions. Generated tests should follow this project's class-based POM and fixture conventions.
-- **playwright-test-healer**: Debugs and fixes failing Playwright tests. Runs tests, analyzes errors, uses playwright-cli for live debugging, and applies fixes using `@anaconda/playwright-utils` patterns.
-
-### Workflow
-
-1. **Plan**: Use the test planner agent to explore a URL and create a test plan
-2. **Generate**: Use the test generator agent to create test code from the plan or from a URL
-3. **Heal**: Use the test healer agent to fix any failing tests
+**Workflow:** Plan -> Generate -> Heal

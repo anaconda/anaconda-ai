@@ -53,5 +53,4 @@ export const stopAndRemoveModelCmd = (modelName: string, modelQuantization: stri
   condaRun(`anaconda ai stop ${modelName}_${modelQuantization}.gguf --rm`);
 
 // Negative: stop a server that does not exist — triggers ServerNotFoundError
-export const stopModelNotFoundCmd = (serverName: string): string =>
-  condaRun(`anaconda ai stop ${serverName}`);
+export const stopModelNotFoundCmd = (serverName: string): string => condaRun(`anaconda ai stop ${serverName}`);

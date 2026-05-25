@@ -227,7 +227,27 @@ See full signatures in `references/actions.md`.
 
 ### 4. Add Assertions Manually
 
-Generated code captures actions but not assertions. Add expectations in `verify*` methods inside the page object using stable selectors and a descriptive error message:
+Generated code captures actions but not assertions. Use the CLI's `--raw` flag to capture the data needed for assertions, then add them to `verify*` methods in the page object.
+
+**Capture assertion data from the CLI:**
+
+```bash
+# Get a stable locator expression for the assertion target
+playwright-cli --raw generate-locator e5
+# getByTestId('submit-btn')
+
+# Capture expected text content for toHaveText checks
+playwright-cli --raw eval "el => el.textContent" e5
+
+# Capture expected input value for toHaveValue checks
+playwright-cli --raw eval "el => el.value" e5
+
+# Capture an ARIA snapshot for the whole page or a scoped region
+playwright-cli --raw snapshot
+playwright-cli --raw snapshot e5
+```
+
+**Write assertions in page object `verify*` methods — always include a descriptive error message:**
 
 ```typescript
 // Generated action (translated to library)
@@ -235,4 +255,36 @@ await clickAndNavigate(this.submitButton());
 
 // Add assertion in page object — stable selector + error message
 await expectElementToBeVisible(this.successMessage, 'Success message should be visible after form submission');
+await expectElementToHaveText(
+  this.confirmationHeader,
+  'Order confirmed',
+  'Order confirmation header text should match',
+);
 ```
+
+**Use `toMatchAriaSnapshot` for complex region assertions** where a single-element check is not sufficient — for example, verifying a navigation structure, a dynamic list, or multiple related elements. Trim the captured snapshot to only what matters for the assertion; use regex patterns for dynamic values:
+
+```typescript
+import { expectElementToBeVisible, getLocatorByTestId } from '@anaconda/playwright-utils';
+import { expect } from '@fixture';
+
+export class DashboardPage {
+  private readonly successMessage = '[data-test="complete-header"]'; // tier 2
+  private readonly navRegion = () => getLocatorByTestId('main-nav'); // tier 1
+
+  async verifyOrderConfirmed(): Promise<void> {
+    await expectElementToBeVisible(this.successMessage, 'Order confirmation message should appear');
+  }
+
+  async verifyNavLinks(): Promise<void> {
+    // toMatchAriaSnapshot: asserts the accessibility tree of an entire region
+    await expect(this.navRegion()).toMatchAriaSnapshot(`
+      - link "Home"
+      - link /\\d+ new messages?/
+      - link "Profile"
+    `);
+  }
+}
+```
+
+Prefer library assertion functions (`expectElementToBeVisible`, `expectElementToHaveText`, etc.) for single-element checks. Reserve `toMatchAriaSnapshot` for structural or multi-element accessibility assertions.

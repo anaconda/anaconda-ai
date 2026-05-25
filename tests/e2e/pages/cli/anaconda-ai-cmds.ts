@@ -59,8 +59,8 @@ export class AnacondaAiCli {
     const server = servers.find(s => s.model === expectedModelFile);
 
     expect(server, `Expected server for model "${expectedModelFile}" to appear in servers list`).toBeDefined();
-    const { server_id, model, status } = server as ServerApi;
-    expect(server_id, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
+    const { server_id: serverId, model, status } = server as ServerApi;
+    expect(serverId, `Expected server_id to contain model name "${modelName}"`).toContain(modelName);
     expect(model, `Expected model to be "${expectedModelFile}"`).toBe(expectedModelFile);
     expect(status, `Expected server status to be "running"`).toBe('running');
   }
