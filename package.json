@@ -47,11 +47,6 @@
     "quality:report": "playwright-utils-full-quality-report",
     "precommit": "playwright-utils-precommit"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
     "*.{json,md}": "cross-env prettier --write",
     "{*.ts,eslint.config.mjs}": [

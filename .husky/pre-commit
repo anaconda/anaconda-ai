@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+# Only run QA precommit when QA files are staged.
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '^(tests/(e2e|test-setup)/|playwright\.config\.ts$)'; then
+  npm run precommit || exit 1
+fi
