@@ -36,7 +36,7 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
   });
 
   test('anaconda ai download - missing quantization returns ValueError', async ({ anacondaAiCli }) => {
-    const result = await anacondaAiCli.runDownloadModelCommand(INVALID_MODEL_NAME);
+    const result = await anacondaAiCli.runDownloadModelCommand(DOWNLOAD_TEST_MODEL_NAME);
     anacondaAiCli.verifyDownloadMissingQuantizationCommand(result);
   });
 
