@@ -45,6 +45,11 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     anacondaAiCli.verifyDownloadMissingQuantizationCommand(result);
   });
 
+  test('anaconda ai download - unknown model returns ModelNotFound', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runDownloadModelCommand(INVALID_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
+    anacondaAiCli.verifyDownloadModelNotFoundCommand(result);
+  });
+
   test('anaconda ai servers list command', async ({ anacondaAiCli }) => {
     const result = await anacondaAiCli.runAnacondaAiServersListCommand();
     anacondaAiCli.verifyAnacondaAiServersListCommand(result);
