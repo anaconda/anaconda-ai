@@ -65,8 +65,8 @@ export class AnacondaAiCli {
     expect(status, `Expected server status to be "running"`).toBe('running');
   }
 
-  // Executes `anaconda ai download <model>/<quant>` (positional; no --model)
-  public async runDownloadModelCommand(modelName: string, modelQuantization: string): Promise<ShellResult> {
+  // Executes `anaconda ai download <model>` or `anaconda ai download <model>/<quant>`
+  public async runDownloadModelCommand(modelName: string, modelQuantization?: string): Promise<ShellResult> {
     return await shellCommand(cliCommands.downloadModelCmd(modelName, modelQuantization));
   }
 
@@ -87,13 +87,24 @@ export class AnacondaAiCli {
     ).toBeTruthy();
   }
 
-  public verifyInvalidDownloadModelCommand(result: ShellResult): void {
-    expect(result.exitCode, `Expected invalid download command to fail, but got exit code ${result.exitCode}`).not.toBe(
-      0,
-    );
+  // Validates download fails when quantization is missing or invalid (ValueError)
+  public verifyDownloadMissingQuantizationCommand(result: ShellResult): void {
+    expect(result.exitCode, 'Expected download without valid quantization to fail').not.toBe(0);
+
     const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
-    expect(output, 'Expected the model to be invalid').toContain('error');
-    expect(output, 'Expected output should contain invalid model error message').toContain(INVALID_MODEL_ERROR_MESSAGE);
+    expect(output.includes('valueerror'), 'Expected ValueError in output').toBeTruthy();
+    expect(output, 'Expected quantization format error message').toContain(INVALID_MODEL_ERROR_MESSAGE);
+  }
+
+  // Validates download fails when model name is not found
+  public verifyDownloadModelNotFoundCommand(result: ShellResult): void {
+    expect(result.exitCode, 'Expected non-zero exit code for unknown model download').not.toBe(0);
+
+    const output = stripAnsiSgrAndTrim(result.output).toLowerCase();
+    expect(
+      output.includes('modelnotfound') || output.includes('was not found'),
+      'Expected ModelNotFound error for unknown model download',
+    ).toBeTruthy();
   }
 
   // Executes `anaconda ai launch <model>/<quant> --detach`
