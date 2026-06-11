@@ -1,7 +1,7 @@
 // Anaconda AI package CLI commands
 
-const anacondaAiChannel = process.env.ANACONDA_AI_CHANNEL ?? 'anaconda-cloud/label/dev';
-const anacondaAiVersion = process.env.ANACONDA_AI_VERSION ?? '0.5.0';
+const anacondaAiChannel = process.env.ANACONDA_AI_CHANNEL ?? 'anaconda-cloud';
+const anacondaAiVersion = process.env.ANACONDA_AI_VERSION ?? '0.7.0';
 
 // Run all command in the anaconda-cli environment
 const condaRun = (inner: string): string => `conda run -n anaconda-cli --no-capture-output ${inner}`;
@@ -34,8 +34,12 @@ export const anacondaAiModelsListCmd = condaRun('anaconda ai models --json');
 export const anacondaAiBlockedModelsListCmd = condaRun('anaconda ai models --show-blocked --json');
 
 // Download Model Command
-export const downloadModelCmd = (modelName: string, modelQuantization: string): string =>
-  condaRun(`anaconda ai download ${modelName}/${modelQuantization}`);
+export const downloadModelCmd = (modelName: string, modelQuantization?: string): string =>
+  condaRun(
+    modelQuantization === undefined
+      ? `anaconda ai download ${modelName}`
+      : `anaconda ai download ${modelName}/${modelQuantization}`,
+  );
 
 // Anaconda AI Servers Command
 export const anacondaAiServersListCmd = condaRun('anaconda ai servers --json');

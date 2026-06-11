@@ -7,12 +7,12 @@ import {
 } from '@testdata/model-api';
 
 test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
-  test('anaconda ai version command', async ({ anacondaAiCli }) => {
+  test('anaconda ai version command @smoke', async ({ anacondaAiCli }) => {
     const result = await anacondaAiCli.runAnacondaAiVersionCommand();
     anacondaAiCli.verifyAnacondaAiVersionCommand(result);
   });
 
-  test('anaconda ai --help', async ({ anacondaAiCli }) => {
+  test('anaconda ai --help @smoke', async ({ anacondaAiCli }) => {
     const result = await anacondaAiCli.runAnacondaAiHelpCommand();
     anacondaAiCli.verifyAnacondaAiHelpCommand(result);
   });
@@ -35,9 +35,19 @@ test.describe('Anaconda AI CLI Commands @anaconda-ai', () => {
     anacondaAiCli.verifyDownloadModelCommand(result);
   });
 
-  test('anaconda ai download invalid model command', async ({ anacondaAiCli }) => {
-    const result = await anacondaAiCli.runDownloadModelCommand(INVALID_MODEL_NAME, INVALID_MODEL_QUANTIZATION);
-    anacondaAiCli.verifyInvalidDownloadModelCommand(result);
+  test('anaconda ai download - missing quantization returns ValueError', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runDownloadModelCommand(DOWNLOAD_TEST_MODEL_NAME);
+    anacondaAiCli.verifyDownloadMissingQuantizationCommand(result);
+  });
+
+  test('anaconda ai download - invalid quantization returns ValueError', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runDownloadModelCommand(DOWNLOAD_TEST_MODEL_NAME, INVALID_MODEL_QUANTIZATION);
+    anacondaAiCli.verifyDownloadMissingQuantizationCommand(result);
+  });
+
+  test('anaconda ai download - unknown model returns ModelNotFound', async ({ anacondaAiCli }) => {
+    const result = await anacondaAiCli.runDownloadModelCommand(INVALID_MODEL_NAME, DOWNLOAD_TEST_MODEL_QUANTIZATION);
+    anacondaAiCli.verifyDownloadModelNotFoundCommand(result);
   });
 
   test('anaconda ai servers list command', async ({ anacondaAiCli }) => {
