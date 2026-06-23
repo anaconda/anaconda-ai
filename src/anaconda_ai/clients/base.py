@@ -1,5 +1,6 @@
 import atexit
 import re
+import warnings
 from datetime import datetime
 from pathlib import Path
 from time import time
@@ -35,6 +36,7 @@ from anaconda_auth.client import BaseClient
 from anaconda_auth.config import AnacondaAuthSite
 from .. import __version__ as version
 from ..config import AnacondaAIConfig
+from ..consts import VECTOR_DB_DEPRECATION_MSG
 from ..exceptions import (
     AnacondaAIException,
     ModelNotFound,
@@ -674,21 +676,27 @@ class BaseVectorDb:
         leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> VectorDbServerResponse:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError()
 
     def delete(self) -> None:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError
 
     def stop(self) -> VectorDbServerResponse:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError
 
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError
 
     def get_tables(self) -> List[TableInfo]:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError
 
     def drop_table(self, table: str) -> None:
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         raise NotImplementedError
 
 

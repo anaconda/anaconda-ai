@@ -16,13 +16,16 @@ SUBCOMMANDS = {
     "launch",
     "servers",
     "stop",
+    "config",
+}
+
+DEPRECATED_SUBCOMMANDS = {
     "launch-vectordb",
     "delete-vectordb",
     "stop-vectordb",
     "create-table",
     "drop-table",
     "list-tables",
-    "config",
 }
 
 
@@ -47,6 +50,13 @@ def invoke_cli(tmp_path: Path, monkeypatch: MonkeyPatch) -> CLIInvoker:
 def test_feature_action(invoke_cli: CLIInvoker, action: str) -> None:
     result = invoke_cli("ai", action, "--help")
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize("action", DEPRECATED_SUBCOMMANDS)
+def test_deprecated_vectordb_commands(invoke_cli: CLIInvoker, action: str) -> None:
+    result = invoke_cli("ai", action, "--help")
+    assert result.exit_code == 0
+    assert "deprecated" in result.stdout.lower()
 
 
 @pytest.mark.parametrize("action", {"config"})

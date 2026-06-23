@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from time import time, sleep
 from typing import Dict, List, Optional, Any, Union, Generator, Sequence, Set
@@ -8,6 +9,7 @@ from pydantic import Field, computed_field, ConfigDict, model_validator, BaseMod
 from rich.console import Console
 from rich.status import Status
 
+from ..consts import VECTOR_DB_DEPRECATION_MSG
 from ..exceptions import ModelDownloadCancelledError
 from ..config import AnacondaAIConfig
 from .base import (
@@ -372,17 +374,20 @@ class AINavigatorServers(BaseServers):
 
 
 class AINavigatorVectorDbServer(BaseVectorDb):
+    """Deprecated: VectorDB support has been removed from Anaconda Desktop."""
+
     def create(
         self,
         show_progress: bool = True,
-        leave_running: Optional[bool] = None,  # TODO: Implement this
+        leave_running: Optional[bool] = None,
         console: Optional[Console] = None,
     ) -> VectorDbServerResponse:
         """Create a vector database service.
 
-        Returns:
-            dict: The vector database service information.
+        .. deprecated::
+            VectorDB has been removed from Anaconda Desktop.
         """
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
 
         text = "Starting pg vector database"
         console = Console() if console is None else console
@@ -399,20 +404,30 @@ class AINavigatorVectorDbServer(BaseVectorDb):
         return vectordb
 
     def delete(self) -> None:
+        """.. deprecated:: VectorDB has been removed from Anaconda Desktop."""
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         self.client.delete("api/vector-db")
 
     def stop(self) -> VectorDbServerResponse:
+        """.. deprecated:: VectorDB has been removed from Anaconda Desktop."""
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         res = self.client.patch("api/vector-db", json={"running": False})
         return VectorDbServerResponse(**res.json()["data"])
 
     def get_tables(self) -> list[TableInfo]:
+        """.. deprecated:: VectorDB has been removed from Anaconda Desktop."""
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         res = self.client.get("api/vector-db/tables")
         return [TableInfo(**t) for t in res.json()["data"]]
 
     def drop_table(self, table: str) -> None:
+        """.. deprecated:: VectorDB has been removed from Anaconda Desktop."""
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         self.client.delete(f"api/vector-db/tables/{table}")
 
     def create_table(self, table: str, schema: VectorDbTableSchema) -> None:
+        """.. deprecated:: VectorDB has been removed from Anaconda Desktop."""
+        warnings.warn(VECTOR_DB_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
         res = self.client.post(
             "api/vector-db/tables", json={"schema": schema.model_dump(), "name": table}
         )
