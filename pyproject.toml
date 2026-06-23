@@ -87,7 +87,7 @@ files = [
   "src/**/*.py",
   "tests/**/*.py"
 ]
-python_version = "3.10"
+python_version = "3.12"
 
 [[tool.mypy.overrides]]
 ignore_errors = true

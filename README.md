@@ -35,7 +35,7 @@ The available backends are
 
 |Backend name|Configuration value|Supports|Default|
 |------------|-------------------|--------|-------|
-|[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEFAULT|
+|[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters|DEFAULT|
 |Anaconda AI Catalyst|`"ai-catalyst"`|Models,Servers,Multi-Site||
 
 ## Configuration
@@ -89,7 +89,7 @@ download model files, start and stop servers through the backend.
 |launch|Launch a server for a model file|
 |servers|Show all running servers or detailed information about a single server|
 |stop|Stop a running server by id|
-|launch-vectordb|Starts a pg vector db (not supported by all backends)|
+|launch-vectordb|**Deprecated** - Starts a pg vector db (removed from Anaconda Desktop)|
 
 See the `--help` for each command for more details.
 
@@ -346,9 +346,12 @@ server = client.servers.create(
 )
 ```
 
-### Vector Db
+### Vector Db (Deprecated)
 
-Creates a postgres vector db and returns the connection information. VectorDB is not supported by all backends.
+> **Deprecated:** VectorDB support is deprecated and will be removed in a future release.
+> The embedded vector database has been removed from Anaconda Desktop.
+
+~~Creates a postgres vector db and returns the connection information.~~
 
 ```text
 anaconda ai launch-vectordb

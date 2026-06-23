@@ -21,6 +21,7 @@ from anaconda_ai.config import AnacondaAIConfig
 from anaconda_cli_base import console
 from .clients import AnacondaAIClient, clients
 from .clients.base import GenericClient, Server, VectorDbTableSchema
+from .consts import VECTOR_DB_DEPRECATION_MSG
 from ._version import __version__
 
 app = typer.Typer(add_completion=False, help="Actions for Anaconda curated models")
@@ -483,7 +484,7 @@ def stop(
         console.print("[green]Success[/green]")
 
 
-@app.command("launch-vectordb")
+@app.command("launch-vectordb", deprecated=True)
 def launch_vector_db(
     site: Annotated[
         Optional[str], typer.Option("--at", help="Site defined in config")
@@ -494,8 +495,9 @@ def launch_vector_db(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Starts a vector db
+    Starts a vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     result = client.vector_db.create(show_progress=not as_json)
 
@@ -517,7 +519,7 @@ def launch_vector_db(
         console.print(table)
 
 
-@app.command("delete-vectordb")
+@app.command("delete-vectordb", deprecated=True)
 def delete_vector_db(
     site: Annotated[
         Optional[str], typer.Option("--at", help="Site defined in config")
@@ -528,8 +530,9 @@ def delete_vector_db(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Deletes the vector db
+    Deletes the vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     client.vector_db.delete()
     if as_json:
@@ -538,7 +541,7 @@ def delete_vector_db(
         console.print("[green]Success[/green]")
 
 
-@app.command("stop-vectordb")
+@app.command("stop-vectordb", deprecated=True)
 def stop_vector_db(
     site: Annotated[
         Optional[str], typer.Option("--at", help="Site defined in config")
@@ -549,8 +552,9 @@ def stop_vector_db(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Stops the vector db
+    Stops the vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     _ = client.vector_db.stop()
     if as_json:
@@ -559,7 +563,7 @@ def stop_vector_db(
         console.print("[green]Success[/green]")
 
 
-@app.command("list-tables")
+@app.command("list-tables", deprecated=True)
 def list_tables(
     site: Annotated[
         Optional[str], typer.Option("--at", help="Site defined in config")
@@ -570,8 +574,9 @@ def list_tables(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Lists all tables in the vector db
+    Lists all tables in the vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     tables = client.vector_db.get_tables()
 
@@ -588,7 +593,7 @@ def list_tables(
         console.print(db_table)
 
 
-@app.command("drop-table")
+@app.command("drop-table", deprecated=True)
 def drop_table(
     table: str = typer.Argument(help="Name of the table to drop"),
     site: Annotated[
@@ -600,8 +605,9 @@ def drop_table(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Drops a table from the vector db
+    Drops a table from the vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     client.vector_db.drop_table(table)
     if as_json:
@@ -610,7 +616,7 @@ def drop_table(
         console.print("[green]Success[/green]")
 
 
-@app.command("create-table")
+@app.command("create-table", deprecated=True)
 def create_table(
     table: str = typer.Argument(help="Name of the table to create"),
     schema: str = typer.Argument(help="Schema of the table to create"),
@@ -623,8 +629,9 @@ def create_table(
     as_json: AS_JSON = False,
 ) -> None:
     """
-    Creates a table in the vector db
+    Creates a table in the vector db (deprecated)
     """
+    console.print(f"[yellow]Warning:[/yellow] {VECTOR_DB_DEPRECATION_MSG}")
     client = AnacondaAIClient(backend=backend, site=site)
     validated_schema = VectorDbTableSchema.model_validate_json(schema)
     client.vector_db.create_table(table, validated_schema)
