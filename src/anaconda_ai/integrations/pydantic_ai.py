@@ -87,7 +87,10 @@ class AnacondaChatModel(OpenAIChatModel, AnacondaMixin):
         )
         object.__setattr__(self, "client", openai_client)
 
-        self.profile = AnacondaModelProfile().update(self.profile)
+        new_profile = AnacondaModelProfile()
+        if self.profile is not None:
+            new_profile.update(self.profile)
+        object.__setattr__(self, "profile", new_profile)
 
 
 class AnacondaEmbeddingSettings(OpenAIEmbeddingSettings, total=False):
