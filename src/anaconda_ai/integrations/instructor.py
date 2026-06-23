@@ -69,24 +69,15 @@ def from_anaconda(
 @overload
 def from_provider(
     model: KnownModelName,
-    async_client: Literal[True] = True,
+    async_client: Literal[False] = False,
     cache: BaseCache | None = None,  # noqa: ARG001
     **kwargs: Any,
-) -> instructor.AsyncInstructor: ...
+) -> instructor.Instructor: ...
 
 
 @overload
 def from_provider(
     model: KnownModelName,
-    async_client: Literal[False] = False,
-    cache: BaseCache | None = None,  # noqa: ARG001
-    **kwargs: Any,
-) -> instructor.Instructor: ...
-
-
-@overload
-def from_provider(
-    model: str,
     async_client: Literal[True] = True,
     cache: BaseCache | None = None,  # noqa: ARG001
     **kwargs: Any,
@@ -100,6 +91,15 @@ def from_provider(
     cache: BaseCache | None = None,  # noqa: ARG001
     **kwargs: Any,
 ) -> instructor.Instructor: ...
+
+
+@overload
+def from_provider(
+    model: str,
+    async_client: Literal[True] = True,
+    cache: BaseCache | None = None,  # noqa: ARG001
+    **kwargs: Any,
+) -> instructor.AsyncInstructor: ...
 
 
 def from_provider(
