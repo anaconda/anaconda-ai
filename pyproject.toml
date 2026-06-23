@@ -129,6 +129,10 @@ module = "botocore.*"
 ignore_missing_imports = true
 module = "ruamel.*"
 
+[[tool.mypy.overrides]]
+ignore_errors = true
+module = "numpy.*"
+
 [tool.pytest.ini_options]
 addopts = [
   "--cov=anaconda_ai",
