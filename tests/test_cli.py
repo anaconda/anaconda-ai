@@ -3,9 +3,8 @@ from typing import Any
 from typing import Protocol
 
 import pytest
-from click.testing import Result
 from pytest import MonkeyPatch
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from anaconda_cli_base.cli import app
 
