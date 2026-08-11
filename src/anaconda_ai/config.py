@@ -98,7 +98,9 @@ class Stage(BaseModel):
 class AnacondaAIConfig(AnacondaBaseSettings, plugin_name="ai"):
     backends: Backends = Field(default_factory=Backends)
     stage: Stage = Field(default_factory=Stage)
-    backend: Literal["ai-catalyst", "ai-navigator", "anaconda-desktop"] = "ai-navigator"
+    backend: Literal["ai-catalyst", "ai-navigator", "anaconda-desktop"] = (
+        "anaconda-desktop"
+    )
     stop_server_on_exit: bool = True
     server_operations_timeout: int = 60
     show_blocked_models: bool = False

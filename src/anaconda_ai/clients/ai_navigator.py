@@ -3,6 +3,7 @@ from time import time, sleep
 from typing import Dict, List, Optional, Any, Union, Generator, Sequence, Set
 from typing_extensions import Self
 from urllib.parse import quote
+from warnings import warn
 
 from pydantic import Field, computed_field, ConfigDict, model_validator, BaseModel
 from rich.console import Console
@@ -433,6 +434,15 @@ class AINavigatorClient(GenericClient):
         app_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
+        warn(
+            "The 'ai-navigator' backend is deprecated. "
+            "Please migrate to 'anaconda-desktop'. "
+            "Download Anaconda Desktop at: "
+            "https://www.anaconda.com/docs/anaconda-desktop/install-desktop",
+            FutureWarning,
+            stacklevel=2,
+        )
+
         ai_kwargs: Dict[str, Any] = {"backends": {"ai_navigator": {}}}
         if app_name is not None:
             ai_kwargs["backends"]["ai_navigator"]["app_name"] = app_name

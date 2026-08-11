@@ -35,7 +35,8 @@ The available backends are
 
 |Backend name|Configuration value|Supports|Default|
 |------------|-------------------|--------|-------|
-|[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEFAULT|
+|[Anaconda Desktop](https://www.anaconda.com/docs/anaconda-desktop/install-desktop)|`"anaconda-desktop"`|Models,Servers,Server Parameters|DEFAULT|
+|[Anaconda AI Navigator](https://www.anaconda.com/products/ai-navigator)|`"ai-navigator"`|Models,Servers,Server Parameters,VectorDB|DEPRECATED|
 |Anaconda AI Catalyst|`"ai-catalyst"`|Models,Servers,Multi-Site||
 
 ## Configuration
@@ -45,7 +46,7 @@ Anaconda AI supports configuration management in the `~/.anaconda/config.toml` f
 
 |Parameter|Environment variable|Description|Default value|
 |---------|--------------------|-----------|-------------|
-|`backend`|`ANACONDA_AI_BACKEND`|The backend API|`"ai-navigator"`|
+|`backend`|`ANACONDA_AI_BACKEND`|The backend API|`"anaconda-desktop"`|
 |`stop_server_on_exit`|`ANACONDA_AI_STOP_SERVER_ON_EXIT`|For any server started during a Python interpreter session stop the server when the interpreter stops. Does not affect servers that were previously running|`true`|
 |`server_operations_timeout`|`ANACONDA_AI_SERVER_OPERATIONS_TIMEOUT`|Timeout waiting for a server to start or stop|`30`|
 |`show_blocked_models`|`ANACONDA_AI_SHOW_BLOCKED_MODELS`|Toggle display of blocked models if backend supports it|`false`|
@@ -107,7 +108,7 @@ client = AnacondaAIClient()
 
 |Argument|Type|Description|Default|
 |---|---|---|---|
-|`backend`|str|The backend to use, see [Backends](#backends)|`"ai-navigator"`|
+|`backend`|str|The backend to use, see [Backends](#backends)|`"anaconda-desktop"`|
 |`stop_server_on_exit`|bool|Stop servers started in this session when the Python interpreter exits|`True`|
 |`server_operations_timeout`|int|Timeout in seconds waiting for a server to start or stop|`30`|
 
@@ -320,7 +321,7 @@ client initialization.
 
 Not all backends support `extra_options=` on server create.
 
-The AI Navigator backend supports [llama-server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
+The Anaconda Desktop backend supports [llama-server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#usage)
 passed as snake-case dictionary keys to `client.servers.create()` with the `extra_options` kwarg.
 To enable flags set the value to `True`.
 

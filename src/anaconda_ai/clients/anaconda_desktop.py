@@ -7,6 +7,7 @@ from ..config import AnacondaAIConfig
 from ..exceptions import ProjectsAPIError, SystemPromptNotFoundError
 from .base import (
     BaseSystemPrompts,
+    BaseVectorDb,
     GenericClient,
     PromptListResponse,
     PromptSummary,
@@ -15,7 +16,6 @@ from .base import (
 from .ai_navigator import (
     AINavigatorModels,
     AINavigatorServers,
-    AINavigatorVectorDbServer,
     AiNavigatorVersion,
 )
 
@@ -33,7 +33,7 @@ def _derive_prompt_name(project_name: str) -> str:
 class AnacondaDesktopSystemPrompts(BaseSystemPrompts):
     """System prompt operations via the Anaconda Platform Collections API.
 
-    Unlike models/servers/vector_db (which reuse AINavigator classes),
+    Unlike models/servers (which reuse AINavigator classes),
     this class talks directly to the cloud Projects API because
     AINavigator does not support system prompts.
 
@@ -152,7 +152,7 @@ class AnacondaDesktopClient(GenericClient):
 
         self.models = AINavigatorModels(self)
         self.servers = AINavigatorServers(self)
-        self.vector_db = AINavigatorVectorDbServer(self)
+        self.vector_db = BaseVectorDb(self)
         # System prompts use the cloud Projects API (not AINavigator's local API),
         # so they need a cloud-authenticated client rather than the desktop one.
         self.system_prompts = AnacondaDesktopSystemPrompts(AuthBaseClient())
