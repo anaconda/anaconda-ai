@@ -83,6 +83,7 @@ raw-options.local_scheme = "no-local-version"
 
 [tool.mypy]
 disallow_untyped_defs = true
+exclude = ["numpy"]
 files = [
   "src/**/*.py",
   "tests/**/*.py"
@@ -131,6 +132,7 @@ module = "ruamel.*"
 
 [[tool.mypy.overrides]]
 follow_imports = "skip"
+follow_imports_for_stubs = true
 module = "numpy.*"
 
 [tool.pytest.ini_options]
