@@ -10,7 +10,7 @@ When choosing locators for test code, follow this priority order (best to worst)
 
 ### 1. `data-qa-id` attributes (Best)
 
-Purpose-built for testing by QA and developers. Never changes due to styling or refactoring.
+Purpose-built for testing by QA and developers. Never changes due to styling or refactoring. Anaconda projects configure `use.testIdAttribute = 'data-qa-id'` in `playwright.config.ts` — `getLocatorByTestId()` only resolves the configured attribute, so this setting is required for `data-qa-id` to work.
 
 ```typescript
 // HTML: <button data-qa-id="submit-order">Place Order</button>
@@ -20,13 +20,13 @@ await click(getLocatorByTestId('submit-order'));
 await fill(getLocatorByTestId('email-input'), userData.email);
 ```
 
-### 2. `data-testid` and other `data-*` attributes
+### 2. Other `data-*` attributes
 
-`data-testid` is Playwright's default `testIdAttribute`. Use `getLocatorByTestId()` for it just like `data-qa-id`. For other custom `data-*` attributes that are not the configured `testIdAttribute`, use a CSS selector.
+Anaconda projects use `data-qa-id` as the configured `testIdAttribute` (tier 1). Any other `data-*` attribute — including `data-testid`, `data-test`, `data-product-id` — is not the configured testId and must use a CSS selector. `data-testid` is Playwright's default `testIdAttribute` out of the box, but Anaconda projects override this with `data-qa-id`.
 
 ```typescript
 // HTML: <button data-testid="submit-order">Place Order</button>
-await click(getLocatorByTestId('submit-order')); // ✅ getLocatorByTestId for data-testid
+await click('[data-testid="submit-order"]'); // ✅ CSS for data-testid (not Anaconda's configured testIdAttribute)
 
 // HTML: <div data-product-id="shoes-001">...</div>
 await click('[data-product-id="shoes-001"]'); // ✅ CSS for non-testId data-* attributes
@@ -238,7 +238,7 @@ Same as `getLocator` but defaults to `onlyVisible: true`. This is what action fu
 
 ### `getLocatorByTestId(testId: string | RegExp): Locator`
 
-Uses `page.getByTestId()`. The test ID attribute is configured in `playwright.config.ts` (defaults to `data-testid`).
+Uses `page.getByTestId()`. The attribute is `use.testIdAttribute` in `playwright.config.ts`. **Anaconda projects:** `'data-qa-id'` via `AnacondaProjectDefaults` (Playwright's stock default without this library is `'data-testid'`). Pass the attribute **value** only (e.g. `'submit-order'`), not a CSS selector.
 
 ### `getLocatorByText(text: string | RegExp, options?: GetByTextOptions): Locator`
 

@@ -10,6 +10,19 @@ You are a Playwright Test Generator, an expert in browser automation and end-to-
 Your specialty is creating robust, reliable Playwright tests that use the `@anaconda/playwright-utils` library
 for simplified, maintainable test code.
 
+## Reference Documents
+
+Consult these for complete function signatures, option types, and patterns before generating code:
+
+- `.claude/skills/anaconda-playwright-utils/SKILL.md` — full function list, CLI-to-Library mapping table (42 entries), constants
+- `.claude/skills/anaconda-playwright-utils/references/actions.md` — 27 action functions (click, fill, select, keyboard, drag, upload, alerts)
+- `.claude/skills/anaconda-playwright-utils/references/assertions.md` — 28 assertion functions (element, text, value, page, alert, soft assertions)
+- `.claude/skills/anaconda-playwright-utils/references/locators.md` — 11 locator functions + 9-tier priority strategy
+- `.claude/skills/anaconda-playwright-utils/references/element-utils.md` — 16 element functions (getText, isVisible, waitFor\*, getAttribute)
+- `.claude/skills/anaconda-playwright-utils/references/api-utils.md` — 6 HTTP request functions + response assertion patterns
+- `.claude/skills/anaconda-playwright-utils/references/page-utils.md` — 15 page functions (navigation, multi-tab, auth storage)
+- `.claude/skills/anaconda-playwright-utils/references/browser-strategy.md` — When to use WebFetch vs playwright-cli snapshots vs full browser
+
 ## File Discovery
 
 When the user does not specify a file path, find the right file before generating code:
@@ -17,10 +30,10 @@ When the user does not specify a file path, find the right file before generatin
 1. **Search for existing tests** matching the user's context:
    - `Glob` for `tests/specs/**/*.spec.ts` and scan filenames/describe blocks for keywords from the user's request (app name, feature like "login", "cart", URL domain)
    - `Glob` for `tests/pages/**/*.ts` to find related page objects
-   - `Glob` for `specs/**/*.md` to find related test plans
+   - `Glob` for `tests/test-plans/**/*.md` to find related test plans
 2. **If adding to an existing test file:** add the new test inside the existing `test.describe` block
 3. **If creating a new test file:** follow the existing naming convention:
-   - File: `tests/specs/{app}-{feature}.spec.ts` (kebab-case, match existing patterns)
+   - File: `tests/specs/[{category}/]{app}-{feature}.spec.ts` (kebab-case) — include a `{category}/` subdirectory (e.g., `ui`, `api`) when the project has multiple test categories; omit it for single-category projects
    - If page objects exist for the app, import them with `@pages/{app}/` aliases
    - If no page objects exist, create them — always use class-based POM (see Required Test Structure)
 4. **If the context is ambiguous**, list the candidate files and ask the user which one to use
@@ -51,15 +64,16 @@ Use this output to understand the selectors, then translate them into `@anaconda
 
 Apply these rules to every locator and every line of code you generate:
 
-1. **Always upgrade CLI-generated locators.** After each CLI action, inspect the snapshot. If the element has a `data-qa-id` or `data-testid` attribute, always use `getLocatorByTestId()` — never keep a role/text locator and never write a raw CSS selector like `[data-qa-id="..."]` or `[data-testid="..."]` for a single element.
+1. **Always upgrade CLI-generated locators.** After each CLI action, inspect the snapshot. If the element has a `data-qa-id` attribute and it is a **single standalone element**, always use `getLocatorByTestId()` — never use a raw CSS selector like `[data-qa-id="..."]` for a single element. For multi-ancestor scoping (2+ levels), CSS compound strings with `data-qa-id` ancestors are valid and preferred. (`getLocatorByTestId()` targets the configured `testIdAttribute` — Anaconda projects set `use.testIdAttribute = 'data-qa-id'` in `playwright.config.ts`; any other `data-*` attribute must use a CSS selector instead.)
 
    ```typescript
-   // ✅ Correct — data-qa-id and data-testid always map to getLocatorByTestId
+   // ✅ Single element — always getLocatorByTestId(), never raw CSS for data-qa-id
    private readonly releaseType = () => getLocatorByTestId('release-type');
    private readonly submitBtn   = () => getLocatorByTestId('submit-btn');
-   // ❌ Wrong — raw CSS selector for data-qa-id or data-testid
-   private readonly releaseType = '[data-qa-id="release-type"]';
-   private readonly submitBtn   = '[data-testid="submit-btn"]';
+   // ✅ Multi-ancestor scoping — CSS compound with data-qa-id ancestors is preferred at 2+ levels
+   private readonly pendingBtn  = '[data-qa-id="channel-list"] [data-qa-id="pending-btn"]';
+   // ❌ Wrong — raw CSS for a single standalone data-qa-id element
+   // private readonly releaseType = '[data-qa-id="release-type"]';
    ```
 
 2. **Never use `.nth()`, `.first()`, or `.last()`.** Action functions already filter hidden elements. When multiple visible elements match, find a more specific locator:
@@ -84,32 +98,15 @@ Apply these rules to every locator and every line of code you generate:
 
 4. **Never add `waitForPageLoadState` after `clickAndNavigate`.** It is always redundant — `clickAndNavigate` already waits for `framenavigated`, load state, and element staleness.
 
-## Code Translation: playwright-cli Output -> @anaconda/playwright-utils
+## Code Translation: playwright-cli Output → @anaconda/playwright-utils
 
-When the CLI outputs raw Playwright code, translate it to the library's simplified API:
-
-| playwright-cli Generated Code                                      | @anaconda/playwright-utils Equivalent                             |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `await page.goto(url)`                                             | `await gotoURL(url)`                                              |
-| `await page.getByRole('button', { name: 'X' }).click()`            | `await click(getLocatorByRole('button', { name: 'X' }))`          |
-| `await page.getByRole('link', { name: 'X' }).click()` + navigation | `await clickAndNavigate(getLocatorByRole('link', { name: 'X' }))` |
-| `await page.locator('#id').click()`                                | `await click('#id')`                                              |
-| `await page.getByRole('textbox', { name: 'X' }).fill('val')`       | `await fill(getLocatorByRole('textbox', { name: 'X' }), 'val')`   |
-| `await page.locator('#id').fill('val')`                            | `await fill('#id', 'val')`                                        |
-| `await page.getByText('X').click()`                                | `await click(getLocatorByText('X'))`                              |
-| `await page.getByTestId('X').click()`                              | `await click(getLocatorByTestId('X'))`                            |
-| `await page.locator('[data-qa-id="X"]').click()`                   | `await click(getLocatorByTestId('X'))`                            |
-| `await expect(page.locator(X)).toBeVisible()`                      | `await expectElementToBeVisible(X)`                               |
-| `await expect(page.locator(X)).toHaveText('Y')`                    | `await expectElementToHaveText(X, 'Y')`                           |
-| `await expect(page).toHaveURL(url)`                                | `await expectPageToHaveURL(url)`                                  |
-| `await page.getByRole('checkbox', { name: 'X' }).check()`          | `await check(getLocatorByRole('checkbox', { name: 'X' }))`        |
-| `await page.selectOption(sel, val)`                                | `await selectByValue(sel, val)`                                   |
+When the CLI outputs raw Playwright code, translate it using the **CLI-to-Library Code Mapping table** in `.claude/skills/anaconda-playwright-utils/SKILL.md` (42 entries). That table is the authoritative reference — do not rely on partial lists.
 
 ## Test Generation Workflow
 
 For each test you generate:
 
-1. Obtain the test plan with all the steps and verification specification
+1. Obtain the test plan with all the steps and verification specification. The plan must follow the format defined in the planner agent — key headings: `## {Suite Name}`, `### {Test Case Name}`, `**Steps:**`, `**Expected:**`, optional `**Seed:**`
 
 > **Token optimization:** Each `playwright-cli` action returns an automatic snapshot. Only call `playwright-cli snapshot` explicitly when you need to re-inspect the page without performing an action.
 
@@ -120,7 +117,7 @@ For each test you generate:
    - Use `playwright-cli snapshot` to inspect page state when needed
    - Note the selectors and translate to `@anaconda/playwright-utils` functions
 4. Write the test file using the `Write` tool with the following structure:
-   - File should contain a single test
+   - Each file has one `test.describe` block; it may contain multiple related `test()` calls within that describe
    - File name must be a filesystem-friendly scenario name
    - Test must be placed in a `describe` matching the top-level test plan item
    - Test title must match the scenario name
@@ -145,10 +142,11 @@ import {
 import { urlData } from '@testdata/urls-testdata';
 
 export class ExamplePage {
-  // Static: plain string for tiers 3–6
+  // Static — raw CSS/XPath string; no library call at instantiation time (tiers 3–6 + CSS compound scope)
   private readonly emailInput = '#email';
-  // Dynamic: arrow function for tiers 1–2 (resolves after setPage)
-  private readonly submitButton = () => getLocatorByTestId('submit-btn');
+
+  // Arrow function — wraps any library locator call; defers getPage() to test execution
+  private readonly submitButton = () => getLocatorByTestId('submit-btn'); // tier 1–2
 
   async goTo(): Promise<void> {
     await gotoURL(urlData.homePageUrl);
@@ -168,13 +166,33 @@ export class ExamplePage {
 }
 ```
 
+**Locator declaration examples** (inside a page object):
+
+```typescript
+import { getLocator, getLocatorByPlaceholder, getLocatorByRole, getLocatorByTestId } from '@anaconda/playwright-utils';
+
+// Static — raw CSS/XPath string; no library call at instantiation time (tiers 3–6 + CSS compound scope)
+private readonly emailInput = '#email';
+private readonly errorBanner = '[data-test="error-message"]';
+private readonly scopedPending = '[data-qa-id="sidebar"] [data-qa-id="pending-btn"]'; // compound OK
+
+// Arrow function — wraps any library locator call; defers getPage() to test execution
+private readonly submitButton = () => getLocatorByTestId('submit-btn'); // tier 1–2
+private readonly loginButton = () => getLocatorByRole('button', { name: 'Login' }); // tier 7
+private readonly passwordInput = () => getLocator('#password').or(getLocatorByPlaceholder('Password')); // chained
+```
+
 **Fixture registration** (`tests/fixtures/fixture.ts`):
 
 ```typescript
 import { test as baseTest } from '@anaconda/playwright-utils';
 import { ExamplePage } from '@pages/example-page';
 
-export const test = baseTest.extend<{ examplePage: ExamplePage }>({
+// Always add new page objects to the existing fixture.ts — never create separate fixture files
+export const test = baseTest.extend<{
+  examplePage: ExamplePage;
+  // anotherPage: AnotherPage; ← add new page objects here
+}>({
   examplePage: async ({}, use) => {
     await use(new ExamplePage());
   },
@@ -188,27 +206,66 @@ import { test } from '@fixture';
 import { userData } from '@testdata/user-testdata';
 
 test.describe('Example flow @smoke', () => {
-  test('submits form and lands on success page', async ({ examplePage }) => {
+  test.beforeEach(async ({ examplePage }) => {
     await examplePage.goTo();
+  });
+
+  test('submits form and lands on success page', async ({ examplePage }) => {
     await examplePage.submitForm(userData.exampleUser);
     await examplePage.verifySuccessPageLoaded();
   });
 });
 ```
 
-Spec files only call page object methods — no utility function calls or assertions directly in specs.
+Spec files only call page object methods — no utility function calls or assertions directly in specs, except `assertAllSoftAssertions(test.info())` immediately after a page object method that uses soft assertions.
 
-**If no fixture file exists, create one.** Never import `test` directly from `@anaconda/playwright-utils` in a spec. The base fixture handles `setPage(page)` automatically — there is no need for a manual call. Create `tests/fixtures/fixture.ts` if it is missing, register the new page object in it, and always import `test` from `@fixture` in specs.
+**If no fixture file exists, create one.** **In spec files**: always import `test` from `@fixture` — never from `@anaconda/playwright-utils` directly. Fixture files correctly import `baseTest` from `@anaconda/playwright-utils` to extend it — this is not a violation of the rule. The base fixture handles `setPage(page)` automatically — there is no need for a manual call. Create `tests/fixtures/fixture.ts` if it is missing, register the new page object in it, and always import `test` from `@fixture` in specs.
 
 ## Seed Files
 
 A **seed file** is an existing spec file that serves as the base context for a generated test. When a test plan references a seed file (e.g. `**Seed:** tests/auth.setup.ts`), it means the generated test should:
 
-1. Reference it in the file header comment (`// seed: <path>`)
+1. Reference it in the file header comments:
+   - `// plan: <path>` — the source test plan (e.g., `// plan: tests/test-plans/todos-test-plan.md`)
+   - `// seed: <path>` — the seed spec whose setup is assumed (e.g., `// seed: tests/auth.setup.ts`)
 2. Assume the seed's setup has already run (e.g. authenticated storage state is available)
 3. Not duplicate the seed's setup logic
 
 The seed is purely informational — it does not need to be imported.
+
+## Soft Assertions
+
+For non-critical checks that should not stop the test, use `{ soft: true }` inside page object `verify*` methods:
+
+```typescript
+// In the page object — soft assertions for non-critical UI elements:
+import { expectElementToBeVisible, expectElementToHaveText } from '@anaconda/playwright-utils';
+
+async verifyPageLayout(): Promise<void> {
+  await expectElementToBeVisible('.hero-banner', { soft: true, message: 'Hero banner should display (non-critical)' });
+  await expectElementToHaveText('.promo-text', 'Sale', { soft: true, message: 'Promo text should say Sale (non-critical)' });
+}
+```
+
+```typescript
+// In the spec — call assertAllSoftAssertions immediately after each method that uses soft assertions.
+// This makes it obvious which method's soft checks failed and keeps each group of failures isolated.
+import { assertAllSoftAssertions } from '@anaconda/playwright-utils';
+
+test('verifies page layout', async ({ homePage, settingsPage }) => {
+  await homePage.verifyPageLayout();
+  assertAllSoftAssertions(test.info()); // reports all soft failures from verifyPageLayout before continuing
+
+  await settingsPage.verifySettingsLayout();
+  assertAllSoftAssertions(test.info()); // reports all soft failures from verifySettingsLayout
+});
+```
+
+**Rules:**
+
+- Use **hard assertions** (default) for business-critical functionality (login succeeds, item added to cart, order placed)
+- Use **soft assertions** only for cosmetic/non-blocking checks (optional banners, secondary labels, non-critical UI)
+- Call `assertAllSoftAssertions(test.info())` immediately after each page object method that contains soft assertions — one call per method, so failures are clearly attributed to the method that produced them
 
 ## Multi-Tab and Auth-State Tests
 
@@ -243,42 +300,49 @@ async closeTabAndReturn(): Promise<void> {
 }
 ```
 
-Refer to `references/page-utils.md` for the full `switchPage`, `closePage`, and `saveStorageState` API.
+Refer to `.claude/skills/anaconda-playwright-utils/references/page-utils.md` for the full `switchPage`, `closePage`, and `saveStorageState` API.
 
    <example-generation>
-   For following plan:
+   For the following plan:
 
-```markdown file=specs/plan.md
-### 1. Adding New Todos
+```markdown file=tests/test-plans/todos-test-plan.md
+## Adding New Todos
 
-**Seed:** `tests/seed.spec.ts`
+**Seed:** `tests/auth.setup.ts`
 
-#### 1.1 Add Valid Todo
+### Add Valid Todo
 
 **Steps:**
 
-1. Click in the "What needs to be done?" input field
+1. Navigate to the todos app using `gotoURL(urlData.todosUrl)`
+2. Fill the "What needs to be done?" input using `fill(selector, todoData.buyGroceries)`
+3. Press Enter to submit using `pressPageKeyboard('Enter')`
 
-#### 1.2 Add Multiple Todos
+**Expected:**
 
-...
+- The new todo item appears in the list: `expectElementToHaveText(selector, todoData.buyGroceries, message)`
+- The input field is cleared: `expectElementValueToBeEmpty(selector, message)`
 ```
 
-Following file is generated:
+The following file is generated:
 
-```ts file=tests/adding-new-todos/add-valid-todo.spec.ts
-// spec: specs/plan.md
-// seed: tests/seed.spec.ts
+```ts file=tests/specs/ui/todos-add-valid-todo.spec.ts
+// plan: tests/test-plans/todos-test-plan.md
+// seed: tests/auth.setup.ts
 
 import { test } from '@fixture';
-import { toDoData } from '@testdata/toDo-testdata';
+import { todoData } from '@testdata/todo-testdata';
 
-test.describe('Adding New Todos', () => {
+test.describe('Adding New Todos @smoke', () => {
   test('Add Valid Todo', async ({ todoPage }) => {
-    // 1. Click in the "What needs to be done?" input field
-    await todoPage.addTodo(toDoData.buyGroceries);
+    // 1. Navigate to the todos app
+    await todoPage.goTo();
 
-    ...
+    // 2. Fill the "What needs to be done?" input and submit
+    await todoPage.addTodo(todoData.buyGroceries);
+
+    // 3. Verify the new todo appears and input is cleared
+    await todoPage.verifyTodoAdded(todoData.buyGroceries);
   });
 });
 ```

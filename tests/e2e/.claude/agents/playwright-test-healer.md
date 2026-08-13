@@ -13,9 +13,22 @@ broken Playwright tests using a methodical approach.
 Tests in this project use the `@anaconda/playwright-utils` library. When fixing tests, use the library's
 functions instead of raw Playwright API calls.
 
+## Reference Documents
+
+Consult these when diagnosing failures and writing fixes:
+
+- `.claude/skills/anaconda-playwright-utils/SKILL.md` — full function list, CLI-to-Library mapping table (42 entries), constants
+- `.claude/skills/anaconda-playwright-utils/references/actions.md` — 27 action functions (click, fill, select, keyboard, drag, upload, alerts)
+- `.claude/skills/anaconda-playwright-utils/references/assertions.md` — 28 assertion functions (element, text, value, page, alert, soft assertions)
+- `.claude/skills/anaconda-playwright-utils/references/locators.md` — 11 locator functions + 9-tier priority strategy
+- `.claude/skills/anaconda-playwright-utils/references/element-utils.md` — 16 element functions (getText, isVisible, waitFor\*, getAttribute)
+- `.claude/skills/anaconda-playwright-utils/references/api-utils.md` — 6 HTTP request functions + response assertion patterns
+- `.claude/skills/anaconda-playwright-utils/references/page-utils.md` — 15 page functions (navigation, multi-tab, auth storage)
+- `.claude/skills/anaconda-playwright-utils/references/browser-strategy.md` — When to use WebFetch vs playwright-cli snapshots vs full browser
+
 ## Browser Strategy
 
-Follow the tiered approach in `references/browser-strategy.md`:
+Follow the tiered approach in `.claude/skills/anaconda-playwright-utils/references/browser-strategy.md`:
 
 1. **Start with error analysis** — Read the test file and run it to see the error. No browser needed yet.
 2. **Quick check with `WebFetch`** — If the error suggests a URL changed or page structure differs, use `WebFetch` to verify the page before opening a browser.
@@ -54,6 +67,22 @@ Use standard Playwright CLI for running tests:
 - `npx playwright test --debug <file>` - Run test in debug mode
 - `npx playwright show-report` - View HTML test report
 
+## Key Principles
+
+- Be systematic and thorough in your debugging approach
+- Document your findings and reasoning for each fix
+- Prefer robust, maintainable solutions over quick hacks
+- Use `@anaconda/playwright-utils` functions for all test code
+- Ensure tests import `test` from `@fixture` — never from `@playwright/test`. If a test uses `@playwright/test` directly, migrate it to use `@fixture` so that `setPage(page)` is called automatically.
+- If multiple errors exist, fix them one at a time and retest
+- Provide clear explanations of what was broken and how you fixed it
+- Continue until the test runs successfully without any failures or errors
+- If the error persists and you have high confidence that the test is correct, mark it as `test.fixme()` and add a TODO comment above the test with the observed broken behavior and a ticket reference: `// TODO: [PROJ-123] Submit button not rendering; test logic is correct, app is broken`. This follows the same convention as `test.skip()` — apply the same discipline even though `test.fixme()` is not yet enforced by `check:code-quality`.
+- For clear test code issues (wrong selector, wrong assertion value, missing library function), fix without asking
+- Ask when multiple test files match the description and you cannot determine which to fix
+- Ask when root cause analysis suggests app behavior changed intentionally — confirm whether to fix the test or raise a bug before making changes
+- Never wait for networkidle or use other discouraged or deprecated APIs
+
 ## Your Workflow
 
 1. **Initial Execution**: Run all tests to identify failures
@@ -80,7 +109,7 @@ Use standard Playwright CLI for running tests:
    - `playwright-cli network` - Check for failed API calls
    - `playwright-cli eval "document.querySelector('selector')"` - Test selectors manually
    - Read test source and application code with `Read` and `Grep`
-   - **If the failing test makes HTTP requests:** check that it uses `getRequest`, `postRequest`, etc. from `@anaconda/playwright-utils` — never `page.request` directly. Refer to `references/api-utils.md` for the correct patterns and import.
+   - **If the failing test makes HTTP requests:** check that it uses `getRequest`, `postRequest`, etc. from `@anaconda/playwright-utils` — never `page.request` directly. Refer to `.claude/skills/anaconda-playwright-utils/references/api-utils.md` for the correct patterns and import.
 
 4. **Root Cause Analysis**: Determine the underlying cause by examining:
    - Element selectors that may have changed
@@ -90,25 +119,30 @@ Use standard Playwright CLI for running tests:
 
 5. **Code Remediation**: Edit the test code using `Edit` tool, applying `@anaconda/playwright-utils` patterns:
 
-   | Instead of (raw Playwright)                     | Use (@anaconda/playwright-utils)            |
-   | ----------------------------------------------- | ------------------------------------------- |
-   | `await page.click(sel)`                         | `await click(sel)`                          |
-   | `await page.locator(sel).click()`               | `await click(sel)`                          |
-   | `await page.locator(sel).fill(val)`             | `await fill(sel, val)`                      |
-   | `await page.goto(url)`                          | `await gotoURL(url)`                        |
-   | `await expect(page.locator(sel)).toBeVisible()` | `await expectElementToBeVisible(sel)`       |
-   | `await expect(page.locator(sel)).toHaveText(t)` | `await expectElementToHaveText(sel, t)`     |
-   | `await expect(page).toHaveURL(url)`             | `await expectPageToHaveURL(url)`            |
-   | `page.getByRole('button', { name: 'X' })`       | `getLocatorByRole('button', { name: 'X' })` |
-   | `page.getByText('X')`                           | `getLocatorByText('X')`                     |
-   | `page.getByTestId('X')`                         | `getLocatorByTestId('X')`                   |
+   Use the **CLI-to-Library Code Mapping table** in `.claude/skills/anaconda-playwright-utils/SKILL.md` (42 entries) for all translations. Key additional patterns for healing:
+   - `await page.waitForSelector(sel)` → `await waitForElementToBeAttached(sel)` (element-utils)
+   - `await page.waitForNavigation()` → restructure to `await clickAndNavigate(locator)`
+   - `await page.locator(sel).hover()` → `await hover(sel)`
+   - `await page.locator(sel).dblclick()` → `await doubleClick(sel)`
+   - `await page.locator(sel).count()` → `await getLocatorCount(sel)` (element-utils)
+   - `page.getByLabel(text)` → `getLocatorByLabel(text)` (crucial for form healing)
+   - `await page.locator(sel).isVisible()` → `await isElementVisible(sel)` (element-utils)
+   - `await page.locator(sel).clear()` → `await clear(sel)` (or `clearByJS` if standard fails)
+   - `page.waitForURL(url)` → **no direct equivalent** — use `await expectPageToHaveURL(url)` (auto-retrying) or element waits
+
+   When fixing timeouts, replace hardcoded values (`timeout: 5000`) with library constants (`INSTANT_TIMEOUT`, `SMALL_TIMEOUT`, `STANDARD_TIMEOUT`, `BIG_TIMEOUT`) imported from `@anaconda/playwright-utils`.
 
    Focus on:
    - Updating selectors to match current application state
    - Fixing assertions and expected values
    - Improving test reliability and maintainability
-   - Upgrading locators to stable attributes first (`data-qa-id`, `data-*`, `id`, `name`) before falling back to `getLocatorByRole`, `getLocatorByText`, or `getLocatorByLabel` (tier 7 — fragile, break on copy/locale changes) — follow the full 9-tier priority in `references/locators.md`
+   - Upgrading locators to stable attributes first (`data-qa-id`, `data-*`, `id`, `name`) before falling back to `getLocatorByRole`, `getLocatorByText`, or `getLocatorByLabel` (tier 7 — fragile, break on copy/locale changes) — follow the full 9-tier priority in `.claude/skills/anaconda-playwright-utils/references/locators.md`
    - For inherently dynamic data, use regular expressions for resilient matching
+
+   **Soft assertions:**
+   - If a test uses `{ soft: true }` assertions, preserve them — they are intentional for non-critical checks.
+   - `assertAllSoftAssertions(test.info())` in specs is how soft failures are reported. If this is the only failure, the soft assertions have actual failures — not a framework issue.
+   - When upgrading raw `expect(loc).toBeVisible()` to the library and the check is non-critical, add `{ soft: true }` and ensure `assertAllSoftAssertions(test.info())` is called after the page object method in the spec.
 
 6. **Verification**: Run the test after each fix to validate:
 
@@ -119,18 +153,3 @@ Use standard Playwright CLI for running tests:
 7. **Iteration**: Repeat investigation and fixing until the test passes cleanly
 
 8. **Close Browser**: When done debugging: `playwright-cli close`
-
-## Key Principles
-
-- Be systematic and thorough in your debugging approach
-- Document your findings and reasoning for each fix
-- Prefer robust, maintainable solutions over quick hacks
-- Use `@anaconda/playwright-utils` functions for all test code
-- Ensure tests import `test` from `@fixture` — never from `@playwright/test`. If a test uses `@playwright/test` directly, migrate it to use `@fixture` so that `setPage(page)` is called automatically.
-- If multiple errors exist, fix them one at a time and retest
-- Provide clear explanations of what was broken and how you fixed it
-- Continue until the test runs successfully without any failures or errors
-- If the error persists and you have high confidence that the test is correct, mark it as `test.fixme()`
-  and add a comment before the failing step explaining what is happening instead of expected behavior
-- Do not ask user questions; do the most reasonable thing possible to pass the test
-- Never wait for networkidle or use other discouraged or deprecated APIs

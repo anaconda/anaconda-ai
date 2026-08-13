@@ -46,10 +46,10 @@ test.describe('Checkout flow @smoke', () => {
 
 ```typescript
 // tests/pages/sauce-demo-products-page.ts
-import { expectElementToBeVisible, expectElementToBeHidden } from '@anaconda/playwright-utils';
+import { SMALL_TIMEOUT, expectElementToBeVisible, expectElementToBeHidden } from '@anaconda/playwright-utils';
 
 export class SauceDemoProductsPage {
-  private readonly productsContainer = '#inventory_container';
+  private readonly productsContainer = '[data-test="inventory-container"]';
 
   async verifyProductsPageIsDisplayed(): Promise<void> {
     await expectElementToBeVisible(this.productsContainer, {
@@ -324,11 +324,12 @@ test.describe('Dashboard @smoke', () => {
 
 ```typescript
 import { expect, getRequest, postRequest } from '@anaconda/playwright-utils';
-import { BASE_URL } from 'playwright.config';
 
 export class UserAPIVerifier {
+  private readonly baseURL = process.env.API_BASE_URL ?? 'https://api.example.com';
+
   async verifyUserExists(userId: number) {
-    const response = await getRequest(`${BASe_URL}/users/${userId}`);
+    const response = await getRequest(`${this.baseURL}/users/${userId}`);
     await expect(response).toBeOK();
 
     const user = await response.json();

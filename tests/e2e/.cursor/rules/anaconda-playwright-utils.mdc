@@ -1,6 +1,6 @@
 ---
-description: Use @anaconda/playwright-utils for Playwright tests. Follow locator strategy (data-qa-id, data-testid, role, label). Use with playwright-cli to verify flows.
-globs: ["**/*.spec.ts", "**/*.test.ts", "tests/**"]
+description: Use @anaconda/playwright-utils for Playwright tests. Follow locator strategy (data-qa-id, stable data attributes, role, label). Use with playwright-cli to verify flows.
+globs: ['**/*.spec.ts', '**/*.test.ts', 'tests/**']
 ---
 
 # @anaconda/playwright-utils
@@ -16,40 +16,43 @@ Playwright TypeScript utility library with simplified helper functions for brows
 
 ## Locator Priority (9 tiers, best → worst)
 
-| Tier | Type | Example |
-|------|------|---------|
-| 1 | `data-qa-id` | `getLocatorByTestId('submit-btn')` — **never** raw CSS `[data-qa-id="..."]` for a single element |
-| 2 | `data-testid` (configured testIdAttribute) | `getLocatorByTestId('submit')` — CSS only for other `data-*` like `[data-product-id="..."]` |
-| 3 | `id` | `'#username'` |
-| 4 | `name` | `'[name="email"]'` |
-| 5 | XPath with stable attrs | `'//button[@aria-label="Close"]'` |
-| 6 | CSS with stable attrs | `'button[aria-label="Close"]'` |
-| 7 | Playwright built-ins | `getLocatorByRole(...)`, `getLocatorByText(...)` — only when no stable attr exists |
-| 8–9 | Structural XPath/CSS | Last resort — fragile |
+| Tier | Type                                      | Example                                                                                          |
+| ---- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1    | `data-qa-id` (configured testIdAttribute) | `getLocatorByTestId('submit-btn')` — **never** raw CSS `[data-qa-id="..."]` for a single element |
+| 2    | Other `data-*` attributes                 | CSS selector like `[data-testid="submit"]` or `[data-product-id="..."]`                          |
+| 3    | `id`                                      | `'#username'`                                                                                    |
+| 4    | `name`                                    | `'[name="email"]'`                                                                               |
+| 5    | XPath with stable attrs                   | `'//button[@aria-label="Close"]'`                                                                |
+| 6    | CSS with stable attrs                     | `'button[aria-label="Close"]'`                                                                   |
+| 7    | Playwright built-ins                      | `getLocatorByRole(...)`, `getLocatorByText(...)` — only when no stable attr exists               |
+| 8–9  | Structural XPath/CSS                      | Last resort — fragile                                                                            |
 
 Full strategy and field conventions: @file .claude/skills/anaconda-playwright-utils/references/locators.md
 
 ## Anti-patterns — never do these
 
 **❌ Keep a role/text locator when the snapshot shows a stable attribute**
+
 ```typescript
 // Snapshot shows data-qa-id="sign-in-link" → upgrade, do not keep CLI output
 private readonly signIn = () => getLocatorByRole('link', { name: 'Sign In' }); // ❌
 private readonly signIn = () => getLocatorByTestId('sign-in-link');             // ✅
 ```
 
-**❌ Use raw CSS for a single `data-qa-id` or `data-testid` element**
+**❌ Use raw CSS for a single `data-qa-id` element**
+
 ```typescript
 private readonly releaseType = '[data-qa-id="release-type"]';   // ❌
-private readonly submitBtn   = '[data-testid="submit-btn"]';    // ❌
-// ✅ Always use getLocatorByTestId for the configured testIdAttribute
+// ✅ Always use getLocatorByTestId for data-qa-id, the configured testIdAttribute
 private readonly releaseType = () => getLocatorByTestId('release-type'); // ✅
-private readonly submitBtn   = () => getLocatorByTestId('submit-btn');   // ✅
+// ✅ data-testid is not the configured testIdAttribute — use CSS for non-configured data-* attributes
+private readonly submitBtn = '[data-testid="submit-btn"]'; // ✅
 ```
 
 **❌ Use `.nth()` / `.first()` / `.last()` when multiple elements match**
 
 Action functions already filter hidden elements — if multiple visible elements match, find a more specific locator using ancestor scoping:
+
 ```typescript
 private readonly pendingBtn = () => getLocatorByText('Pending').first(); // ❌
 
@@ -61,26 +64,32 @@ private readonly pendingBtn = '[data-qa-id="channel-list"] [data-qa-id="pending-
 ```
 
 **❌ Omit error messages from assertions**
+
 ```typescript
-await expectElementToBeVisible(this.header());                                          // ❌
-await expectElementToBeVisible(this.header(), 'Header should be visible after login');  // ✅
+await expectElementToBeVisible(this.header()); // ❌
+await expectElementToBeVisible(this.header(), 'Header should be visible after login'); // ✅
 ```
+
 Every assertion function accepts a descriptive message as its last argument. Always include it.
 
 **❌ Add `waitForPageLoadState` after `clickAndNavigate`**
+
 ```typescript
 await clickAndNavigate(this.loginButton());
 await waitForPageLoadState({ waitUntil: 'load' }); // ❌ redundant — already done internally
 ```
+
 `clickAndNavigate` already waits for `framenavigated`, load state, and element staleness.
 
 **❌ Use `console.log()` in any test file**
+
 ```typescript
-console.log('user logged in');  // ❌ never in page objects or specs
-logger.info('user logged in');  // ✅ use logger from @anaconda/playwright-utils in page objects only
+console.log('user logged in'); // ❌ never in page objects or specs
+logger.info('user logged in'); // ✅ use logger from @anaconda/playwright-utils in page objects only
 ```
 
 **❌ Put assertions directly in spec files**
+
 ```typescript
 // ❌ — assertions belong in page object verify* methods
 test('should show dashboard', async ({ page }) => {
@@ -93,6 +102,7 @@ test('should show dashboard', async ({ dashboardPage }) => {
 ```
 
 **❌ Put test data inline in spec files**
+
 ```typescript
 // ❌ inline test data
 await userAPI.createUser({ name: 'John', email: 'john@example.com' });

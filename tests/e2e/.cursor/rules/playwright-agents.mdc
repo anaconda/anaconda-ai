@@ -1,6 +1,6 @@
 ---
 description: Playwright test agent workflows for planning, generating, and healing tests
-globs: ["**/*.spec.ts", "**/*.test.ts", "specs/**", "tests/**"]
+globs: ["**/*.spec.ts", "**/*.test.ts", "tests/test-plans/**", "tests/**"]
 ---
 
 # Playwright Test Agent Workflows
@@ -19,7 +19,7 @@ When working on Playwright tests you **must**:
 
 ## Agents
 
-1. **Test Planner** - Explores a web app and creates a comprehensive test plan in `specs/`
+1. **Test Planner** - Explores a web app and creates a comprehensive test plan in `tests/test-plans/`
 2. **Test Generator** - Executes test plan steps in the browser and generates test files using `@anaconda/playwright-utils`
 3. **Test Healer** - Debugs and fixes failing Playwright tests
 
