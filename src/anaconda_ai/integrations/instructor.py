@@ -122,4 +122,4 @@ def from_provider(
         )
 
 
-instructor.from_provider = from_provider
+instructor.from_provider = from_provider  # type: ignore[assignment]

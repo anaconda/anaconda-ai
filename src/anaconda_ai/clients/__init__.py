@@ -42,8 +42,10 @@ class AnacondaAIClient(GenericClient):
         server_operations_timeout: Optional[int] = None,
         **kwargs: Any,
     ):
+        resolved_backend = backend or AnacondaAIConfig().backend
+
         try:
-            self.__class__ = clients[backend or AnacondaAIConfig().backend]
+            self.__class__ = clients[resolved_backend]
         except KeyError:
             raise UnknownBackendError(f"There is no known backend called {backend}")
 
