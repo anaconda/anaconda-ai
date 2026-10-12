@@ -213,9 +213,26 @@ class AICatalystModels(BaseModels):
 
     @lru_cache
     def list(self) -> List[AICatalystModel]:
-        response = self.client.get("/api/ai/model/org/models/model-data")
-        response.raise_for_status()
-        data = response.json()["result"]["data"]
+        # AISAGE-381: `/org/models/model-data` is self-hosted-only and is being
+        # removed. Use the shared `GET /models` v3 endpoint instead, pinning the
+        # model-catalog API version per-request (same pattern as
+        # `download_collection` below). Unlike model-data, `/models` v3
+        # paginates (default 100, max 1000), so page through until exhausted.
+        data: List[Dict[str, Any]] = []
+        limit = 1000
+        offset = 0
+        while True:
+            response = self.client.get(
+                "/api/ai/model/models",
+                params={"limit": limit, "offset": offset},
+                headers={"X-Anaconda-Api-Version": "3"},
+            )
+            response.raise_for_status()
+            page = response.json()["result"]["data"]
+            data.extend(page)
+            if len(page) < limit:
+                break
+            offset += limit
 
         models = []
         for model in data:
